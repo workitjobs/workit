@@ -78,7 +78,7 @@ def version(binary: Path | None, system: str = sys.platform,
             return None
         return max(named, key=lambda name: tuple(map(int, name.split("."))), default=None)
     try:
-        said = run([str(binary), "--version"], capture_output=True, text=True, timeout=10, check=False).stdout
+        said = run([str(binary), "--version"], capture_output=True, text=True, timeout=10, check=False, encoding="utf-8").stdout
     except (OSError, subprocess.SubprocessError):
         return None
     found = VERSION.search(said or "")

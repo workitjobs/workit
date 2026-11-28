@@ -302,6 +302,8 @@ class SavedAnswer(BaseModel):
     answer: str | list[str]
     own: bool
     none: bool | None = None
+    # The list a pick of the student's own came from: it answers only a form offering just these (BankEntry.options).
+    options: list[str] | None = None
 
 
 BankQuestion = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=LABEL_MAX)]
@@ -329,6 +331,10 @@ class BankEntry(BaseModel):
     review: bool = False
     # a pick from the form's options (a single choice's answer is a string): the rule reads its question alone
     choice: bool = False
+    # The list the student's own pick came from, kept with it (Freeform, 2026-11-26: a 3.85 picked on a GPA list in
+    # steps of 0.05): the Fill engine then gives it only to a form offering just these options (its fromThisList).
+    # Left out, the entry keeps the options it holds, so an edit of the answer keeps its list; [] drops them.
+    options: list[BankPick] | None = Field(default=None, max_length=200)
     job_id: uuid.UUID | None = None
     company: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] | None = None
 

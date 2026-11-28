@@ -54,9 +54,9 @@ CF_INT, CF_DOUBLE, UTF8 = 9, 6, 0x08000100
 
 def front_pid() -> int | None:
     """The pid of the front app."""
-    asn = subprocess.run(["lsappinfo", "front"], capture_output=True, text=True, check=False).stdout.strip()
+    asn = subprocess.run(["lsappinfo", "front"], capture_output=True, text=True, check=False, encoding="utf-8").stdout.strip()
     found = subprocess.run(["lsappinfo", "info", "-only", "pid", asn], capture_output=True, text=True,
-                           check=False).stdout.strip()
+                           check=False, encoding="utf-8").stdout.strip()
     try:
         return int(found.rsplit("=", 1)[1])
     except (IndexError, ValueError):
@@ -160,7 +160,7 @@ def pointed() -> int | None:
 def bring_forward(pid: int) -> bool:
     """Make the app with `pid` the front app again."""
     script = f'tell application "System Events" to set frontmost of (first process whose unix id is {pid}) to true'
-    return subprocess.run(["osascript", "-e", script], capture_output=True, text=True, check=False).returncode == 0
+    return subprocess.run(["osascript", "-e", script], capture_output=True, text=True, check=False, encoding="utf-8").returncode == 0
 
 
 class FocusKeeper:

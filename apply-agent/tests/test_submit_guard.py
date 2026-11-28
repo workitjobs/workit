@@ -1355,6 +1355,77 @@ def test_a_button_named_as_an_add_button_that_sends_is_never_pressed():
     assert _employment_step(press) == []
 
 
+# SmartRecruiters' application (NBCUniversal's, live 2026-11-27): an "Add" in Experience and one in Education. Claude
+# names the work section's "Add"; plain code tells it apart by its section's heading.
+TWO_ADDS = """<form><section><h3>Experience</h3><div id="jobs"><input aria-label="Title"></div>
+<button type="button" onclick="document.getElementById('jobs').insertAdjacentHTML('beforeend', '<input name=job2>')">Add</button></section>
+<fieldset><legend>Education</legend><div id="schools"><input aria-label="Institution"></div>
+<button type="button" onclick="document.getElementById('schools').insertAdjacentHTML('beforeend', '<input name=school2>')">Add</button></fieldset>
+<button type="submit">Submit</button></form>"""
+
+
+def _two_adds(press):
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(TWO_ADDS)
+        try:
+            press(page)
+            return page.locator("[name=job2]").count(), page.locator("[name=school2]").count()
+        finally:
+            browser.close()
+
+
+def test_of_two_add_buttons_plain_code_presses_the_work_sections():
+    assert _two_adds(lambda page: steps.press_step(page, None, "Add", add=True, section="Work Experience")) == (1, 0)
+
+
+def test_of_two_add_buttons_none_of_the_sections_heading_is_a_handoff():
+    from apply.model import Handoff
+
+    def press(page):
+        for section in ("", "Volunteering"):
+            with pytest.raises(Handoff, match="2 buttons named 'Add'"):
+                steps.press_step(page, None, "Add", add=True, section=section)
+
+    assert _two_adds(press) == (0, 0)
+
+
+# SmartRecruiters' own markup (Wellmark's, live 2026-11-27): each "Add" is an spl-button's button, in its open shadow
+# root, the host named "Add experience entry"; the section's title is no heading, and the entry's fields come in
+# spl-inputs, each holding its input in a shadow root too.
+SHADOW_ADDS = """<x-section id="jobs"><span>Experience</span>
+<x-button aria-label="Add experience entry" onclick="add('jobs', 'job2')"><span>Add</span></x-button></x-section>
+<x-section id="schools"><span>Education</span>
+<x-button aria-label="Add education entry" onclick="add('schools', 'school2')"><span>Add</span></x-button></x-section>
+<script>
+for (const b of document.querySelectorAll('x-button')) b.attachShadow({mode: 'open'}).innerHTML = '<div><button type="button"><slot></slot></button></div>';
+function add(section, name) {
+  const input = document.createElement('x-input');
+  input.attachShadow({mode: 'open'}).innerHTML = `<input name="${name}">`;
+  document.getElementById(section).append(input);
+}
+</script>"""
+
+
+def test_of_two_add_buttons_in_shadow_roots_plain_code_presses_the_work_sections():
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(SHADOW_ADDS)
+        try:
+            steps.press_step(page, None, "Add", add=True, section="Work Experience")
+            assert (page.locator("[name=job2]").count(), page.locator("[name=school2]").count()) == (1, 0)
+            steps.press_step(page, None, "Add", add=True, section="Education")
+            assert page.locator("[name=school2]").count() == 1
+        finally:
+            browser.close()
+
+
 # TAL.net's posting page (Bank of America's campus careers, live 2026-11-06, KAN-725): its Apply button is a submit
 # input in a POST form of its token alone, bound for .../opp/<id>/apply/<lang>, which opens the application. The
 # guard took it for a form's Apply that sends, and the rehearsal handed off with no field filled.

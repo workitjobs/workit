@@ -59,7 +59,7 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         "matches": [],  # Find jobs, where the page opens (KAN-882): a list, as Bridge.matches answers
         "usage": {"used": 72000, "cap": 80000, "resets_at": "2026-11-16T00:00:00Z"},
         "status": {"running": False, "said": ""},
-        "settings_state": {"workers": 3, "notices": True, "claude": {
+        "settings_state": {"workers": 3, "automatic": 2, "notices": True, "claude": {
             "best": True, "login": "your setup token in Keychain", "dropped": "Opus paused: near the 5-hour limit."}},
         "review_report": {"parts": ["Your words"]},
         "send_report": {"said": "Sent. WorkIt keeps your report until its problem is fixed, then deletes it."},
@@ -95,6 +95,8 @@ def test_the_apps_own_pages_run_without_a_script_error(monkeypatch):
         assert queue.evaluate(sent, "not the token") == 403
         assert queue.evaluate(f"({sent})(window.APPLY_TOKEN)") != 403
         settings.wait_for_function("document.getElementById('workers').value === '3'", timeout=5000)
+        assert settings.inner_text("#workers-auto") == "Automatic (2 for this Mac)"
+        assert settings.locator("#workers option").all_inner_texts()[1:] == ["1", "2", "3", "4"]  # four by choice
         assert settings.is_visible("#notices") and not settings.is_visible("#remove-confirm")
         assert settings.is_checked("#best")
         assert settings.inner_text("#claude-login") == "Claude signs in with your setup token in Keychain."
@@ -197,3 +199,35 @@ def test_a_logo_that_fails_to_load_falls_back_to_the_next_source_then_to_initial
         beta = page.locator("label", has_text="Analyst")
         assert beta.locator("span[aria-hidden]").inner_text() == "B"
         browser.close()
+
+
+def test_open_cover_letter_on_a_flagged_held_form_opens_the_pdf_it_was_given(tmp_path, monkeypatch):
+    """Fault: a Check card flags the cover letter WorkIt wrote ("names Rippling, another company") with no way to read
+    the very PDF the form was sent, or its button opens another file or none."""
+    from apply import dashboard
+
+    monkeypatch.setattr(dashboard, "ThreadingHTTPServer", None)
+    resume, letter = tmp_path / "Resume.pdf", tmp_path / "Cover_Letter.pdf"
+    resume.write_bytes(b"%PDF-1.4 resume")
+    letter.write_bytes(b"%PDF-1.4 letter")
+    opened, errors = [], []
+    with Dashboard(1, OneFrame(), serve=False) as board, sync_playwright() as playwright:
+        board.update(0, company="ENFOS", role="Intern", status="held", posting_url="https://jobs.lever.co/enfos/1",
+                     files=[{"label": "Resume", "name": resume.name, "path": str(resume)},
+                            {"label": "Cover Letter", "name": letter.name, "path": str(letter)}],
+                     verification={"state": "flagged", "flags": [
+                         {"field": "Cover Letter", "why": "names Rippling, another company", "holds": True}]})
+        bridge = Bridge(board, WorkIt(workit.LIVE), opened.append)
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.on("pageerror", lambda error: errors.append(str(error)))
+        page.route("**/*", lambda route: route.abort())
+        page.expose_function("__bridge", lambda name, args: getattr(bridge, name)(*args)
+                             if name in ("request", "open") else {})
+        page.set_content(app_window.student_page(board), wait_until="domcontentloaded")
+        page.evaluate(PYWEBVIEW)
+        page.click("text=Open cover letter", timeout=5000)
+        page.wait_for_timeout(300)
+        browser.close()
+    assert opened == [letter.as_uri()]
+    assert errors == []

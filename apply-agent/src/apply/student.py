@@ -8,6 +8,7 @@ starts here (`app`, which `uv run apply app` runs) and calls `rehearsal.rehearse
 
 import os
 import sys
+import threading
 import time
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -32,7 +33,7 @@ from apply.answers_tab import AnswersTab, saving_answers
 from apply.applicant import as_applicant
 from apply.ask_model import live_claude
 from apply.awake import awake
-from apply.browsers import ProfileInUse
+from apply.browsers import PROFILES, ProfileInUse
 from apply.clock import SystemClock
 from apply.dashboard import Dashboard, NoFrames
 from apply.feed import live_feed
@@ -207,7 +208,7 @@ class Runs:
         self._refresh()
         send_waiting()
         try:
-            with self._awake():  # the Mac never sleeps mid-run (KAN-885)
+            with self._awake():  # the computer never sleeps mid-run (KAN-885)
                 self._rehearse_shown(links, show, jobs or {})
         finally:
             if build.STUDENT:  # the profile's file copies: the next Start reads them again (W11)
@@ -339,6 +340,18 @@ def layered(under: dict, over: dict) -> dict:
     return out
 
 
+def reclaim_left() -> None:
+    """Stop the plain Workers' Chromes an Apply that crashed or was killed left up (launcher.reclaim_all), as the app
+    starts, not only once a run reaches each profile: a crash left one per form open till then."""
+    from apply.plain.launcher import reclaim_all
+
+    try:
+        reclaim_all(Path(os.environ.get("APPLY_PROFILES") or PROFILES))
+    except Exception as error:  # a run's own launch reclaims its profile all the same
+        print(f"Couldn't close the browsers a closed Apply left open: {type(error).__name__}: {error}",
+              file=sys.stderr)
+
+
 def app() -> None:
     """WorkIt Auto Apply: its window (apply.app_window), with no port. It signs the student in, takes them through
     first run, then shows their Auto Apply queue and runs it (W5). The profile and the Answer bank are WorkIt's
@@ -357,6 +370,7 @@ def app() -> None:
     bank.load_in_background()
     answers = AnswersTab(bank, profile, read=lambda: read_profile(profile))
     runs = Runs(profile, bank, refresh=lambda: profile_from_workit(profile))
+    threading.Thread(target=reclaim_left, daemon=True, name="reclaim").start()
     try:
         with Dashboard(0, NoFrames(), answers, tracker_url=tracker_url(), serve=False) as board:
             app_window.run(board, start=runs.run)

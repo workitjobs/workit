@@ -18,22 +18,24 @@ Two Chromes (policies.yaml `plain_chrome`):
   `--load-extension`: dev and tests. A seed is copied if there is one; else a fresh profile.
 
 Each profile gets its own NativeMessagingHosts folder with the host's manifest, naming only
-the worker extension, and a wrapper that tells the host its socket and Worker number. Lisul's
-own Chrome folder is never touched. (Chrome reads that folder on macOS and Linux; on Windows it
-reads a registry key instead, and the wrapper is a shell script: both are F4's.)
+the worker extension, and a wrapper that starts the host, which finds its Worker and channel
+from the Chrome that started it (host.py). Lisul's own Chrome folder is never touched. On
+Windows, Chrome reads a registry key instead, one for every Worker, which names one manifest
+and a .bat wrapper (apply.chrome_host).
 
 Chrome is found by the Chrome finder (apply.chrome_finder), on every OS. It starts in the
 background by each OS's own way (`start_in_background`).
 """
 
+import atexit
 import json
 import os
-import shlex
 import shutil
 import signal
 import subprocess
 import sys
 import time
+import weakref
 from collections.abc import Callable
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass
@@ -41,6 +43,7 @@ from pathlib import Path
 
 import psutil
 
+from apply import chrome_host
 from apply.adapters import SetupError
 from apply.browsers import (
     BUSY,
@@ -62,8 +65,8 @@ from apply.plain.bridge import (
     PortError,
     Refused,
     features,
-    socket_path,
 )
+from apply.plain.channel import socket_path
 from apply.plain.script import keep_engine
 from apply.profile import load_policies
 
@@ -84,25 +87,27 @@ FLAGS = ("--no-first-run", "--no-default-browser-check", "--disable-backgroundin
 # Never passed to a plain Worker: each would make it an automated browser.
 NEVER = ("--remote-debugging-port", "--remote-debugging-pipe", "--enable-automation", "--headless")
 HELLO_WAIT = 30.0  # s from launch to the extension's hello
-STOP_WAIT = 10.0  # s from SIGTERM to SIGKILL
+STOP_WAIT = 10.0  # s from the ask to quit (ask_to_quit) to the kill
 START_WAIT = 20.0  # s from `open` to the Chrome holding the profile
 OPEN = "/usr/bin/open"
 WRAPPER = "apply-worker-host"
 CREATE_NEW_PROCESS_GROUP = 0x200  # Windows' flag (subprocess has it only on Windows)
+CREATE_NO_WINDOW = 0x08000000  # Windows' flag: a console program started from a window opens no console of its own
+TASKKILL = ("taskkill",)  # Windows' own, in System32; a test's stand-in records what it was asked
 # In each plain Worker profile: the Apply process that started its Chrome, written before the Chrome starts
 # (KAN-885). A Worker's Chrome runs on its own, so it outlives an Apply that crashed or was killed; the next run
 # reclaims (stops) a Chrome whose owner is gone, never one a live Apply owns.
 OWNER = "apply-owner.json"
 
 
-def host_command(compiled: bool = "__compiled__" in globals()) -> str:
+def host_command(compiled: bool = "__compiled__" in globals()) -> list[str]:
     """How a Worker's wrapper starts the relay (apply.plain.host). A checkout runs host.py with its own Python, isolated.
     The compiled app (W8) has no Python and no .py file: its own program is the relay when host.APP_FLAG comes first
     (scripts/app_entry.py). The OS names that program: a Nuitka program's sys.executable is a `python` beside it,
     which doesn't exist."""
     if compiled:
-        return f"{shlex.quote(psutil.Process().exe())} {host.APP_FLAG}"
-    return f"{shlex.quote(sys.executable)} -I {shlex.quote(host.__file__)}"
+        return [psutil.Process().exe(), host.APP_FLAG]
+    return [sys.executable, "-I", host.__file__]
 
 
 def developer_mode(profile: Path) -> bool:
@@ -111,7 +116,7 @@ def developer_mode(profile: Path) -> bool:
     (`unsupportedDeveloperExtension`, Chrome for Testing 156)."""
     for name in ("Secure Preferences", "Preferences"):
         try:
-            prefs = json.loads((profile / "Default" / name).read_text())
+            prefs = json.loads((profile / "Default" / name).read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         if prefs.get("extensions", {}).get("ui", {}).get("developer_mode") is True:
@@ -148,8 +153,8 @@ class PlainWorker:
 
 
 class PlainWorkers:
-    def __init__(self, profiles: Path | None = None, kind: str | None = None, bridge: Bridge | None = None,
-                 extension_dir: Path | None = None, test_flags: tuple[str, ...] = ()):
+    def __init__(self, profiles: Path | None = None, kind: str | None = None, extension_dir: Path | None = None,
+                 test_flags: tuple[str, ...] = ()):
         """`profiles` defaults to $APPLY_PROFILES, else APPLY_HOME/profiles. `kind` is
         "testing" or "chrome" (default: chrome_kind()). `test_flags`: tests' own switches for
         Chrome for Testing only, such as pointing the fakes' hosts at 127.0.0.1 (never Workers').
@@ -157,9 +162,10 @@ class PlainWorkers:
         loads the profiles folder's own copy of this checkout's extension (`copy`, KAN-645)."""
         self.profiles = Path(profiles or os.environ.get("APPLY_PROFILES") or PROFILES)
         self.kind = kind or chrome_kind()
-        # One socket per profiles folder: a held rehearsal keeps its process up, and another
-        # process on other profiles (APPLY_PROFILES) still drives its own Workers (KAN-634).
-        self.bridge = bridge or Bridge(socket_path(self.profiles))
+        # One channel per profiles folder: a held rehearsal keeps its process up, and another
+        # process on other profiles (APPLY_PROFILES) still drives its own Workers (KAN-634). Only
+        # there: each Worker's host finds it from its Chrome's profile (host.py).
+        self.bridge = Bridge(socket_path(self.profiles))
         self.bridge.reloadable = lambda worker: developer_mode(self.profile(worker))
         self.extension_dir = extension_dir or extension.EXTENSION_DIR  # the code the copy is made from
         self.direct = extension_dir is not None
@@ -173,6 +179,10 @@ class PlainWorkers:
         self.running: dict[int, PlainWorker] = {}
         # Chromes started but not yet saying hello: stop_all stops these too, so a quit mid-launch leaves none (KAN-885)
         self._starting: dict[int, Chrome | subprocess.Popen] = {}
+        # A branded Worker that sent no hello, and the seed it was made from (seed_stamp): the next launches from
+        # that seed fail at once with its fix, not each after HELLO_WAIT (16 links took 8 minutes to fail, run7).
+        self._no_hello: tuple[tuple, int] | None = None
+        _ALIVE.add(self)  # stopped when this process exits (stop_everyone)
 
     @property
     def seed(self) -> Path:
@@ -189,6 +199,19 @@ class PlainWorkers:
 
     def profile(self, worker: int) -> Path:
         return self.profiles / f"plain-{worker + 1}"
+
+    def seed_stamp(self) -> tuple:
+        """The seed as it is now: its preferences' change times. A seed made again (`apply plain seed`) changes it."""
+        stamp = []
+        for name in ("Secure Preferences", "Preferences"):
+            with suppress(OSError):
+                stamp.append((name, (self.seed / "Default" / name).stat().st_mtime_ns))
+        return tuple(stamp)
+
+    def no_hello(self, worker: int) -> str:
+        """Why Worker `worker` sent no hello, with its fix."""
+        return (f"no hello from plain Worker {worker + 1} in {HELLO_WAIT:.0f} s: is the worker extension installed "
+                f"in {self.seed}? (`uv run apply plain seed`)")
 
     def binary(self) -> Path:
         if self.kind == "testing":
@@ -296,28 +319,22 @@ class PlainWorkers:
             said.append(f"the Fill engine changed on disk: its pages load {self.bridge.engine['version']} now")
         return said
 
-    def install_host(self, worker: int) -> Path:
-        """Write the host's wrapper and manifest into Worker `worker`'s profile. Returns the manifest."""
-        hosts = self.profile(worker) / "NativeMessagingHosts"
-        hosts.mkdir(parents=True, exist_ok=True)
-        wrapper = hosts / WRAPPER
-        wrapper.write_text(f"#!/bin/sh\nexec {host_command()} "
-                           f"--socket {shlex.quote(str(self.bridge.path))} --worker {worker} \"$@\"\n")
-        wrapper.chmod(0o700)
-        manifest = hosts / f"{extension.HOST_NAME}.json"
-        manifest.write_text(json.dumps({
-            "name": extension.HOST_NAME,
-            "description": "Relays Apply's plain Worker extension to the Apply process on this computer",
-            "path": str(wrapper),
-            "type": "stdio",
-            "allowed_origins": list(extension.EXTENSION_ORIGINS),
-        }, indent=1) + "\n")
-        return manifest
+    def install_host(self, worker: int, system: str = sys.platform, registry=None) -> Path:
+        """Write the host's wrapper and manifest where Worker `worker`'s Chrome finds them (chrome_host: its profile's
+        NativeMessagingHosts folder, or on Windows the one folder that the registry key names). Returns the manifest.
+        The wrapper names no Worker and no channel: the host finds both from the Chrome that started it (host.py)."""
+        hosts = chrome_host.folder(self.profile(worker), system)
+        return chrome_host.install(extension.HOST_NAME,
+                                   "Relays Apply's plain Worker extension to the Apply process on this computer",
+                                   extension.EXTENSION_ORIGINS, host_command(), hosts, hosts / WRAPPER, system,
+                                   registry)
 
     def launch(self, worker: int = 0) -> PlainWorker:
         """Start Worker `worker`'s Chrome and wait for its hello."""
         if worker in self.running:
             return self.running[worker]
+        if self._no_hello and self._no_hello[0] == self.seed_stamp():  # the same seed: it would wait in vain
+            raise TimeoutError(f"{self.no_hello(self._no_hello[1])}. Apply started no more Workers from that seed")
         profile = self.profile(worker)
         reclaim(profile)
         if chrome_pid(profile):
@@ -340,8 +357,10 @@ class PlainWorkers:
             process = start_in_background(self.arguments(worker), profile, self.profiles / f"plain-{worker + 1}.log")
         KEEPER.watch(process.pid)
         self._starting[worker] = process
+        stamp, connection = self.seed_stamp(), None
         try:
             connection = self.bridge.wait_for(worker, HELLO_WAIT)
+            self._no_hello = None  # a Worker said hello: a later one that doesn't waits its own HELLO_WAIT
             folder = self.loaded_folder(worker)
             if features(connection.hello) < SETS_FROM and not extension.guards_match(folder):
                 # Code from before vendor sets, in a folder whose guards are another Apply's: guarding a page
@@ -357,9 +376,9 @@ class PlainWorkers:
         except BaseException as error:
             _stop(process)
             KEEPER.forget(process.pid)
-            if isinstance(error, TimeoutError) and self.kind == "chrome":
-                raise TimeoutError(f"{error}: is the worker extension installed in {self.seed}? "
-                                   "(`uv run apply plain seed`)") from None
+            if isinstance(error, TimeoutError) and self.kind == "chrome" and connection is None:
+                self._no_hello = (stamp, worker)
+                raise TimeoutError(self.no_hello(worker)) from None
             raise
         finally:
             self._starting.pop(worker, None)
@@ -376,13 +395,20 @@ class PlainWorkers:
             _stop(running.process)
 
     def stop_all(self) -> None:
-        """Stop every Worker's Chrome this process started, those still starting too (an app quit mid-launch)."""
+        """Stop every Worker's Chrome this process started, those still starting too (an app quit mid-launch). Each
+        is asked to quit first (ask_to_quit), then each is waited for: a quit with many Chromes up waits STOP_WAIT
+        once, not each."""
+        processes = []
         for worker in list(self.running):
-            self.stop(worker)
+            if running := self.running.pop(worker, None):
+                KEEPER.forget(running.pid)
+                running.connection.close()
+                processes.append(running.process)
         for worker, process in list(self._starting.items()):
             self._starting.pop(worker, None)
             KEEPER.forget(process.pid)
-            _stop(process)
+            processes.append(process)
+        _stop_many(processes)
         self.bridge.stop()
 
     def show(self, worker: int) -> bool:
@@ -487,14 +513,14 @@ def own(profile: Path) -> None:
     """Note in `profile` that this Apply process starts its Chrome: its PID and when it started, so a later PID
     that the OS hands to another process is never taken for it."""
     me = psutil.Process()
-    (profile / OWNER).write_text(json.dumps({"pid": me.pid, "started": me.create_time()}) + "\n")
+    (profile / OWNER).write_text(json.dumps({"pid": me.pid, "started": me.create_time()}) + "\n", encoding="utf-8")
 
 
 def _owner_alive(profile: Path) -> bool | None:
     """Whether the Apply that started `profile`'s Chrome still runs; None when no Apply noted it (a Chrome from
     before KAN-885, or one started some other way): not Apply's to judge."""
     try:
-        owner = json.loads((profile / OWNER).read_text())
+        owner = json.loads((profile / OWNER).read_text(encoding="utf-8"))
         pid, started = int(owner["pid"]), float(owner["started"])
     except (OSError, ValueError, KeyError, TypeError):
         return None
@@ -513,8 +539,8 @@ def orphan(profile: Path) -> int | None:
 
 
 def reclaim(profile: Path) -> bool:
-    """Stop the orphan Chrome holding `profile` (orphan), as Apply stops its own: SIGTERM, then SIGKILL. Says
-    whether it stopped one."""
+    """Stop the orphan Chrome holding `profile` (orphan), as Apply stops its own: ask it to quit, then kill it.
+    Says whether it stopped one."""
     pid = orphan(profile)
     if pid is None:
         return False
@@ -528,12 +554,62 @@ def _copy(source: Path, profile: Path) -> None:
     shutil.copytree(source, profile, symlinks=True, ignore=NOT_COPIED)
 
 
-def _stop(process: "Chrome | subprocess.Popen") -> None:
+def ask_to_quit(process: "Chrome | subprocess.Popen", system: str = sys.platform) -> None:
+    """Ask a Chrome to quit as a person would, so that it saves its settings and session cookies (P7). macOS and
+    Linux: SIGTERM. On Windows every signal, Popen.terminate and psutil's terminate end a process at once, with
+    no save, so `taskkill` with no /F asks its windows to close, as a click on X does. A Chrome with no window
+    can't be asked so: its stop (`_stop`) kills it after STOP_WAIT."""
     if process.poll() is not None:
         return
-    process.send_signal(signal.SIGTERM)
-    try:
-        process.wait(STOP_WAIT)
-    except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(5)
+    if system != "win32":
+        process.send_signal(signal.SIGTERM)
+        return
+    # Still this process: a Popen holds its handle, so Windows gives its PID to no other; a Chrome checks its start
+    # time (poll above), and the PID can't go to another process in the moment between.
+    # taskkill is a console program: from the app, which has no console, it would flash one at each stop. The flag
+    # goes by the OS this runs on, not `system`: macOS refuses creationflags, and the tests run this entry there.
+    quiet = {"creationflags": CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+    subprocess.run([*TASKKILL, "/PID", str(process.pid)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL, check=False, **quiet)
+
+
+def _stop(process: "Chrome | subprocess.Popen", system: str = sys.platform) -> None:
+    _stop_many([process], system)
+
+
+def _stop_many(processes: list, system: str = sys.platform) -> None:
+    """Ask each that still runs to quit (ask_to_quit), then kill each still running STOP_WAIT later."""
+    running = [p for p in processes if p.poll() is None]
+    for process in running:
+        ask_to_quit(process, system)
+    deadline = time.monotonic() + STOP_WAIT
+    for process in running:
+        try:
+            process.wait(max(0.0, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            process.kill()
+            with suppress(subprocess.TimeoutExpired):
+                process.wait(5)
+
+
+# Every PlainWorkers of this process: their Chromes run on their own (start_in_background), so an Apply that exits
+# without its own stop (an exception, a signal the app turns into a quit, a crash in a run's thread) left them up.
+_ALIVE: "weakref.WeakSet[PlainWorkers]" = weakref.WeakSet()
+
+
+@atexit.register
+def stop_everyone() -> None:
+    """At this process's exit, stop every plain Worker's Chrome it started and still runs. A SIGKILL skips this: the
+    next start reclaims those Chromes (reclaim_all)."""
+    for workers in list(_ALIVE):
+        try:
+            workers.stop_all()
+        except Exception as error:  # the next one still stops
+            print(f"Couldn't stop the plain Workers in {workers.profiles}: {type(error).__name__}: {error}",
+                  file=sys.stderr)
+
+
+def reclaim_all(profiles: Path) -> list[Path]:
+    """Stop each orphan Chrome on a plain Worker profile in `profiles` (reclaim): those a gone Apply left up. The
+    profiles of a live Apply's are never touched. Returns the profiles whose Chrome it stopped."""
+    return [p for p in sorted(profiles.glob("plain-[0-9]*")) if p.is_dir() and reclaim(p)]

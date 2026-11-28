@@ -22,12 +22,12 @@ from fakes import FakeClaude, FakeClock, FakeMailbox, RecordingBoard, ScriptedUs
 from test_matches import feed_record
 from test_run_answers import profile_with
 
-from apply import claude_fill, fill_engine
+from apply import claude_fill, fill_engine, oracle
 from apply.adapters import Adapters, UsageLimitHit
 from apply.claude_fill import FILL, ClaudeFill
 from apply.cli import main
 from apply.feed import SimplifyFeed
-from apply.model import Handoff
+from apply.model import Handoff, Question
 from apply.notify import RecordingNotifier
 from apply.one_page import OnePage
 from apply.records import InMemoryRecords
@@ -279,6 +279,22 @@ def test_claude_fill_stopped_at_its_cap_is_a_handoff_and_nothing_is_sent(tmp_pat
 
     assert row.status == "handoff"
     assert "cap" in row.reason and "60,000 tokens" in row.reason
+    assert server.submissions == []
+
+
+def test_one_claude_session_past_its_own_cap_is_a_handoff_long_before_the_whole_cap(tmp_path):
+    # Live (Honeywell, 2026-11-27): one session reread the big form each turn and spent 5.3 million of the
+    # Application's 6 million tokens before the cap stopped it.
+    profile = profile_with(tmp_path, **{f"answered_questions.{q}": a for q, a in ANSWERED.items()})
+    (tmp_path / "policies.yaml").write_text((tmp_path / "policies.yaml").read_text()
+                                            + "claude_fill:\n  max_turns: 300\n  max_tokens: 6000000\n  max_session_tokens: 50000\n")
+    claude = FakeClaude(driver=BambooDriver(), essays={"Tell us why": "A draft."}, drive_tokens=[25_000, 5_300_000])
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [row] = run(server, profile, lunar_match(), claude=claude)
+
+    assert row.status == "handoff"
+    assert "one session's cap (50,000 tokens)" in row.reason
     assert server.submissions == []
 
 
@@ -850,6 +866,30 @@ def test_claude_names_a_work_sections_entries_and_leaves_its_add_button_to_plain
         assert '"Work Experience <n> / <label>"' in prompt and '"Work Experience (entries)"' in prompt
     assert "Never press the section's add button yourself" in FILL
     assert claude_fill._fewer("1", "2") and not claude_fill._fewer("2", "2") and not claude_fill._fewer("", "2")
+
+
+def test_a_schools_section_and_a_bare_experience_section_are_entries_as_the_fill_engine_knows_them():
+    # SmartRecruiters (Wellmark's, live 2026-11-27): Claude named the jobs section "Experience (entries)", which the
+    # Fill engine never answered, and Education's "Add" was never pressed.
+    for prompt in (claude_fill.READ, FILL):
+        assert '"Education <n> / <label>"' in prompt and '"Education (entries)"' in prompt
+    assert "Save or Done button for that one entry" in FILL
+    assert [claude_fill._entry_label(label) for label in ("Experience (entries)", "Experience 2 / Title",
+                                                          "Experience with Python", "Education (entries)")] == \
+        ["Work Experience (entries)", "Work Experience 2 / Title", "Experience with Python", "Education (entries)"]
+    assert claude_fill.ENTRIES_COUNT.match("Education (entries)")
+    known = [Question("q1", "Work Experience (entries)", "select", True)]
+    found = [{"label": "Experience (entries)", "kind": "select", "required": True, "options": []},
+             {"label": "Experience 1 / Title", "kind": "text", "required": True, "options": []}]
+    from playwright.sync_api import sync_playwright
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        try:
+            new = claude_fill._new_questions(browser.new_page(), known, found)
+        finally:
+            browser.close()
+    assert [q["label"] for q in new] == ["Work Experience 1 / Title"]
 
 
 def test_a_resume_with_no_file_input_to_find_is_left_to_claude_as_before(tmp_path):
@@ -2189,3 +2229,188 @@ def test_the_entries_claude_gets_are_the_profiles_jobs_and_school(tmp_path):
     history = claude_fill.entry_history(profile)
     assert [j["title"] for j in history["jobs"]] == ["Software Engineer Intern", "Software Engineer (Part-Time)"]
     assert [s["school"] for s in history["schools"]] == ["State University"]
+
+
+def test_a_phone_read_back_in_its_fields_format_is_not_filled_again():
+    # Honeywell (Oracle, live 2026-11-27): 5550100199 read back as "(555) 010-0199" and Claude typed it every round.
+    put = {"phone": "5550100199", "city": "Springfield", "school": "Example State University"}
+    readback = {"phone": "(555) 010-0199", "city": "Springfield", "school": ""}
+
+    assert claude_fill._read_back_as_put(put, readback) == {"phone": "5550100199", "city": "Springfield"}
+
+
+def test_a_sign_in_handoff_still_names_the_company_its_page_does():
+    # Emerson's Oracle site (live 2026-11-27): the sign-in handed off before the page was read, so its Record
+    # named no company ("# : Software Engineering Intern").
+    def sign_in(page):
+        page.set_content("<title>Software Engineering Intern - Emerson Career Site</title><h1>Submit your job application!</h1>")
+        raise Handoff("Oracle didn't go on past its email step after Next: finish signing in yourself.")
+
+    filler = ClaudeFill(FakeClaude(), sign_in=sign_in)
+    with FakeBambooServer(LUNAR_FORM) as server, OnePage(server) as site, pytest.raises(Handoff):
+        filler.question_set(LUNAR_URL, site)
+
+    assert filler.names == ("Emerson", "Software Engineering Intern")
+
+
+# Oracle's Supporting Documents as an earlier, unsent attempt left them (Emerson's, live 2026-11-27): each slot shows
+# its file and a Remove button where its upload area was. Remove puts the upload area back, as Oracle's does.
+CARRIED_SLOT = """<{tag}><div class="attachment-upload-button"><div class="attachment-upload-button__filled">
+  <button type="button" class="attachment-upload-button__download">{file}</button>
+  <button type="button" class="attachment-upload-button__bottom-button" onclick="const slot = this.closest('{tag}');
+    setTimeout(() => {{ slot.innerHTML = '<label>{label} <input type=file></label>'; }}, 300)">Remove</button>
+</div></div></{tag}>"""
+CARRIED_DOCUMENTS = ("<title>Software Engineering Intern - Acme Career Site</title><h2>Supporting Documents</h2>"
+                     + CARRIED_SLOT.format(tag="resume-upload-button", file="Old_Resume.pdf", label="Resume")
+                     + CARRIED_SLOT.format(tag="cover-letter-upload-button", file="Old_Cover_Letter.pdf",
+                                           label="Cover Letter"))
+
+
+def test_documents_an_earlier_attempt_left_are_removed_so_this_fills_own_go_in():
+    """Emerson's refill (live 2026-11-27): the form kept the first attempt's résumé and cover letter, so the read found
+    no file to give, and the stale letter stayed on the application."""
+
+    def sign_in(page):
+        page.set_content(CARRIED_DOCUMENTS)
+
+    def read(page, schema, prompt, files):
+        boxes = page.locator("label:has(input[type=file])").all_inner_texts()
+        return {"blocked": False, "why": "", "page": "application form",
+                "questions": [{"label": label.strip(), "kind": "file", "required": True, "options": []} for label in boxes]}
+
+    filler = ClaudeFill(FakeClaude(driver=read), sign_in=sign_in)
+    with FakeBambooServer(LUNAR_FORM) as server, OnePage(server) as site:
+        questions = filler.question_set(LUNAR_URL, site)
+
+    assert [(q.label, q.kind) for q in questions] == [("Resume", "file"), ("Cover Letter", "file")]
+
+
+# The same slots as Emerson's live form showed them (its saved page, live 2026-11-27; the file names made up), in the
+# form's Supporting Documents, which show only after its blocks do, as the draft loads. Remove puts the upload area
+# back, as Oracle's does.
+LIVE_SLOT = """<{tag} params="model: x"><div data-bind="css: {{}}"> <!-- ko if: isDragAndDropActive() -->
+  <div class="attachment-upload-button attachment-upload-button--filled" role="application">
+  <div class="attachment-upload-button__container font-family-secondary">
+  <!-- ko if: status() === STATES.FILLED --> <div class="attachment-upload-button__filled">
+  <button type="button" class="attachment-upload-button__download" data-bind="text: model().fileName">{file}</button>
+  <button type="button" class="attachment-upload-button__bottom-button" aria-label="Remove {label}"
+    title="Remove attachment {file}">Remove {label}</button>
+  </div> <!-- /ko --> </div></div> <!-- /ko --></div></{tag}>"""
+LIVE_DOCUMENTS = ("<title>Software Engineering Intern - Acme Career Site</title>"
+                  '<div class="apply-flow-block"><h2>Contact Information</h2><label>Last Name <input></label></div>'
+                  '<div class="apply-flow-block" id="documents"><h2>Supporting Documents</h2></div><script>'
+                  "setTimeout(() => { document.getElementById('documents').insertAdjacentHTML('beforeend', "
+                  + json.dumps(LIVE_SLOT.format(tag="resume-upload-button", file="Old_Resume.pdf", label="Resume")
+                               + LIVE_SLOT.format(tag="cover-letter-upload-button", file="Old_Cover_Letter.pdf",
+                                                  label="Cover Letter"))
+                  + "); document.querySelectorAll('.attachment-upload-button__bottom-button').forEach(b => b.onclick ="
+                  " () => setTimeout(() => { b.closest('resume-upload-button, cover-letter-upload-button').innerHTML ="
+                  " '<label>' + b.textContent.replace('Remove ', '') + ' <input type=file></label>'; }, 300)); }, 1500)"
+                  "</script>")
+
+
+def test_documents_oracle_shows_after_its_form_are_removed_before_the_read():
+    """Emerson's refill (live 2026-11-27, after #758): the read came before the draft's documents showed, so none were
+    removed, and the old résumé and cover letter stayed on the held form."""
+
+    def sign_in(page):
+        page.set_content(LIVE_DOCUMENTS)
+
+    def read(page, schema, prompt, files):
+        boxes = page.locator("label:has(input[type=file])").all_inner_texts()
+        return {"blocked": False, "why": "", "page": "application form",
+                "questions": [{"label": label.strip(), "kind": "file", "required": True, "options": []} for label in boxes]}
+
+    filler = ClaudeFill(FakeClaude(driver=read), sign_in=sign_in)
+    with FakeBambooServer(LUNAR_FORM) as server, OnePage(server) as site:
+        questions = filler.question_set(LUNAR_URL, site)
+
+    assert [(q.label, q.kind) for q in questions] == [("Resume", "file"), ("Cover Letter", "file")]
+
+
+def test_documents_are_removed_after_a_read_that_stopped_at_the_sign_ins_code_page():
+    """Emerson's refill (live 2026-11-27, run35): the first read stopped at Oracle's code page, a Needs sign-in pause;
+    after Lisul's code, the read of the form came with no look for the earlier attempt's documents, so they stayed."""
+    pages = iter(["<h1>Confirm your identity</h1><label>Verification code <input></label>", LIVE_DOCUMENTS])
+
+    def sign_in(page):
+        page.set_content(next(pages))
+
+    def read(page, schema, prompt, files):
+        if page.get_by_text("Confirm your identity").count():
+            raise Handoff("Needs sign-in: type the code yourself")
+        boxes = page.locator("label:has(input[type=file])").all_inner_texts()
+        return {"blocked": False, "why": "", "page": "application form",
+                "questions": [{"label": label.strip(), "kind": "file", "required": True, "options": []} for label in boxes]}
+
+    filler = ClaudeFill(FakeClaude(driver=read), sign_in=sign_in)
+    with FakeBambooServer(LUNAR_FORM) as server, OnePage(server) as site:
+        with pytest.raises(Handoff):
+            filler.question_set(LUNAR_URL, site)
+        questions = filler.question_set(LUNAR_URL, site)  # Resume, once he gave the code
+
+    assert [(q.label, q.kind) for q in questions] == [("Resume", "file"), ("Cover Letter", "file")]
+
+
+UNCONFIRMED = """<h1>You already applied for this job.</h1><p>You previously applied for job requisition <b>Software
+Engineering Intern, Austin, TX, United States</b> on 11/27/2026. Do you want to confirm your job application?</p>
+<button type=button>REMOVE</button><button type=button>CONFIRM</button>"""
+
+
+@pytest.mark.parametrize("drawn_late", [False, True])
+def test_oracles_unconfirmed_application_hands_off_with_its_confirm_ask(drawn_late):
+    """Emerson's refill (live 2026-11-27, run37): after sign-in Oracle showed the earlier application, sent but never
+    confirmed by its emailed code, with REMOVE and CONFIRM. The read rightly chose neither, and the stop said only that
+    the form wasn't finished. Now its ask names the choice; Apply presses neither. Drawn before the read, or during it."""
+    def sign_in(page):
+        page.set_content("<p>Loading</p>" if drawn_late else UNCONFIRMED)
+
+    def read(page, schema, prompt, files):
+        page.set_content(UNCONFIRMED)
+        raise Handoff("Claude fill can't finish this form: Remove or Confirm is the person's to choose")
+
+    filler = ClaudeFill(FakeClaude(driver=read), sign_in=sign_in)
+    with FakeBambooServer(LUNAR_FORM) as server, OnePage(server) as site:
+        with pytest.raises(Handoff) as stopped:
+            filler.question_set(LUNAR_URL, site)
+
+    assert str(stopped.value) == oracle.CONFIRM_ASK
+
+
+@pytest.mark.parametrize("reading", ["closed posting", "not a job posting", "application form"])
+def test_oracles_unconfirmed_application_is_never_read_as_closed(reading):
+    """Emerson's refill (live 2026-11-27, run38): Oracle drew "You already applied for this job." first and its question
+    and REMOVE/CONFIRM after, so the read called it closed and the job was skipped. The confirm ask comes first, over
+    any reading of the page."""
+    heading, rest = UNCONFIRMED.split("</h1>", 1)
+
+    def sign_in(page):
+        page.set_content(f"{heading}</h1><div id=rest></div>")
+
+    def read(page, schema, prompt, files):
+        page.evaluate("rest => setTimeout(() => document.getElementById('rest').outerHTML = rest, 1500)", rest)
+        return {"blocked": False, "why": 'The page says "You already applied for this job."', "page": reading,
+                "questions": []}
+
+    filler = ClaudeFill(FakeClaude(driver=read), sign_in=sign_in)
+    with FakeBambooServer(LUNAR_FORM) as server, OnePage(server) as site:
+        with pytest.raises(Handoff) as stopped:
+            filler.question_set(LUNAR_URL, site)
+
+    assert str(stopped.value) == oracle.CONFIRM_ASK
+
+
+def test_a_form_with_no_carried_documents_is_left_as_it_is():
+    from playwright.sync_api import sync_playwright
+
+    from apply.attach import drop_carried_documents
+
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content("<label>Resume <input type=file></label>")
+        assert drop_carried_documents(page) == []
+        page.set_content(CARRIED_DOCUMENTS)
+        assert drop_carried_documents(page) == ["Old_Resume.pdf", "Old_Cover_Letter.pdf"]
+        assert page.locator("input[type=file]").count() == 2
+        browser.close()

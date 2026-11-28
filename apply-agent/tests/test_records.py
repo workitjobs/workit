@@ -149,3 +149,23 @@ def test_a_plain_workers_page_html_is_kept_without_a_secret_answer_and_a_cdp_pag
     assert "[page.html](page.html)" in files["README.md"].decode()
     no_html = Record(record.posting, Status.HELD, "", Filled(questions, {}, {}, b"png"), date(2026, 11, 4))
     assert "page.html" not in record_files(no_html)
+
+
+def test_a_record_keeps_its_usage_and_the_summary_line_names_the_biggest_stages():
+    # Fault: usage left out of the Record or the run's line: a change's saving can't be read per stage.
+    from datetime import date
+
+    from apply.model import Posting, Status
+    from apply.records import Filled, Record, record_files
+    from apply.rehearsal import Rehearsed
+
+    used = {"research": {"calls": 1, "turns": 30, "input": 10, "output": 5_000, "cache_read": 280_000,
+                         "cache_write": 5_000, "models": {"sonnet": 1}},
+            "edit": {"calls": 2, "turns": 2, "input": 4, "output": 3_000, "cache_read": 0, "cache_write": 58_000,
+                     "models": {"opus": 2}}}
+    posting = Posting("Acme", "Intern", "greenhouse", "https://example.com/j/1")
+    record = Record(posting, Status.HELD, "", Filled((), {}, {}, b"png"), date(2026, 11, 26), usage=used)
+
+    assert json.loads(record_files(record)["usage.json"]) == used
+    assert "usage.json" not in record_files(Record(posting, Status.HELD, "", Filled((), {}, {}, b"png"), date(2026, 11, 26)))
+    assert "351,014 tokens (research 290k, edit 61k ×2) | " in Rehearsed(posting, "held", tokens=351_014, usage=used).line()

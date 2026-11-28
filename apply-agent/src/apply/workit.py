@@ -511,7 +511,7 @@ def waiting_writes(path: Path = QUEUE) -> list[Write]:
     try:
         # A Hold an older Apply kept as queued goes as needs_you (KAN-544).
         return [Write(**{**w, "stage": Stage.NEEDS_YOU if w["stage"] == Stage.QUEUED else w["stage"]})
-                for w in json.loads(path.read_text())]
+                for w in json.loads(path.read_text(encoding="utf-8"))]
     except FileNotFoundError:
         return []
 
@@ -616,7 +616,7 @@ class WaitingWrites:
             self.path.unlink(missing_ok=True)
             return
         part = self.path.with_suffix(".part")
-        part.write_text(json.dumps([dataclasses.asdict(w) for w in waiting], indent=1))
+        part.write_text(json.dumps([dataclasses.asdict(w) for w in waiting], indent=1), encoding="utf-8")
         part.replace(self.path)
 
     @contextmanager

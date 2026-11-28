@@ -3,8 +3,9 @@ research/sources/answer-types/g-quality.md, section 2.1)."""
 
 import pytest
 
-from apply import gates
+from apply import asking, gates
 from apply.model import Question
+from apply.profile import ApplicantProfile
 
 WHY = Question("a", "Why Figma?", "textarea", True)
 SOURCES = ("<story_bank>## Hitachi Rail: Software Engineer Intern\nI led 13 interns on a depot bus tracker.\n"
@@ -178,3 +179,42 @@ def test_answer_runs_every_gate_on_one_answer():
                         SOURCES, "Figma") == [
         "a number no source holds: 14", "a name no source holds: PyTorch", "names another company: Notion",
         'opens on a date: "In summer 2026,"']
+
+
+def test_a_graduation_date_other_than_the_profiles_fails():
+    # Apex, 2026-11-26: the letter moved graduation to May 2028 to fit the posting's Fall 2027-Spring 2028 window.
+    profile = "Expected graduation: December 2027"
+    assert gates.graduation("I'm a CS student graduating in May 2028, and I'd love to join.", profile) == [
+        'gives graduation as "May 2028", but the profile says December 2027: state the profile\'s date']
+    assert gates.graduation("I am expected to graduate in 2028.", profile) != []
+    for fine in ("I'm graduating in December 2027, and I'm applying for your Summer 2027 internship.",
+                 "I graduate in winter 2027.", "Class of 2027.", "I graduated high school and moved on.",
+                 "I'm graduating in May 2028."):
+        assert gates.graduation(fine, profile if "May" not in fine else "Expected graduation: May 2028") == [], fine
+    assert gates.graduation("Graduating in May 2028.", "") == []
+
+
+def test_a_flexible_graduation_may_give_any_term_from_its_earliest(tmp_path):
+    # Lisul, 2026-11-27: he can graduate any May or December from May 2027, so a letter may fit the posting's window.
+    profile = ApplicantProfile({"education": {
+        "expected_graduation": "2027-12", "graduation_flexible": {"earliest": "2027-05", "any_term_from_earliest": True}}},
+        tmp_path)
+    graduates = asking.graduation(profile)
+    assert graduates == "Expected graduation: December 2027 (can move to any May or December term from May 2027)"
+    for fine in ("I'm graduating in May 2028.", "I graduate in December 2027.", "Graduating in spring 2029.",
+                 "I'll graduate in May 2027.", "I am expected to graduate in 2028."):
+        assert gates.graduation(fine, graduates) == [], fine
+    for wrong in ("I'm graduating in December 2026.", "Graduating in August 2028.", "I graduate in fall 2028."):
+        assert gates.graduation(wrong, graduates) != [], wrong
+    assert asking.graduation(ApplicantProfile({"education": {"expected_graduation": "2027-12"}}, tmp_path)) == \
+        "Expected graduation: December 2027"
+
+
+def test_an_answer_naming_workit_or_its_tools_fails():
+    # Twitch, 2026-11-26: its essays told of the Fill engine Lisul wrote for WorkIt.
+    told = "The Fill engine I wrote for WorkIt reads forms, and Scout finds jobs; I built batch apply too."
+    assert [f.split('"')[1] for f in gates.tools(told)] == ["Fill engine", "WorkIt", "Scout", "batch apply"]
+    assert gates.tools("I built an auto-apply tool for my Apply agent.") != []
+    for fine in ("As an Eagle Scout I led a troop.", "I like to scout for bugs.", "I'd work it into the plan.",
+                 "Please apply this patch."):
+        assert gates.tools(fine) == [], fine

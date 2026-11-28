@@ -21,7 +21,7 @@ POST /applicants/{id}/applications  {"job_id": ...}
      its detail saying why. A job board's posting (LinkedIn, Indeed) is
      taken only through the employer's form it names, its `form_url`.
 GET  /applicants/{id}/applications?stage=queued&stage=needs_you
-     The applications, newest first (every stage without ?stage=), each
+     The applications, latest applied first, then newest added (every stage without ?stage=), each
      with its job posting's listing and `open` (false once it closed).
      ?scored=true adds `match`, the Jobs page's score, and its `highlights`
      to each open one
@@ -105,7 +105,8 @@ POST /applicants/{id}/applications/{job_id}/review/redo     {"name", "steer"?}
 GET  /applicants/{id}/answer-bank
      The student's whole Answer bank (W11, auto_apply/answer_bank.py), by
      the question's folded wording: {key: {"question", "answer", "own",
-     "none"?}}, the Fill engine's Answer bank for any form, so a question
+     "none"?, "options"?}} (`options`: the list the student's own pick came
+     from, which it then answers alone), the Fill engine's Answer bank for any form, so a question
      answered once is filled again without the student's Claude. `own` is
      false only for their Claude's answer they haven't reviewed; `none`
      marks "none of these" (an empty list). Nothing in it is about one
@@ -236,7 +237,7 @@ async def list_applications(
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> list[Application]:
-    """The applicant's applications, newest first; with ?scored=true, each
+    """The applicant's applications, latest applied first, then newest added; with ?scored=true, each
     open job posting's match score."""
     assert_applicant_owns(account, applicant_id)
     return await pipeline.list_applications(

@@ -318,16 +318,20 @@ def test_an_if_yes_follow_up_to_a_no_claude_drafted_is_left_blank_never_asked_no
     assert "your relationship" not in json.dumps(claude.asked, default=str)  # nor sent to Claude to draft
 
 
-def test_an_if_yes_follow_up_to_a_yes_is_asked_with_the_forms_own_label_and_required_flag(tmp_path):
+@pytest.mark.parametrize("required", [False, True])
+def test_an_if_yes_follow_up_to_a_yes_is_asked_only_when_required(tmp_path, required):
     posting = Posting("saronic", "Saronic Technologies", "Software Engineer Intern (Summer 2027)", SARONIC_URL)
     claude = FakeClaude(drafts={"Do you know anyone": "Yes"})
     planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), claude, {}, None, True,
                               AnswerBank(), date(2026, 11, 4))
+    if_yes = Question(IF_YES.name, IF_YES.label, IF_YES.kind, required)
 
-    # Asked in Needs you, optional: it never stops the form (KAN-759).
-    assert planned.add([KNOWS, IF_YES]) is None
+    assert planned.add([KNOWS, if_yes]) is None  # a rehearsal goes on either way
     label = IF_YES.label.strip()
-    assert (planned.missing, planned.required) == ((label,), {label: False})  # a Missing fact, never an Essay fact
+    # Required: asked with the form's own label, a Missing fact, never an Essay fact. Optional: no fact of his is
+    # behind it, so it is left blank and never interrupts him (Lisul, 2026-11-26).
+    assert (planned.missing, planned.required) == (((label,), {label: True}) if required else ((), {}))
+    assert ("if_yes" in planned.left) is not required
     assert planned.written == []
 
 
@@ -402,3 +406,34 @@ def test_a_required_catch_all_box_is_still_answered(tmp_path):
 
     assert planned.add([WHY, required]) is None
     assert planned.kept_blank == {} and planned.answers["extra"] == "I can start on May 18 and intern for twelve weeks."
+
+
+GROUPS = Question("groups", "Which student groups are you part of?", "multi_select", True,
+                  ("Hackathons", "Robotics Club", "Other student groups"))
+
+
+@pytest.mark.parametrize("fix, ticks", [
+    ("Robotics Club", ["Robotics Club"]),
+    ("Hackathons, Robotics Club", ["Hackathons", "Robotics Club"]),
+    ("Robotics Club and a chess club", None),  # names a box the group lacks: never half of it
+])
+def test_the_reviews_fix_to_a_group_of_boxes_ticks_the_boxes_it_names(tmp_path, fix, ticks):
+    # Shield AI (Ashby, live 2026-11-27): the review said "Robotics Club" fit better than "Other student groups", but
+    # a fix to a group of boxes was never taken, so the form was held for what Apply could fix itself.
+    posting = Posting("shield", "Shield AI", "Software Engineering Intern", "https://jobs.ashbyhq.com/shieldai/1")
+    planned = worker._Planned(posting, None, ApplicantProfile.load(profile_with(tmp_path)), FakeClaude(), {}, None,
+                              True, AnswerBank(), date(2026, 11, 27))
+    planned.add([GROUPS])
+    planned.answers = {"groups": ["Other student groups"]}
+    why = [f"{GROUPS.label}: the profile lists the Robotics Club, not another group"]
+
+    assert planned.fix({GROUPS.label: fix}, {"groups": ["Other student groups"]}, why, trial=True) == bool(ticks)
+    assert planned.answers["groups"] == (ticks or ["Other student groups"])
+
+
+def test_a_fix_names_the_boxes_of_a_group_whole():
+    options = ("Other", "Other student groups", "Robotics Club")
+
+    assert worker._ticks("'Other student groups'.", options) == ["Other student groups"]  # never "Other" in it
+    assert worker._ticks("Robotics Club; Other", options) == ["Other", "Robotics Club"]
+    assert worker._ticks("Robotics", options) == []

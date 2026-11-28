@@ -225,7 +225,7 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   each Worker's own window with ScreenCaptureKit (`apply.plain.window_capture`):
   `window_capture.swift`, built once by swiftc into `~/Library/Caches/apply/`
   (the built app ships it built, `window-capture`: `../../CLAUDE.md`, "Building the app"),
-  finds the window of the Worker Chrome's PID (the native host's parent) nearest
+  finds the window of the Worker Chrome's PID (the browser above the native host) nearest
   the bounds the extension sends (`tile.shown`), crops it to the tab's viewport,
   and streams 30 fps JPEGs (quality 0.85) at the screen's pixel scale (2560 x
   1626 for a 1280 x 813 viewport). By window ID: nothing is focused, raised or
@@ -276,7 +276,7 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   (`page/tile.js` scales by `width` x `height`), so a 2x filmed frame and a 1x
   extension frame both land on the element under the pointer.
 - **Only its own window and tab (KAN-717).** A tile shows its own Worker's
-  window only. A Connection whose Chrome (the host's parent) isn't the one that
+  window only. A Connection whose Chrome (the browser above the host) isn't the one that
   has Worker k's profile open (`chrome_pid`), or whose Chrome PID can't be told,
   shows nothing on tile k and takes none of its input; it is looked at again each
   turn. The helper films a window of that PID only while macOS lists exactly one
@@ -458,6 +458,15 @@ What changes on a plain Worker:
   Each reuse calls `guards.reset(worker)` and closes the last form's tabs. After each form, one blank
   tab stays, so the window stays. The run or rehearsal stops each Chrome by its PID as it ends
   (`cli._close_workers`, before the rehearsal's `os._exit`).
+- **A rehearsal keeps no Chrome that no form holds.** Each link's end (sent, let go, its tab closed,
+  skipped, already applied, or the rehearsal moving on) closes its page and calls `site.release(worker)`
+  (`rehearsal.rehearse`'s `let_chrome_go`). `PlainSite.release` stops that Worker's Chrome once no other
+  form is open in it, and every other Worker's Chrome that no form holds now. So the Chromes up are never
+  more than the forms filling or held for the student. Without it, each ended form left its Chrome on
+  `about:blank` till the run ended: 17 Chromes in one run (2026-11-26). A Worker's next form (Fill again,
+  a link sent in) starts its Chrome again, its sign-ins kept (`--restore-last-session`), so `into` takes
+  a link for a plain Worker of the run whose Chrome stopped. Tests: `tests/test_plain_window_close.py`
+  (in CI).
 - **The tile** uses `PortFrames`, which reads the field error for the stuck detector over the port
   (`stuck.field_error(page)`) on the window's own thread.
 - **Go to question never raises a plain Worker** (`Dashboard(quiet=site.plain)`). It scrolls and
@@ -496,14 +505,27 @@ and failed the job (`ProfileInUse`, "Didn't go through").
   the Apply process's PID and its start time (psutil), so a PID the OS later gives to another process never
   counts as that Apply.
 - **Reclaim.** `PlainWorkers.launch` and `PlainSite.refuse_in_use` call `launcher.reclaim` on each profile
-  first. It stops the Chrome that holds the profile (SIGTERM, then SIGKILL, as Apply's own stop) only when
+  first. It stops the Chrome that holds the profile (`ask_to_quit`, then a kill, as Apply's own stop) only when
   all of these hold: the profile names an owner, that owner no longer runs, and the process the
   SingletonLock names is a browser (no `--type=`) whose `--user-data-dir` is this very profile.
 - **Never reclaimed:** a Chrome a live Apply run or rehearsal owns (it stays `ProfileInUse`), a profile with
   no owner file (a Chrome from before KAN-885, or one started another way), and a stale lock whose PID is
   now another process, such as the student's own Chrome.
+- **No hello fails the rest at once.** A branded Worker that sends no hello in `HELLO_WAIT` (a seed
+  without the worker extension) fails with the fix: run `uv run apply plain seed`. Its `PlainWorkers`
+  then fails each next launch from the same seed at once, with that message, and starts no Chrome:
+  16 links once failed one by one, 30 s each (run7, 2026-11-26). A seed made again (its preferences
+  change, `seed_stamp`) is tried anew, and any Worker's hello clears it. Chrome for Testing loads its
+  extension by flag and always waits. Tests: `tests/test_plain_no_hello.py` (in CI).
 - **A quit mid-launch.** `PlainWorkers.stop_all` (the app's quit, `Runs.close`) also stops a Chrome that
   started but hasn't said hello yet (`_starting`), so a quit during a Worker's launch leaves none behind.
+  It sends SIGTERM to every Chrome first, then waits, so a quit waits `STOP_WAIT` once, not once each.
+- **Any exit.** `launcher.stop_everyone` runs at this process's exit (`atexit`) and stops every Chrome
+  each `PlainWorkers` of the process still runs: an exception or a quit by signal leaves none. The app
+  turns SIGTERM, SIGINT (Ctrl-C) and SIGHUP (a closed terminal) into its window's close
+  (`app_window.QUITS`), so its `finally` runs too. Only SIGKILL or a hard crash skips both: then the app,
+  as it starts, reclaims every plain profile's orphan Chrome (`student.reclaim_left`,
+  `launcher.reclaim_all`), not only once a run reaches each profile.
 - Tests: `tests/test_plain_orphans.py` (in CI), with stand-in processes for Chrome and the gone Apply.
 
 ## One sign-in per job site: `apply rehearse --into` (KAN-645)
@@ -596,7 +618,9 @@ helps with each click and confirms it. It refuses to start while a plain Worker 
   bar; the "check the card" step does the same with the card's details page. At Load unpacked it
   puts the copy's path on the clipboard (pyperclip, on every OS) and shows the copy in Finder (`Desk.reveal`:
   `open -R` on the Mac, File Explorer on Windows, its folder through `xdg-open` on Linux), so the user
-  can drag it onto the page or paste it in the picker. There is no Allow User Scripts step since KAN-839: the
+  can drag it onto the page or paste it in the picker. The steps name each OS's file manager and keys
+  (`seed_setup.WORDS`): Finder and Cmd+Shift+G on the Mac, File Explorer and Ctrl+L on Windows. There is no
+  Allow User Scripts step since KAN-839: the
   extension asks for no user scripts.
 - **What Apply never does.** It never clicks a `chrome://` page, never changes a Chrome setting and never
   writes the seed's preference files. Those clicks are the user's. It only launches Chrome with normal
@@ -608,9 +632,9 @@ helps with each click and confirms it. It refuses to start while a plain Worker 
   extension, wrong folder (names both folders: Remove that card), card turned off.
   A step that is saved and then goes back says "did not stick". A step still unsaved after 45 s gets a
   nudge, and the path goes on the clipboard again.
-- **Quit.** When all steps show, Apply quits the seed's Chrome itself, with SIGTERM to the PID that holds
-  the seed's SingletonLock (checked with psutil: its arguments name the seed). A SIGTERM saves pending
-  changes; a SIGKILL loses them (measured on both Chromes), so Apply never kills it. If Chrome is still up
+- **Quit.** When all steps show, Apply asks the seed's Chrome to quit (`launcher.ask_to_quit`: SIGTERM, or on
+  Windows `taskkill` with no /F), sent to the PID of the browser that holds the seed (`chrome_pid`). A SIGTERM
+  saves pending changes; a SIGKILL loses them (measured on both Chromes), so Apply never kills it. If Chrome is still up
   after 15 s (a dialog or the folder picker open), Apply says so and waits. Ctrl-C quits it the same way.
   After the quit, Apply reads the files again. A step that a clean exit didn't save is named and shown again.
 - **Done only after a real hello.** Apply starts one Worker from the seed on a new `plain-<k>` profile (so an

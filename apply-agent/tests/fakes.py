@@ -17,7 +17,7 @@ from pathlib import Path
 
 from playwright.sync_api import Route, sync_playwright
 
-from apply import answering, fill_engine, gates, submit_guard
+from apply import answering, brief, fill_engine, gates, submit_guard
 from apply.adapters import Drive, UsageReading
 from apply.gmail import MailedCode, on_hosts, speaks_of_reset
 from apply.model import Question
@@ -562,7 +562,9 @@ class FakeClaude:
                  sent: bool | Exception = False, facts: dict | None = None, brief: list[dict] | dict | None = None,
                  team: str = "", team_brief: list[dict] | dict | None = None, named: dict[str, str] | None = None,
                  story_map: list[dict] = (), plans: list[dict[str, dict]] = (),
-                 typical: dict[str, dict] | None = None, repairs: dict[str, str] | None = None, picks: list = ()):
+                 typical: dict[str, dict] | None = None, repairs: dict[str, str] | None = None, picks: list = (),
+                 fixes: list[dict] = ()):
+        self._fixes = list(fixes)  # each fix call's answer, in order (presubmit.fix): none, unless given
         self._repairs = repairs or {}
         self._picks = list(picks)  # the generic Filler's picks, in order (generic_fill.pick, generic_fill.next)
         self._typical = typical or {}
@@ -573,6 +575,7 @@ class FakeClaude:
         self._team, self._team_brief = team, team_brief or []
         self._named = named or {}
         self.researched: list[str] = []  # the prompt of each Company brief research
+        self.budgeted: list[str] = []  # the prompt of each done within policy research_budget (brief.BUDGET_SYSTEM)
         self.teams_named: list[str] = []  # the prompt of each call naming a Posting's team
         self._essays = essays or {}
         self._drafts = drafts or {}
@@ -620,6 +623,8 @@ class FakeClaude:
         if kind == "presubmit.review":  # its problems, or a dict of them with the fixes it gives
             found = self._reviews.pop(0) if self._reviews else []
             return found if isinstance(found, dict) else {"problems": found}
+        if kind == "presubmit.fix":
+            return self._fixes.pop(0) if self._fixes else {"fixes": [], "yours": []}
         if kind == "presubmit.replan":
             return {"replanned": {key: {"answer": next((a for start, a in self._replans.items()
                                                         if field["question"].startswith(start)), "")}
@@ -694,7 +699,7 @@ class FakeClaude:
 
     def research(self, *, model: str, system: str, prompt: str, schema: dict, max_turns: int,
                  max_tokens: int) -> Drive:
-        self.researched.append(prompt)
+        (self.budgeted if system == brief.BUDGET_SYSTEM else self.researched).append(prompt)
         facts = self._team_brief if "<team>" in prompt else self._brief
         output = dict(facts) if isinstance(facts, dict) else {"facts": [dict(f) for f in facts]}
         return Drive(output, 8, 200_000)

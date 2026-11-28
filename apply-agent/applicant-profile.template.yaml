@@ -139,6 +139,8 @@ voluntary_self_id:             # every value must allow "decline"; freq: gender 
 logistics:
   available_terms: []          # Summer 2027 | Spring 2027 Co-Op | Fall 2027 ...  (Cloudflare, Hadrian, MegazoneCloud, Rugged)
   earliest_start_date:         # YYYY-MM-DD. freq ~10. seen buckets: May 2027 | June 2027 | July 2027
+  earliest_possible_start_date: # YYYY-MM-DD: the first day you could start at all (your term's end), when it is before
+                               # earliest_start_date. Answers "when can you start?" and dates asked (Minitab's May 17)
   latest_end_date:             # Datacor "earliest start date and latest end date"
   dates_note:                  # e.g. the dates are a preference, not a limit
   can_work_full_time_40h:      # Yes/No (Cloudflare, Klaviyo, Relay, Viget)

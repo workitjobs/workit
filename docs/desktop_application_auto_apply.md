@@ -116,7 +116,7 @@ builds it.
 | D21 | **Google Chrome is required.** First run checks for it and links to its download | Chrome for Testing can't turn on Allow User Scripts, and other browsers are untested | W5 |
 | D22 | **CDP Workers keep their debugging port on `127.0.0.1` in v1.** One Worker kind with no port is future work (F5) | Pipe mode adds automation switches; the bridge may later carry CDP Workers too | F5 |
 | D23 | **Jobs come from the student's Auto Apply queue on WorkIt**, plus a box to paste one posting's link | The queue is already on the website | W5 |
-| D24 | **Two Workers by default, one to three.** Each is a full Chrome, about 0.5 to 1 GB of memory | Student laptops | W5 |
+| D24 | **One to four Workers, by default from the computer's memory:** one under 8 GB, two from 8 to 16 GB, three over 16 GB (two when the memory can't be read). Settings' Automatic shows the count; a count the student picks wins, and only a picked count is four (2026-11-26). Each Worker is a full Chrome, about 0.5 to 1 GB of memory | Student laptops | W5 |
 | D25 | **"Remove all my data"** in settings deletes the Worker profiles, the seed, Records, Traces and the app's `keyring` items. The data folder is in each OS's standard place | Mac apps have no uninstaller | W5 |
 | D26 | **"Send report"** sends one Application's Record and a masked Trace to WorkIt only when the student presses it. No automatic telemetry. As built (KAN-837): a support form ("Report a problem", from Settings or an Application's tile): a category, the student's words, whether WorkIt may email them, and, if they include one, an Application's Record and masked Trace | Testers need a way to report; privacy first | W5, W1 |
 | D27 | **Engine signing:** each build is signed with WorkIt's Ed25519 engine key by WorkIt's own CI on each merge that moves the engine pointer (`.github/workflows/publish-engine.yml` runs `backend/app/scripts/publish_engine.py`, with the key a secret of an environment that takes `main` only; 2026-11-15, it was the Fill engine's CI, then a person's hand run); WorkIt serves the build made for the nearest app version at or below the app's; the app holds only the public key | An unsigned download would let an attacker run code on every student's computer. A step in the engine's CI would need write access to WorkIt's Storage from another repo. WorkIt's CI signs only the engine a merged pointer names, which its PR's checks built, and no person's computer holds the key after setup | W7 |
@@ -781,7 +781,9 @@ its own instructions or a hostile schema.
   | `writing.check` | `writing._check` | drafts, sources |
   | `writing.edit` | `writing._pass` | drafts, sources, flagged problems, the questions, their lengths |
   | `probe.typical` | `probe.typical` | the questions, the posting and its text, Company material |
+  | `recording.brief` | `recording.brief` | a video link question, the prompts its posting lists, sources, the posting |
   | `presubmit.review` | `presubmit` | the filled form's answers read back, sources, the posting |
+  | `presubmit.fix` | `presubmit` | the review's problems, the answers it read, sources, the posting |
   | `presubmit.replan` | `presubmit` | the flagged fields, the posting |
   | `story_map.tag` | `story_map` | the Story bank (the server knows the Question types) |
   | `brief.team` | `brief.name_team` | the posting's title and text |
@@ -1067,7 +1069,7 @@ built 2026-11-14 except where a row below says what waits.
 | `browsers.py`, `plain/launcher.py`, `cover_letter.py`, `workit.py` | `/Applications/Google Chrome.app` | Built (KAN-850): one Chrome finder, `chrome_finder.py`, with each OS's places. macOS: `/Applications/Google Chrome.app`, then `~/Applications`. Windows: `%PROGRAMFILES%\Google\Chrome\Application\chrome.exe`, the 32-bit Program Files, then the per-user `%LOCALAPPDATA%`. Linux: `google-chrome` or `google-chrome-stable` on the `PATH`. It also reads Chrome's version on each OS and gives a Worker's user agent its OS's platform. `browsers.py`, `plain/launcher.py`, `plain/seed_setup.py`, `captcha.py`, `cover_letter.py` (after PR #577, W1) and `doctor.py` use it. `cover_letter.py`'s date has no `%-d` either, which Windows lacks. `workit.py` starts no Chrome any more: W5's sign-in uses the default browser |
 | `plain/launcher.py` | `open -g -n -a` | Built (KAN-850): stays on the Mac: `-g` keeps a new Chrome from taking the front as it starts, and starting the binary itself brings it forward. On Windows and Linux, `start_in_background` starts the binary as a plain background process, in a session (a process group on Windows) of its own, and its Popen is the Worker's process |
 | `plain/window_capture.*` | Swift and ScreenCaptureKit | Dropped: tiles come from the debugger's screencast (W6) or the extension's frames |
-| `plain/seed_setup.py` | `open -R`, `pbcopy`, `ps` | Built (KAN-850): the store install needs none of them (W6); the fallback guide uses `pyperclip` for `pbcopy` and `psutil` for `ps`. Showing a folder has no library, so `Desk.reveal` has an entry per OS: `open -R`, `explorer /select,"<path>"` as one string (a path with a space stays whole), `xdg-open` on its parent. Its words (Finder, Cmd+Shift+G) are still the Mac's (F4) |
+| `plain/seed_setup.py` | `open -R`, `pbcopy`, `ps` | Built (KAN-850): the store install needs none of them (W6); the fallback guide uses `pyperclip` for `pbcopy` and `psutil` for `ps`. Showing a folder has no library, so `Desk.reveal` has an entry per OS: `open -R`, `explorer /select,"<path>"` as one string (a path with a space stays whole), `xdg-open` on its parent. Its words are each OS's (`seed_setup.WORDS`, KAN-929's P8) |
 | `plain/extension.py` | `ps -axo` (found 2026-11-14) | Built (KAN-850): `psutil` reads each process's arguments as a list, so a path with spaces stays whole |
 | `native_host.py`, `plain/launcher.py`, `doctor.py` | `~/Library/...` paths | Built (KAN-850): each OS's places. The everyday Chrome's native host folder: `native_host.chrome_hosts` (`~/.config/google-chrome/NativeMessagingHosts`, or under `$XDG_CONFIG_HOME`, on Linux; none on Windows, where Chrome reads a registry key under `HKCU`: F4 writes it). Playwright's browsers folder: `chrome_finder.playwright_browsers`, the OS's cache folder from `platformdirs`, as Playwright picks it, with Chrome for Testing's layout for each OS. The data folder: `home.APP_FOLDER` from `platformdirs` (D25); W5 makes it the Student build's data folder |
 
@@ -1116,10 +1118,10 @@ on Windows each one stops Apply:
   SIGTERM and `os.kill(pid, 0)`. On Windows, `os.kill` ends a process at
   once, with no clean exit, so the seed's preferences would not be saved.
   A Worker started off the Mac is a Popen, which stops it on each OS.
-- The hosts' wrappers are shell scripts (`native_host.install`,
-  `PlainWorkers.install_host`), and Chrome on Windows reads a Worker
-  profile's host from the registry, not from its `NativeMessagingHosts`
-  folder (F4's table).
+- The hosts' wrappers were shell scripts, and Chrome on Windows reads a
+  host from the registry, not from a `NativeMessagingHosts` folder (F4's
+  table). Both hosts now have their key and a `.bat` there
+  (`windows_desktop.md`, P5).
 - The seed guide's words name Finder and the Mac's keys.
 
 ### W5. The app shell
@@ -1164,7 +1166,7 @@ on Windows each one stops Apply:
 - **A run:** the Auto Apply queue from WorkIt (the batch routes in
   `backend/app/routers/auto_apply.py`), the paste box, Start, tiles,
   Needs you, the Usage cap line (W1).
-- **Settings:** the Worker count (one to three, default two), "Remove all
+- **Settings:** the Worker count (one to four, default Automatic: from the memory, D24), "Remove all
   my data" (D25), "Send report" (D26), the disclosure, sign out.
 - **Notices** replace phone push: the window and macOS's own notification
   for "needs you".
@@ -1283,7 +1285,7 @@ queue and a pasted link are one click away
 (`apply-agent/docs/apply-window.md`).
 
 **Built (KAN-858, step 5): Settings and notices** (`SETTINGS`): the Worker
-count (one to three, D24), What Leaves Your Mac, the license and the
+count (one to four, D24), What Leaves Your Mac, the license and the
 third-party notices, Sign Out (`WorkIt.sign_out` ends this session at
 Supabase and forgets it), and Remove All My Data (D25): the login and the
 whole data folder, then the app closes, in the Student build only, since a
@@ -2453,7 +2455,8 @@ student sees one Chrome in the Dock and no Worker in Mission Control.
      need another way to reach their profile's pages.
    - The native host's manifest is one per user data folder, so each
      plain Worker's extension must say which Worker it is (today the
-     wrapper in its own profile says so).
+     host reads it from its Chrome's profile folder, which would then be
+     one for all).
    - Apply stops a Worker by its Chrome's PID; with one process it closes
      the profile's windows instead, and one crash or quit ends every
      Worker. The in-use check (`SingletonLock`, one per folder), restart

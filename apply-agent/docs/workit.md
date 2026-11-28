@@ -231,6 +231,12 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   WorkIt's daily cap (50): a 429 (`workit.CapReached`) keeps the Write
   with `not_before`, the response's Retry-After or else the next UTC
   midnight (WorkIt's caps count UTC days). No flush sends it before then.
+- The added job's title is the role Apply knows, never a page's chrome
+  (`model.job_title`): a sign-in wall's title ("Log in or create account
+  | Amazon.jobs") names no role. A Tracker row saved with one loses it
+  as it loads, and the window's Applied list shows such a WorkIt title as
+  the queued job's title, else the one its listing or job system names
+  (`Bridge.applied`).
 - A rehearsal writes only through `submitted_to`, when Lisul presses
   Submit himself. A rehearsal that he does not submit writes nothing.
   His confirmed Submit also saves the rehearsal's Record again as
@@ -288,7 +294,18 @@ in the other. KAN-746's opt-in sync (`answer_sync.py`, `apply sync-answers`,
   window and every Worker of a process share the one bank.
 - **Each entry is a question and an answer**, `own` for the student's (or
   a draft they reviewed) and `none` for a multi-select's "none of these".
-  No options, source, company, date, use count or facts.
+  No source, company, date, use count or facts. **`options` only on the
+  student's own list pick** (`save_pick`, `fill_engine.remember`: a 3.85
+  on a GPA list in steps of 0.05, Freeform 2026-11-26): WorkIt keeps them,
+  the engine gives the pick only to a form offering just that list, and a
+  change that names none keeps them (`_saved`, as WorkIt does). A draft
+  has none: the engine maps its text to each form's options. The old
+  file's upload sends none, since that file kept every choice's list.
+  **`reviewed(question, company)`** is the student's own answer filed for
+  that company alone ("<question> (<company> only)") first, else by its
+  wording; it wins over any draft or essay (Strava, 2026-11-26). **Still
+  open:** `main`'s stale drafts (ENFOS, 2026-11-26) need each draft's Story
+  bank facts, which WorkIt's entries don't keep; left out for now.
 - **Test Person's bank** (sample data) is memory only, with no WorkIt,
   and keeps no drafts (`AnswerBank(drafts=False)`).
 - **The Answers tab edits only a bank that has come from WorkIt**: before,

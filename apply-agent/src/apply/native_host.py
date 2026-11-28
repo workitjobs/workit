@@ -25,7 +25,6 @@ What it gives, and to whom:
 
 import json
 import os
-import shlex
 import struct
 import sys
 from collections.abc import Iterable, Mapping, Sequence
@@ -34,34 +33,31 @@ from pathlib import Path
 from typing import BinaryIO
 from urllib.parse import urlsplit
 
+from apply import chrome_host
 from apply.accounts import failed_sites
 from apply.home import HOME
 from apply.tracker import EmployerAccount
 
 NAME = "com.workit.apply_accounts"
-# The WorkIt extension's ID: manifest.json's `key` pins it (autofiller_extension/store/extension-id.mjs).
-EXTENSION_ID = "cpklhdkoafegnndlafmiceehfloodjgi"
+# The WorkIt extension's ID: manifest.json's `key` pins it (autofiller_extension/store/extension-id.mjs). It is the
+# Store item's since KAN-447 (2026-11-03); this kept the dev key's till 2026-11-26, so Chrome refused the extension.
+EXTENSION_ID = "nejadaaigpkenldhafhhogbmhlfhabda"
 EXTENSION_ORIGIN = f"chrome-extension://{EXTENSION_ID}/"
 LOG = HOME / "apply-accounts-host.log"
 # Chrome's limit on a message to a host.
 MOST = 64 * 1024 * 1024
 WRAPPER = "apply-accounts-host"
-# Where a Chrome on Windows looks for a host instead of a folder: the manifest's path in this key's default value.
-WINDOWS_KEY = rf"HKEY_CURRENT_USER\Software\Google\Chrome\NativeMessagingHosts\{NAME}"
 
 
-def chrome_hosts(system: str = sys.platform, home: Path | None = None,
-                 env: Mapping[str, str] = os.environ) -> Path | None:
-    """Where Lisul's everyday Chrome looks for a host: NativeMessagingHosts in its user data folder, on each OS
-    (developer.chrome.com's native messaging page). macOS: ~/Library/Application Support/Google/Chrome. Linux:
-    $XDG_CONFIG_HOME or ~/.config, then google-chrome. None on Windows, where Chrome reads a registry key
-    (WINDOWS_KEY) that names the manifest instead: F4 writes it."""
+def chrome_hosts(system: str = sys.platform, home: Path | None = None, env: Mapping[str, str] = os.environ) -> Path:
+    """Where the host's manifest goes for Lisul's everyday Chrome (chrome_host.folder): NativeMessagingHosts in its
+    user data folder (developer.chrome.com's native messaging page). macOS: ~/Library/Application Support/Google/
+    Chrome. Linux: $XDG_CONFIG_HOME or ~/.config, then google-chrome. Windows: the one folder that the registry
+    key names."""
     home = home or Path.home()
     if system == "darwin":
-        return home / "Library" / "Application Support" / "Google" / "Chrome" / "NativeMessagingHosts"
-    if system == "win32":
-        return None
-    return Path(env.get("XDG_CONFIG_HOME") or home / ".config") / "google-chrome" / "NativeMessagingHosts"
+        return chrome_host.folder(home / "Library" / "Application Support" / "Google" / "Chrome", system)
+    return chrome_host.folder(Path(env.get("XDG_CONFIG_HOME") or home / ".config") / "google-chrome", system)
 
 
 CHROME_HOSTS = chrome_hosts()
@@ -97,7 +93,7 @@ def serve(argv: Sequence[str], stdin: BinaryIO, stdout: BinaryIO, tracker, keych
         request, reply = {}, {"none": f"Apply's host failed ({type(error).__name__})"}
     _write(stdout, reply)
     if "password" in reply:
-        with log.open("a") as file:
+        with log.open("a", encoding="utf-8") as file:
             file.write(f"{datetime.now().isoformat(timespec='seconds')} gave the WorkIt extension "
                        f"the password of {request['tenant']}\n")
 
@@ -121,29 +117,15 @@ def _write(stdout: BinaryIO, reply: dict) -> None:
     stdout.flush()
 
 
-def install(hosts: Path | None = CHROME_HOSTS, python: str = sys.executable, home: Path = HOME) -> Path:
-    """Write the host's wrapper (in the data folder, Lisul's only, 0700) and
-    the host manifest Chrome reads, which names only the WorkIt extension.
-    The wrapper runs this checkout's venv Python straight (Chrome starts the
-    host once per message, so no `uv run`). Returns the manifest's path.
-    The wrapper is a shell script, for macOS and Linux; Windows (no `hosts`
-    folder: a registry key, and a .bat wrapper) is F4's."""
-    if hosts is None:
-        raise NotImplementedError(f"Chrome on Windows finds the host through the registry ({WINDOWS_KEY}): not built yet")
-    home.mkdir(parents=True, exist_ok=True)
-    wrapper = home / WRAPPER
-    wrapper.write_text(f"#!/bin/sh\nAPPLY_HOME={shlex.quote(str(home))} exec {shlex.quote(python)} -m apply.native_host \"$@\"\n")
-    wrapper.chmod(0o700)
-    hosts.mkdir(parents=True, exist_ok=True)
-    manifest = hosts / f"{NAME}.json"
-    manifest.write_text(json.dumps({
-        "name": NAME,
-        "description": "Apply's Employer account logins, from Keychain, for the WorkIt extension's Sign In button",
-        "path": str(wrapper),
-        "type": "stdio",
-        "allowed_origins": [EXTENSION_ORIGIN],
-    }, indent=1) + "\n")
-    return manifest
+def install(hosts: Path = CHROME_HOSTS, python: str = sys.executable, home: Path = HOME, system: str = sys.platform,
+            registry=None) -> Path:
+    """Write the host's wrapper (in the data folder, Lisul's only) and the host manifest Chrome reads, which names
+    only the WorkIt extension, and on Windows the registry key that names it (chrome_host). The wrapper runs this
+    checkout's venv Python straight (Chrome starts the host once per message, so no `uv run`), on this data folder.
+    Returns the manifest's path."""
+    return chrome_host.install(NAME, "Apply's Employer account logins, from Keychain, for the WorkIt extension's Sign "
+                               "In button", [EXTENSION_ORIGIN], [python, "-m", "apply.native_host"], hosts,
+                               home / WRAPPER, system, registry, env={"APPLY_HOME": str(home)})
 
 
 def adopt(sites: Iterable[str], tracker, login: str, today: date) -> list[str]:

@@ -48,9 +48,12 @@ TEMP_OK = "APPLY_TEST_TEMP_OK"
 
 
 def in_temp(path: Path) -> bool:
-    """Whether a folder is under a temp path, by its name and by where its links lead (/tmp is /private/tmp)."""
+    """Whether a folder is under a temp path, by its name and by where its links lead (/tmp is /private/tmp). By
+    path parts, not text: Windows' paths use backslashes, and its temp folder (tempfile.gettempdir) may come in its
+    short 8.3 form, which resolve() writes long."""
     path = Path(path).expanduser()
-    return any(p == t or p.startswith(t + "/") for p in (str(path), str(path.resolve())) for t in (*TEMP_FOLDERS, tempfile.gettempdir()))
+    temps = [*map(Path, TEMP_FOLDERS), Path(tempfile.gettempdir()), Path(tempfile.gettempdir()).resolve()]
+    return any(p.is_relative_to(t) for p in (path, path.resolve()) for t in temps)
 
 
 def temp_state(profiles: Path) -> str | None:
@@ -92,7 +95,7 @@ def story_bank() -> str:
     when there is none."""
     if WORKIT is not None:
         return WORKIT.story_bank
-    return STORY_BANK.read_text() if STORY_BANK.is_file() else ""
+    return STORY_BANK.read_text(encoding="utf-8") if STORY_BANK.is_file() else ""
 
 
 def add_story_line(section: str, line: str, seen: str) -> bool:
@@ -107,7 +110,7 @@ def add_story_line(section: str, line: str, seen: str) -> bool:
             bank = f"{bank.rstrip()}\n\n{section}\n"
         bank = f"{bank.rstrip()}\n{line}\n"
         if WORKIT is None:
-            STORY_BANK.write_text(bank)
+            STORY_BANK.write_text(bank, encoding="utf-8")
             return True
         WORKIT.story_bank = bank
     return True

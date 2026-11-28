@@ -195,6 +195,16 @@ def test_a_graduation_span_that_ends_before_the_profiles_month_is_flagged(person
     assert flags("Bachelors - Junior (May 2028 - April 2029)") == []
 
 
+def test_a_high_schools_graduation_is_never_checked_against_the_degrees(person):
+    # IMC's Greenhouse list (live, 2026-11-26): "When did you graduate from High School?" answered 2024 was flagged
+    # "your graduation is 2027-12". Fault: any question that says "graduate" is read as the degree's graduation.
+    question = Question("h", "When did you graduate from High School?", "select", True, ("Before 2021", "2023", "2024"))
+
+    flags = verify.check([question], {"h": "2024"}, {"h": "2024"}, person, POSTING, today=TODAY).flags
+
+    assert [f for f in flags if f.kind == verify.DATE] == []
+
+
 def test_a_start_date_already_past_is_flagged(person, tmp_path):
     flags = verified(person, tmp_path, start="05/26/2025").flags
 

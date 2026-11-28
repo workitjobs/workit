@@ -1,5 +1,6 @@
-// Apply's Employer accounts (KAN-592). Apply (apply-agent/), on the student's own Mac, makes a Workday
-// account per company with a generated password that it keeps only in macOS Keychain. Its Apply
+// Apply's Employer accounts (KAN-592). Apply (apply-agent/), on the student's own computer, makes a Workday
+// account per company with a generated password that it keeps only in the system's keychain (Keychain on a
+// Mac, Credential Manager on Windows). Its Apply
 // accounts host (apply-agent's native_host.py, installed by `apply chrome-passwords`) gives this
 // extension one tenant's login at a time, over native messaging, and only to this extension's ID.
 //

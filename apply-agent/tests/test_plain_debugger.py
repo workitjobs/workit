@@ -31,7 +31,7 @@ import pytest
 
 from apply import fill_engine, submit_guard
 from apply.plain import demo, extension, guards, script
-from apply.plain.bridge import Bridge, PortError
+from apply.plain.bridge import PortError
 from apply.plain.launcher import PlainWorkers, chrome_for_testing
 from apply.plain.page import PortPage
 from apply.plain.script import wrap
@@ -100,7 +100,7 @@ def site():
 def worker():
     """One plain Worker (Chrome for Testing, user scripts off) for the module, stopped after."""
     folder = Path(tempfile.mkdtemp(prefix="apw-cdp-", dir="/tmp"))
-    workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"))
+    workers = PlainWorkers(folder, kind="testing")
     try:
         yield workers.launch(0).connection
     finally:
@@ -209,7 +209,7 @@ def test_the_store_package_is_welcomed_to_its_own_files_and_guards_a_page(site, 
     built = extension.package(tmp_path / "out", store=False).with_suffix("")
     assert [p.relative_to(built).as_posix() for p in built.rglob("engine.js")] == ["ops/engine.js"]  # the op, no bundle
     short = Path(tempfile.mkdtemp(prefix="apw-pkg-", dir="/tmp"))  # a Unix socket's path must be short
-    workers = PlainWorkers(short / "profiles", kind="testing", bridge=Bridge(short / "w.sock"), extension_dir=built)
+    workers = PlainWorkers(short / "profiles", kind="testing", extension_dir=built)
     try:
         connection = workers.launch(0).connection
         assert connection.hello["packaged"] == workers.bridge.packaged and connection.vendor == "vendor"

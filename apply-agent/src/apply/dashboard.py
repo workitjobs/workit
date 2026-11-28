@@ -41,11 +41,13 @@ import secrets
 import signal
 import struct
 import subprocess
+import sys
 import tempfile
 import threading
 import time
 from collections import Counter
 from collections.abc import Callable
+from contextlib import suppress
 from datetime import datetime
 from email.message import Message
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -83,6 +85,7 @@ JPEG_QUALITY = 70
 MODIFIERS = ("Alt", "Control", "Meta", "Shift")
 # The most an Answers tab edit may send: room for the longest answer, and no more.
 MAX_BODY = 256 * 1024
+OVERRIDE_MAX = 300  # characters of a Send anyway reason kept in the Record
 MAX_FILE = 15 * 1024 * 1024  # an answer that is a file, base64 in its JSON
 # Seconds the window's page has to load again after it goes away (a reload) before its window counts as closed.
 CLOSE_GRACE = 3.0
@@ -514,6 +517,18 @@ class Board(Protocol):
         press is given once."""
         ...
 
+    def override_given(self, worker: int) -> str:
+        """Why the student sends tile `worker`'s held form past what holds it (`POST /submit` with an `override`,
+        `apply window submit --override`), given with its Approve and submit: its legal holds are dismissed and the
+        reason goes in its Record. Each reason is given once; "" for none."""
+        ...
+
+    def code_given(self, worker: int) -> str:
+        """The emailed code the student gave for tile `worker`'s held form since it last asked (`POST /code`, its
+        card's box or `apply window code`), for Apply to enter and send (apply.code_box); "" for none. Each is given
+        once."""
+        ...
+
     def let_go_asked(self, worker: int) -> bool:
         """Whether the student pressed Not applying to this one on tile `worker`'s held form (`POST /let-go`):
         its page is let go, unsubmitted. Each press is given once."""
@@ -584,6 +599,12 @@ class NoBoard:
 
     def auto_cancel_asked(self, worker: int) -> bool:
         return False
+
+    def override_given(self, worker: int) -> str:
+        return ""
+
+    def code_given(self, worker: int) -> str:
+        return ""
 
     def regenerations(self, worker: int) -> list[tuple[str, str]]:
         return []
@@ -708,6 +729,8 @@ class Dashboard:
         self._again: set[int] = set()  # the tiles whose held form was asked to fill again (fill_again_asked)
         self._letting_go: set[int] = set()  # the tiles whose held form the student isn't applying to (let_go_asked)
         self._submitting: set[int] = set()  # the tiles whose held form the student approved (submit_asked)
+        self._codes: dict[int, str] = {}  # the emailed code given for each tile's held form (code_given)
+        self._overrides: dict[int, str] = {}  # why the student sends each tile's held form anyway (override_given)
         self._cancelling: set[int] = set()  # the tiles whose Auto-submit countdown the student ended (auto_cancel_asked)
         self._logos: dict[str, dict] = {}  # each queued job's logo sources by its link (logos)
         self._named: dict[str, dict] = {}  # each other waiting link's names, found in the background (names_by)
@@ -794,6 +817,12 @@ class Dashboard:
         with self._lock:
             self._shown[:len(workers)] = list(workers)
 
+    def aim_tile(self, tile: int, worker: int) -> None:
+        """Tile `tile` shows Worker `worker` from now on: its link moved there, its own Worker's Chrome gone."""
+        with self._lock:
+            if 0 <= tile < len(self._shown):
+                self._shown[tile] = worker
+
     def add_tile(self, worker: int) -> int:
         """One more tile, showing Worker `worker`'s window. Returns its number; the window reloads to show it."""
         with self._lock:
@@ -867,6 +896,8 @@ class Dashboard:
                 self._letting_go.discard(worker)  # a let go asked of the last one's form isn't this one's
                 self._submitting.discard(worker)
                 self._cancelling.discard(worker)
+                self._codes.pop(worker, None)
+                self._overrides.pop(worker, None)
             if "files" in caption:  # the plan's files, and each one Lisul picked in the tile too
                 caption["files"] = list(caption["files"] or []) + [
                     f for f in self._picked[worker] if f not in (caption["files"] or [])]
@@ -997,9 +1028,12 @@ class Dashboard:
             self._submitting.discard(worker)
             return asked
 
-    def submit_form(self, key: str) -> str:
+    def submit_form(self, key: str, override: str = "") -> str:
         """Approve and submit, on a tile's held form ("tile-<k>", ADR 0006): Apply presses its Submit, once, and the
-        tile says how it went. Raises Refused when no form is held there, or it still needs the student's answers."""
+        tile says how it went. Raises Refused when no form is held there, or it still needs the student's answers.
+        `override` is the student's reason to send it past the Pre-submit review's holds (Send anyway): they are
+        dismissed and the reason is kept in its Record. Nothing else gives way to it."""
+        override = " ".join(str(override or "").split())[:OVERRIDE_MAX]
         k = int(key.removeprefix("tile-")) if key.startswith("tile-") and key.removeprefix("tile-").isdigit() else -1
         with self._lock:
             if not 0 <= k < self._workers:
@@ -1012,6 +1046,8 @@ class Dashboard:
                 raise Refused("It still needs your answers: answer them, then approve it.", 409)
             caption["submitting"], caption["submit_said"] = True, ""
             self._submitting.add(k)
+            if override:
+                self._overrides[k] = override
             caption["auto_at"] = None  # approved before Auto-submit's countdown ran out: the countdown ends
         return "Submitting it."
 
@@ -1020,6 +1056,36 @@ class Dashboard:
             asked = worker in self._cancelling
             self._cancelling.discard(worker)
             return asked
+
+    def override_given(self, worker: int) -> str:
+        with self._lock:
+            return self._overrides.pop(worker, "")
+
+    def code_given(self, worker: int) -> str:
+        with self._lock:
+            return self._codes.pop(worker, "")
+
+    def enter_code(self, key: str, code: str) -> str:
+        """The emailed code, for a tile's held form ("tile-<k>"): Apply enters it in the form's code field, presses
+        its Submit once, and the tile says how it went (`coding`, then `code_said`, or Sent once the job site
+        confirms it). Raises Refused when it is no code, no form is held there, or it was sent already."""
+        k = int(key.removeprefix("tile-")) if key.startswith("tile-") and key.removeprefix("tile-").isdigit() else -1
+        # Here: it reads the page's code boxes, and the window's page needs none of it.
+        from apply import code_box
+
+        if not (code := code_box.given(code)):
+            raise Refused(code_box.NOT_A_CODE_GIVEN, 400)
+        with self._lock:
+            if not 0 <= k < self._workers:
+                raise Refused("No such form.", 404)
+            caption = self._captions[k]
+            if not caption.get("again") or caption.get("status") == "submitted" or caption.get("let_go"):
+                raise Refused("That form isn't held for you now: it's closed already.", 409)
+            if caption.get("coding"):
+                raise Refused("Apply is entering a code on that form now: wait for how it went.", 409)
+            caption["coding"], caption["code_said"] = True, ""
+            self._codes[k] = code
+        return "Entering the code."
 
     def auto_go(self, worker: int) -> bool:
         """Auto-submit's wait is over on tile `worker`: whether it may press, claimed under the lock, so a Cancel
@@ -1575,6 +1641,8 @@ class _Handler(BaseHTTPRequestHandler):
             return self._submit_form()
         if parts.path == "/auto-cancel":
             return self._cancel_auto()
+        if parts.path == "/code":
+            return self._enter_code()
         if parts.path == "/regenerate":
             return self._regenerate()
         if parts.path == "/stop":
@@ -1650,7 +1718,10 @@ class _Handler(BaseHTTPRequestHandler):
         listed = self._listed(path)
         if not listed:
             return self._json(404, {"error": "That file is gone."})
-        subprocess.run(["open", "-R", str(listed)], check=False)
+        from apply.plain.seed_setup import reveal
+
+        with suppress(OSError, subprocess.CalledProcessError):  # each OS's file manager (seed_setup.reveal)
+            reveal(listed)
         self._send(204, "text/plain", b"")
 
     def _from_window(self) -> bool:
@@ -1902,14 +1973,30 @@ class _Handler(BaseHTTPRequestHandler):
             return self._json(403, {"error": "Only the Apply window may submit a form."})
         try:
             body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
-            key = str(body["id"])
+            key, override = str(body["id"]), str(body.get("override") or "")
         except (ValueError, KeyError, TypeError, AttributeError):
             return self._json(400, {"error": "Not a form to submit."})
         try:
-            message = self.dashboard.submit_form(key)
+            message = self.dashboard.submit_form(key, override)
         except Refused as refused:
             return self._json(refused.status, {"error": str(refused)})
-        print(f"Approved and submitting, in the window ({key})")
+        print(f"Approved and submitting, in the window ({key})" + (f", sent anyway: {override}" if override.strip() else ""))
+        self._json(200, {"message": message})
+
+    def _enter_code(self) -> None:
+        """The emailed code, for a held form, from the page itself. Body {"id": "tile-<k>", "code": "<code>"}."""
+        if not self._from_window():
+            return self._json(403, {"error": "Only the Apply window may enter a code."})
+        try:
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length") or 0), MAX_BODY)) or b"{}")
+            key, code = str(body["id"]), str(body["code"])
+        except (ValueError, KeyError, TypeError, AttributeError):
+            return self._json(400, {"error": "Not a code to enter."})
+        try:
+            message = self.dashboard.enter_code(key, code)
+        except Refused as refused:
+            return self._json(refused.status, {"error": str(refused)})
+        print(f"Code given, in the window ({key})")  # never the code itself
         self._json(200, {"message": message})
 
     def _cancel_auto(self) -> None:
@@ -2507,23 +2594,26 @@ def _dispatch(page, event: dict) -> dict | None:
     return None
 
 
-def open_window(url: str, profile: Path, front: bool = True) -> None:
+def open_window(url: str, profile: Path, front: bool = True, system: str = sys.platform) -> None:
     """Open the dashboard as a Chrome app window, in a plain profile of its
     own (never a Worker profile), as the Apply app in the Dock (dock_app),
     and bring it to the front; or, not `front` (a run starting while Lisul
     works in another app), leave it behind his app till he clicks Apply.
+    Off the Mac it is the Chrome finder's Chrome itself (`_open_elsewhere`).
 
     Only one Chrome may use a profile: when one already shows this server's
     window it is brought forward, not launched again; one left showing an
     older server's window (a run gone by) is quit first."""
     profile.mkdir(parents=True, exist_ok=True)
     _OPENED[urlsplit(url).netloc] = profile
-    for pid, shown in _window_chromes(profile):
+    for pid, shown in _window_chromes(profile, system):
         if urlsplit(shown).netloc == urlsplit(url).netloc:
             if front:
-                raise_window(profile)
+                raise_window(profile, system=system)
             return
-        _quit(pid)
+        _quit(pid, system=system)
+    if system != "darwin":
+        return _open_elsewhere(url, profile, front, system)
     from apply import (
         dock_app,  # a Developer checkout's (apply.build): W5's window replaces this one
     )
@@ -2541,6 +2631,21 @@ def open_window(url: str, profile: Path, front: bool = True) -> None:
                 KEEPER.watch(pid, seconds=BEHIND_FOR)  # Chrome comes forward a moment after it starts, too
 
 
+def _open_elsewhere(url: str, profile: Path, front: bool, system: str) -> None:
+    """The window off the Mac (KAN-929): Google Chrome itself, with `--app` on the window's own profile, started by
+    each OS's background start (launcher.start_in_background). No Dock app and no AppleScript. With no Chrome the
+    run goes on, and the caller prints the window's address."""
+    from apply import chrome_finder
+    from apply.plain.launcher import start_in_background
+
+    if (binary := chrome_finder.find(system)) is None:
+        print(f"{NO_CHROME}. Till then, open {url} in a browser.", file=sys.stderr)
+        return
+    arguments = [str(binary), f"--app={url}", f"--user-data-dir={profile}", "--no-first-run",
+                 "--no-default-browser-check"]
+    start_in_background(arguments, profile, profile.with_suffix(".log"), system, front=front)
+
+
 def _launched(profile: Path, timeout: float = 10.0) -> list[int]:
     """The pids of the Chrome showing the window in `profile`, once it has started."""
     deadline = time.monotonic() + timeout
@@ -2553,11 +2658,20 @@ def _launched(profile: Path, timeout: float = 10.0) -> list[int]:
 _OPENED: dict[str, Path] = {}
 
 
-def _window_chromes(profile: Path) -> list[tuple[int, str]]:
+def _window_chromes(profile: Path, system: str = sys.platform) -> list[tuple[int, str]]:
     """Each Chrome (pid, the URL its window opened on) running the window in `profile`:
-    Chrome itself, not the `open` command that launched it with the same arguments."""
+    Chrome itself, not the `open` command that launched it with the same arguments. Off the Mac, with no pgrep:
+    the browser that holds the profile (browsers.chrome_pid), and the `--app` it started with."""
+    if system != "darwin":
+        from apply.browsers import chrome_pid
+
+        try:
+            arguments = psutil.Process(pid).cmdline() if (pid := chrome_pid(profile, system)) else []
+        except psutil.Error:  # it ended in between
+            arguments = []
+        return [(pid, a.removeprefix("--app=")) for a in arguments if a.startswith("--app=")][:1]
     found = subprocess.run(["pgrep", "-lf", f"MacOS/Google Chrome --app=.*--user-data-dir={profile}"],
-                           capture_output=True, text=True, check=False)
+                           capture_output=True, text=True, check=False, encoding="utf-8")
     chromes = []
     for line in found.stdout.splitlines():
         pid, _, command = line.partition(" ")
@@ -2567,8 +2681,20 @@ def _window_chromes(profile: Path) -> list[tuple[int, str]]:
     return chromes
 
 
-def _quit(pid: int, timeout: float = 10.0) -> None:
-    """Quit the window's Chrome as Cmd-Q would, and wait for it to be gone."""
+def _quit(pid: int, timeout: float = 10.0, system: str = sys.platform) -> None:
+    """Quit the window's Chrome as Cmd-Q would, and wait for it to be gone. Off the Mac through launcher.ask_to_quit:
+    on Windows a signal would kill it at once."""
+    if system != "darwin":
+        from apply.plain.launcher import Chrome, ask_to_quit
+
+        try:
+            process = psutil.Process(pid)
+        except psutil.Error:
+            return
+        ask_to_quit(Chrome(pid), system)
+        with suppress(psutil.Error):  # gone, or still up after `timeout`
+            process.wait(timeout)  # this process's own child is reaped here too
+        return
     try:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
@@ -2580,29 +2706,34 @@ def _quit(pid: int, timeout: float = 10.0) -> None:
         time.sleep(0.1)
 
 
-def window_open(profile: Path) -> bool:
+def window_open(profile: Path, system: str = sys.platform) -> bool:
     """Whether the window opened in `profile` is still open."""
+    if system != "darwin":
+        return bool(_window_chromes(profile, system))
     found = subprocess.run(["pgrep", "-f", f"MacOS/Google Chrome --app=.*--user-data-dir={profile}"],
-                           capture_output=True, text=True, check=False)
+                           capture_output=True, text=True, check=False, encoding="utf-8")
     return bool(found.stdout.split())
 
 
-def raise_window(profile: Path, timeout: float = 10.0) -> bool:
+def raise_window(profile: Path, timeout: float = 10.0, system: str = sys.platform) -> bool:
     """Bring the dashboard window in front of every other window.
 
     It is a Chrome of its own, so Chrome's Dock icon finds Lisul's everyday
     Chrome, not this window, and a window opened behind others stays lost.
+    Off the Mac, with no AppleScript, it brings nothing forward: False.
     """
+    if system != "darwin":
+        return False
     deadline = time.monotonic() + timeout
     while True:
         # Chrome itself, not the `open` command that launched it with the same arguments.
         found = subprocess.run(["pgrep", "-f", f"MacOS/Google Chrome --app=.*--user-data-dir={profile}"],
-                               capture_output=True, text=True, check=False)
+                               capture_output=True, text=True, check=False, encoding="utf-8")
         for pid in found.stdout.split():
             script = (f'tell application "System Events" to tell (first process whose unix id is {pid})\n'
                       "if (count of windows) is 0 then return false\n"
                       "set frontmost to true\nreturn frontmost\nend tell")
-            raised = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, check=False)
+            raised = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, check=False, encoding="utf-8")
             if raised.stdout.strip() == "true":
                 return True
         if time.monotonic() >= deadline:

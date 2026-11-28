@@ -490,7 +490,7 @@ def register(folder: Path, url: str, token: str, pid: int) -> Path:
     folder.mkdir(parents=True, exist_ok=True)
     note = folder / f"{pid}-{url.rsplit(':', 1)[-1]}.json"
     note.touch(mode=0o600)
-    note.write_text(json.dumps({"url": url, "token": token, "pid": pid}))
+    note.write_text(json.dumps({"url": url, "token": token, "pid": pid}), encoding="utf-8")
     return note
 
 
@@ -521,7 +521,7 @@ def windows(folder: Path, alive: Callable[[int], bool], fetch: Callable[[dict, s
     forms = []
     for note in sorted(folder.glob("*.json")) if folder.is_dir() else []:
         try:
-            window = json.loads(note.read_text())
+            window = json.loads(note.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
         if not alive(int(window.get("pid") or 0)):

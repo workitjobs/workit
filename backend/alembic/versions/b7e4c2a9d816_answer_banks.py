@@ -13,7 +13,7 @@ saved answers (app/auto_apply/answer_bank.py). Apply it only once it is on
 main, never from its branch (backend/alembic/CLAUDE.md).
 
 Revision ID: b7e4c2a9d816
-Revises: 756dd185aedb
+Revises: b3e7a1c9d452
 Create Date: 2026-11-18 23:00:00.000000
 
 """
@@ -26,7 +26,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'b7e4c2a9d816'
-down_revision: Union[str, Sequence[str], None] = '756dd185aedb'
+down_revision: Union[str, Sequence[str], None] = 'b3e7a1c9d452'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -268,11 +268,13 @@ jobs:
             tests/test_claude_answers.py \
             tests/test_claude_cli.py \
             tests/test_clock.py \
+            tests/test_code_box.py \
             tests/test_company_brief.py \
             tests/test_company_material.py \
             tests/test_cover_letter.py \
             tests/test_daily_cap.py \
             tests/test_dock_app.py \
+            tests/test_doctor.py \
             tests/test_each_os.py \
             tests/test_eightfold_filler.py \
             tests/test_engine_download.py \
@@ -287,6 +289,8 @@ jobs:
             tests/test_graduate_only.py \
             tests/test_ask_model.py \
             tests/test_into.py \
+            tests/test_job_title.py \
+            tests/test_open_slots.py \
             tests/test_keepalive.py \
             tests/test_left_behind.py \
             tests/test_locks.py \
@@ -296,16 +300,20 @@ jobs:
             tests/test_mail_command.py \
             tests/test_masked.py \
             tests/test_matches.py \
+            tests/test_native_host.py \
             tests/test_network_block.py \
             tests/test_notification.py \
+            tests/test_opinion_questions.py \
             tests/test_optional_ask.py \
             tests/test_other_roles.py \
             tests/test_outside_us.py \
             tests/test_phone_push.py \
             tests/test_plain_bridge.py \
             tests/test_plain_channel.py \
+            tests/test_plain_no_hello.py \
             tests/test_plain_seed_setup.py \
             tests/test_plain_trusted_rules.py \
+            tests/test_plain_window_close.py \
             tests/test_presubmit_check.py \
             tests/test_privacy_gate.py \
             tests/test_profile.py \
@@ -320,6 +328,7 @@ jobs:
             tests/test_rescue_elsewhere.py \
             tests/test_resume_check.py \
             tests/test_restart.py \
+            tests/test_safety.py \
             tests/test_sameness.py \
             tests/test_schedule.py \
             tests/test_send_click.py \
@@ -332,6 +341,9 @@ jobs:
             tests/test_temp_state.py \
             tests/test_third_party_notices.py \
             tests/test_strip_js_comments.py \
+            tests/test_todo_scan.py \
+            tests/test_todos.py \
+            tests/test_todo_window.py \
             tests/test_tracker_cleanup.py \
             tests/test_already_applied.py \
             tests/test_tracker_contract.py \

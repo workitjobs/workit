@@ -46,8 +46,11 @@ class Server(Source):
         if self.refusal:
             raise self.refusal
         out = {e["question"]: "It names Zipline, so it stays on this form." for e in entries if e["question"] in self.keeps_out}
-        self.answers |= {key(e["question"]): {"question": e["question"], "answer": e["answer"], "own": not e["review"]}
-                         for e in entries if e["question"] not in out}
+        for e in entries:
+            if e["question"] not in out:  # an entry keeps its list when a change names none, as WorkIt's does
+                options = e.get("options", self.answers.get(key(e["question"]), {}).get("options"))
+                self.answers[key(e["question"])] = {"question": e["question"], "answer": e["answer"],
+                                                    "own": not e["review"], **({"options": options} if options else {})}
         for question in deleted:
             self.answers.pop(key(question), None)
         self.version += 1 + self.others

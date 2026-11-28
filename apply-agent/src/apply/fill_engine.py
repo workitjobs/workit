@@ -151,7 +151,7 @@ def source() -> str:
     again at once, with no new download, until Apply restarts; any other is tried again at the next use."""
     if not from_workit():
         _built()
-        return ENGINE.read_text()
+        return ENGINE.read_text(encoding="utf-8")
     with _download_lock:
         if "text" not in _download:
             if "refused" in _download:
@@ -297,8 +297,8 @@ class Plan:
     # Each attestation the attest_from_sources policy's rules settled from the profile's facts, by name: that fact
     # (KAN-761). The plan answers it with the form's affirmative option; it goes on the Check before Submit list.
     attested: dict[str, str] = field(default_factory=dict)
-    # Optional questions that ask a fact of Lisul's no source holds, which may exist for him (KAN-759): asked in Needs
-    # you with a Skip, never a Missing fact that stops the form. Each is in `blanks` too, until he answers it.
+    # Optional questions for Lisul to answer or skip (KAN-759). Always empty since 2026-11-26: the engine leaves an
+    # optional question no source holds blank (or No, for a Yes/No) and never asks it. Kept for an older engine.
     optional: list[Question] = field(default_factory=list)
 
 
@@ -370,7 +370,7 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
     beside the form (the Posting description, Company material): an AI trap in it makes the
     Application a Handoff, and an AI ban in it bans AI-written text on the form."""
     bank = bank or AnswerBank()
-    entries = {question: {"answer": entry.answer, "own": entry.own, "none": entry.none}
+    entries = {question: {"answer": entry.answer, "own": entry.own, "none": entry.none, "options": list(entry.options)}
                for question, entry in bank.answers().items()}
     context = {"posting": posting, "today": (today or date.today()).isoformat(), "postingText": HostCall(functools.cache(posting_text)),
                "employerText": employer_text}
@@ -403,6 +403,13 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
     # "Take this builder's quiz: https://awu-ramp.github.io/..." with his GitHub profile (2026-11-26).
     sources = result.get("sources") or {}
     takes = [q for q in questions if asking.takes_elsewhere(q) and sources.get(q.name) != "student"]
+    # A link to something Lisul must make or host first (a video, a submission, a portfolio, a demo) is never
+    # written: OpenSesame's YouTube link box got an essay (2026-11-26). An answer keeps only a link that fits it,
+    # and an essay or a draft is never written: he is asked, and asking.known fills it from a link of his that names it.
+    # One the engine left blank, handed off or asked him already stays as it planned it.
+    takes += [q for q in questions if q not in takes and asking.to_make(q) and sources.get(q.name) != "student"
+              and (q.name in answers or q in result["essays"] or q in result["drafts"])
+              and not asking.fits_made(q, answers.get(q.name))]
     for question in takes:
         answers.pop(question.name, None)
     essays, drafts = ([q for q in result[kind] if q not in takes] for kind in ("essays", "drafts"))
@@ -410,8 +417,8 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
     return Plan(
         answers=answers,
         essays=essays, missing=missing, not_eligible=result["not_eligible"],
-        high_stakes=result["high_stakes"], handoffs=result["handoffs"], drafts=drafts, banked=result["banked"],
-        accepted=accepted, blanks=blanks,
+        high_stakes=[q for q in result["high_stakes"] if q not in takes], handoffs=result["handoffs"], drafts=drafts,
+        banked=result["banked"], accepted=accepted, blanks=blanks,
         sections=dict(result.get("sections") or {}), filed=dict(result.get("filed") or {}),
         waiting=dict(result.get("waiting") or {}), attestations=dict(result.get("attestations") or {}),
         attested=dict(result.get("attested") or {}),
@@ -430,6 +437,10 @@ def _as_home_address(question: Question) -> Question:
     """`question`, a part of the address under a bare "Address" heading asked as the home address's part, which the
     engine plans from that part's fact: "Home address: Country". Its name, and so its answer, stay its own."""
     found = ADDRESS_HEADED.match(question.label)
+    if found and found[1].strip().lower() == "county":
+        # The engine knows no home address's county: "Home address: County" got the whole address (Honeywell's, live
+        # 2026-11-27). Asked bare, it is planned from the county the profile holds.
+        return replace(question, label=found[1])
     return replace(question, label=f"Home address: {found[1]}") if found else question
 
 
@@ -445,14 +456,27 @@ def _local_path(answer: Any) -> bool:
     return isinstance(answer, Path) or (isinstance(answer, str) and LOCAL.match(answer.strip()) is not None)
 
 
-def remember(profile: ApplicantProfile, posting: Posting, question: Question, answer: str) -> None:
+def remember(profile: ApplicantProfile, posting: Posting, question: Question, answer: str,
+             bank: AnswerBank | None = None) -> None:
     """Add Lisul's answer to a Missing fact to the profile: as the fact the
-    question asks for, or else by the question's wording. The caller saves it."""
+    question asks for, or else by the question's wording. The caller saves it.
+    A pick from a list that renders a fact the profile holds (a 3.85 on a GPA list in steps of 0.05, for a 3.86)
+    goes to `bank` instead, as his, with the list's options: it answers only a list of just those options, never
+    the profile's fact (Freeform, 2026-11-26)."""
     change = call_without_page("remember", question, posting, _facts(profile), profile.policies(), answer, questions=[question])
     if "fact" in change:
         profile.set(change["fact"], change["value"])
+    elif "options" in change and bank is not None:
+        bank.answer(change["question"], change["answer"], options=change["options"])
     else:
         profile.set_answered(change["question"], change["answer"])
+
+
+def list_pick(profile: ApplicantProfile, posting: Posting, question: Question, answer: str) -> tuple[str, ...] | None:
+    """The options Lisul's `answer` to `question` is kept with when it is a pick from a list that renders a fact the
+    profile holds (remember's bank case); None when it is a fact, or an answer kept by its wording."""
+    change = call_without_page("remember", question, posting, _facts(profile), profile.policies(), answer, questions=[question])
+    return tuple(change["options"]) if "options" in change else None
 
 
 def context_free(label: str) -> bool:
@@ -545,15 +569,23 @@ def _answer(value: Any) -> Any:
     return Path(value["file"]) if isinstance(value, dict) and "file" in value else value
 
 
+def _as_shown(meant: Any, shown: Any) -> Any:
+    """`meant` in the form `shown` takes: a file by its name, and one choice as the one box ticked when the field reads
+    back its boxes. Honeywell's Yes/No pair (Oracle, live 2026-11-27) was read as a group of boxes, so its planned "No"
+    read back as ["No"], and the match was flagged."""
+    meant = meant.name if isinstance(meant, Path) else meant
+    return [meant] if isinstance(meant, str) and isinstance(shown, list) and len(shown) == 1 else meant
+
+
 def shows(shown: Any, meant: Any, accepted: tuple[str, ...] = ()) -> bool:
     """Whether a field showing `shown` shows the answer `meant`, or a wording of it in `accepted`."""
-    return call_without_page("shows", shown, meant.name if isinstance(meant, Path) else meant, list(accepted))
+    return call_without_page("shows", shown, _as_shown(meant, shown), list(accepted))
 
 
 def readback_problems(questions: QuestionSet, answers: Answers, readback: Readback,
                       accepted: dict[str, tuple[str, ...]] | None = None) -> list[str]:
     """Each answer the Readback doesn't show as meant: "<label>: meant <answer>, page shows <shown>"."""
-    named = {name: value.name if isinstance(value, Path) else value for name, value in answers.items()}
+    named = {name: _as_shown(value, readback.get(name)) for name, value in answers.items()}
     return call_without_page("readbackProblems", questions_arg(questions), named, readback,
                              {name: list(wordings) for name, wordings in (accepted or {}).items()})
 
@@ -701,9 +733,11 @@ def answers_arg(answers: Answers) -> dict:
 
 def question_set(questions: list[dict]) -> QuestionSet:
     """Questions as the engine gives them, with the form's help text, character
-    limit and section heading when the engine reads them."""
+    limit and section heading when the engine reads them, and whether the field
+    takes only a web address."""
     return [Question(q["name"], q["label"], q["kind"], q["required"], tuple(q["options"]),
-                     q.get("description") or "", q.get("maxLength") or q.get("max_length"), q.get("section") or "")
+                     q.get("description") or "", q.get("maxLength") or q.get("max_length"), q.get("section") or "",
+                     q.get("url") is True)
             for q in questions]
 
 

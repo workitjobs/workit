@@ -75,7 +75,7 @@ def replay(folder: Path):
     """A saved form (the engine's fixtures: a HAR of its page) served on 127.0.0.1, by path, as
     its job system served it. Only GETs of its own host's paths are answered; any POST is refused,
     so nothing can be sent. Yields (local URL, the form's real URL)."""
-    har = json.loads((folder / "page.har").read_text())
+    har = json.loads((folder / "page.har").read_text(encoding="utf-8"))
     first = har["log"]["entries"][0]["request"]["url"]
     host = urlsplit(first).netloc
     responses = {}

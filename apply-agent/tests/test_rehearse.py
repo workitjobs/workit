@@ -34,6 +34,7 @@ from fake_jobvite import FakeJobviteServer
 from fake_lever import FakeLeverServer
 from fake_paylocity import URL as PAYLOCITY_URL
 from fake_paylocity import FakePaylocityServer
+from fake_rippling import FakeRipplingServer
 from fake_workday import EXPERIENCE_STEPS, STEPS, FakeWorkdayServer
 from fake_workday import Field as WorkdayField
 from fakes import (
@@ -60,12 +61,14 @@ from test_claude_fill import (
 )
 from test_employer_accounts import CACI, CACI_FORM, CACI_URL, XCEL_FORM, XCEL_URL, World
 from test_greenhouse_filler import board_listing_schools
+from test_rippling_filler import RIPPLING_FORM, RIPPLING_URL
 from test_run_answers import profile_with
 
-from apply import auto_submit, essays, rehearsal, rescue, send_button, worker
+from apply import auto_submit, batch, essays, rehearsal, rescue, send_button, worker
 from apply.adapters import Adapters, ClaudeError, Drive, SetupError, UsageReading
 from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
+from apply.claude_fill import THANKS as FILL_THANKS
 from apply.claude_fill import ClaudeFill
 from apply.feed import SimplifyFeed
 from apply.fillers import FILLERS
@@ -224,6 +227,19 @@ def test_holds_do_not_stop_a_rehearsal_and_claude_fill_never_clicks_submit(monke
     # Two drives, then 1,000 for each other call: the essay's probe, plan, draft, checks and editor's passes, and the review.
     assert done.tokens == 18_000 + 31_500 + 1_000 * (len(claude.calls) + len(claude.kinds) - 2)  # kinds spend too
     assert "Claude fill:" not in done.why  # its cost is in the tokens, not among the holds
+
+
+def test_hold_high_stakes_essays_false_holds_no_essay_only_for_review(tmp_path):
+    """Fault: full_auto's hold_high_stakes_essays: false ignored, so every Ashby-like essay still waits for review."""
+    profile = profile_with(tmp_path, **{f"answered_questions.{q}": a for q, a in ANSWERED.items()})
+    (tmp_path / "policies.yaml").write_text("hold_high_stakes_essays: false\ncalibration_run: 0\n")
+    claude = FakeClaude(driver=BambooDriver(), essays={"Tell us why": WHY_LUNAR})
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [done] = rehearse([LUNAR_URL], server, profile, claude)
+
+    assert any(asked["kind"] == "essays.write" for asked in claude.kinds)
+    assert "High-stakes essay" not in done.why
     assert server.submissions == []
 
 
@@ -264,6 +280,35 @@ def test_each_filled_rehearsal_keeps_its_record_in_a_local_folder(tmp_path):
     assert essay in (folder / "answers.json").read_text()
     assert (folder / "form.png").read_bytes().startswith(b"\x89PNG")
     assert server.submissions == []
+
+
+class RefusedOnce(FakeClaude):
+    """Opus's safeguards refused the essay write, and Sonnet answered it (claude_cli.ClaudeCLI.refused)."""
+
+    def __init__(self, **given):
+        super().__init__(**given)
+        self._refused = threading.local()
+
+    def refused(self) -> list[str]:
+        return list(getattr(self._refused, "kinds", ()))
+
+    def ask_kind(self, kind: str, data: dict) -> dict:
+        if kind == "essays.write":
+            self._refused.kinds = [*self.refused(), kind]
+        return super().ask_kind(kind, data)
+
+
+def test_a_call_opus_refused_and_sonnet_answered_is_said_in_the_fills_record(tmp_path):
+    """Fault: Mach Industries' (run11) refusal, once Sonnet answers it, leaving no word of it in the Record."""
+    claude = RefusedOnce(driver=BambooDriver(), essays={"Tell us why": "I build lunar rover software."})
+    records = FolderRecords(tmp_path / "rehearsals")
+
+    with FakeBambooServer(LUNAR_FORM) as server:
+        [done] = rehearse([LUNAR_URL], server, profile_with(tmp_path), claude, records=records)
+
+    said = "Opus's safeguards refused essays.write, so Sonnet answered it"
+    assert [line.split(" ", 1)[1] for line in done.history] == [said]
+    assert said in (Path(done.record) / "README.md").read_text()
 
 
 # A pasted link on a job system with no Filler names neither company nor role:
@@ -550,6 +595,61 @@ def test_the_reviews_fix_for_a_legal_answer_is_filled_over_the_profiles(monkeypa
     assert {a["question"]: a["from"] for a in board.captions[0]["answers"]}[AUTHORIZED] == "written"
     assert sum(asked["kind"] == "presubmit.review" for asked in claude.kinds) == 2  # reviewed again after the fix
     assert done.legal == ()
+    assert fake.submissions == []
+
+
+TOO_MUCH = "Last Name: gives a middle name too, which the question doesn't ask for"
+TWO_NAMES = {"identity.legal_last_name": "Quinn Person"}
+
+
+def test_apply_fixes_a_review_problem_the_review_gave_no_fix_for_before_the_form_shows_as_ready(monkeypatch, tmp_path):
+    # Abridge (live, 2026-11-26): the review held a profile answer as more than its question asks, with no fix, and
+    # it reached Needs you. Apply asks for the fix, fills it, reads the form back and reviews it again: a fix that
+    # only narrows the profile's answer states no new fact, so it goes in over it.
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    claude = FakeClaude(reviews=[[TOO_MUCH]], fixes=[{"fixes": [{"question": "Last Name", "answer": "Person"}], "yours": []}])
+    records, board = FolderRecords(tmp_path / "rehearsals"), RecordingBoard()
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path, **TWO_NAMES), claude, records=records, board=board)
+
+    assert done.outcome == "ready to submit", done.why
+    assert "Pre-submit review" not in done.why
+    shown = {a["question"].strip(): a["on_page"] for a in json.loads((Path(done.record) / "answers.json").read_text())}
+    assert shown["Last Name"] == "Person"
+    assert board.captions[0]["fixed"] == [{"question": "Last Name", "was": "Quinn Person", "now": "Person"}]
+    assert "## Fixed before submit" in (readme := (Path(done.record) / "README.md").read_text())  # the Record logs it
+    assert "- Last Name: Quinn Person → Person" in readme
+    [asked] = [k["data"] for k in claude.kinds if k["kind"] == "presubmit.fix"]
+    assert asked["problems"] == [TOO_MUCH]
+    assert [k["kind"] for k in claude.kinds].count("presubmit.review") == 2  # reviewed again after the fix
+    assert fake.submissions == []
+
+
+def test_a_self_fix_that_states_a_new_fact_is_never_filled_over_the_profiles(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    claude = FakeClaude(reviews=[["First Name: not his name"]],
+                        fixes=[{"fixes": [{"question": "First Name", "answer": "Someone"}], "yours": []}])
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path), claude)
+
+    assert "Pre-submit review: First Name: not his name" in done.why
+    assert [k["kind"] for k in claude.kinds].count("presubmit.review") == 1
+    assert fake.submissions == []
+
+
+def test_a_problem_still_there_after_two_self_fixes_reaches_the_student(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    narrower = [{"fixes": [{"question": "Last Name", "answer": answer}], "yours": []} for answer in ("Quinn Person", "Person")]
+    claude = FakeClaude(reviews=[[TOO_MUCH]] * 3, fixes=narrower)
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path, **{"identity.legal_last_name": "Ann Quinn Person"}), claude)
+
+    assert f"Pre-submit review: {TOO_MUCH}" in done.why
+    kinds = [k["kind"] for k in claude.kinds]
+    assert (kinds.count("presubmit.fix"), kinds.count("presubmit.review")) == (2, 3)
     assert fake.submissions == []
 
 
@@ -972,9 +1072,19 @@ class OnePage:
 SENT = "<button onclick=\"document.body.innerHTML = '<p>Thank you for applying!</p>'{}\">Submit</button>"
 
 
-@pytest.mark.parametrize("pop_up, closes", [("", True), ("; window.open('about:blank')", False)])
-def test_a_confirmed_page_closes_its_window_after_a_wait_unless_a_pop_up_came(monkeypatch, pop_up, closes):
+# Faults: a sent page that went to about:blank after its confirmation (the confirmation gone) kept its window till the
+# run ended (live, 2026-11-26); a pop-up kept a sent form's window for good; a page that went on to another step
+# after a confirmation closed under him.
+@pytest.mark.parametrize("pop_up, keep_s, closes", [
+    ("", 600, True),
+    ("; window.open('about:blank')", 600, False),
+    ("; setTimeout(() => location.href = 'about:blank', 100)", 600, True),
+    ("; window.open('about:blank')", 1.5, True),
+    ("; setTimeout(() => document.body.innerHTML = '<p>One more step</p>', 100)", 1.5, False),
+])
+def test_a_confirmed_page_closes_its_window_after_a_wait_unless_a_pop_up_came(monkeypatch, pop_up, keep_s, closes):
     monkeypatch.setattr(rehearsal, "CLOSE_AFTER_S", 0.5)
+    monkeypatch.setattr(rehearsal, "SENT_KEEP_S", keep_s)
     lisul_on_the_held_page(monkeypatch, lambda n: ["Submit"])
     site, release, kept = rehearsal._Kept(OnePage(SENT.format(pop_up)), 0), threading.Event(), []
     threading.Timer(5, release.set).start()  # else: Ctrl-C, after five seconds
@@ -1685,6 +1795,19 @@ def rehearsal_record(tmp_path) -> Path:
     return readme.parent
 
 
+def test_a_form_that_never_shows_fails_before_claude_plans_it(tmp_path):
+    # Overland AI's Rippling form (seen live 2026-11-27) showed "We're experiencing an issue" in place of its
+    # fields; the rehearsal planned every answer with Claude, then waited out the engine, and failed after 275 s.
+    claude = FakeClaude()
+    with FakeRipplingServer(RIPPLING_FORM, crashes=99) as fake:
+        [done] = rehearse([RIPPLING_URL], fake, profile_with(tmp_path), claude)
+
+    assert done.outcome == "failed"
+    assert "the form never showed" in done.why and "experiencing an issue" in done.why
+    assert (claude.calls, claude.kinds, done.tokens) == ([], [], 0)
+    assert fake.submissions == []
+
+
 def test_no_fill_engine_stops_its_link_on_one_line_before_the_form_opens(monkeypatch, tmp_path, capsys):
     from apply import fill_engine
 
@@ -1910,7 +2033,6 @@ def test_ask_claude_on_a_held_page_sends_nothing_from_a_page_it_loads():
 
 def test_a_held_form_is_on_the_open_forms_list_until_lisul_sends_it(monkeypatch, tmp_path):
     # KAN-719: a restart of the Mac lost every held form (2026-11-04 and 05). The list keeps each one as it goes.
-    from apply import batch
 
     path = tmp_path / "open-forms.json"
     monkeypatch.setattr(batch, "PATH", path)
@@ -2064,7 +2186,7 @@ def test_no_more_forms_open_than_the_cap_until_the_student_finishes_one(monkeypa
     """Fault: every job opens its own window while forms wait on the student, and a long run slows the computer to
     a halt (live, 2026-11-26)."""
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
-    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 1)
+    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 0)  # with one Worker: one form open at once
     later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"
     servers, held_at, opened_while_held = [], {}, []
 
@@ -2086,7 +2208,7 @@ def test_no_more_forms_open_than_the_cap_until_the_student_finishes_one(monkeypa
         with FakeJobServer(ARC_FORM) as fake:
             servers.append(fake)
             rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
-                               2, keep_open=True, out=lambda line: None)
+                               1, keep_open=True, out=lambda line: None)
             opened, submissions = len(fake.workers), fake.submissions
     finally:
         watchdog.cancel()
@@ -2094,14 +2216,14 @@ def test_no_more_forms_open_than_the_cap_until_the_student_finishes_one(monkeypa
     assert opened_while_held == [1]  # a second after the first was held, the second job still hadn't opened
     assert opened == 2 and len(held_at) == 2  # once it was let go, the second opened and was held in turn
     assert submissions == []
-    assert {"open_forms": 1} in board.runs
+    assert {"open_forms": 1} in board.runs  # OPEN_FORMS waiting, plus the one Worker's
 
 
 def test_a_form_the_student_submits_frees_its_slot_while_its_tab_stays_open(monkeypatch, tmp_path):
     """Fault: a submitted form's thank-you tab keeps its slot, so once OPEN_FORMS forms are sent the run waits for
     ever with jobs queued and nothing filling (live, 2026-11-26)."""
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
-    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 1)
+    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 0)  # with one Worker: one form open at once
     monkeypatch.setattr(rehearsal, "CLOSE_AFTER_S", 600)  # its thank-you tab stays open
     lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"] if n == 1 else [])
     later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"
@@ -2125,7 +2247,7 @@ def test_a_form_the_student_submits_frees_its_slot_while_its_tab_stays_open(monk
     try:
         with FakeJobServer(ARC_FORM) as fake:
             rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
-                               2, keep_open=True, out=lambda line: None, submitted_to=InMemoryTracker())
+                               1, keep_open=True, out=lambda line: None, submitted_to=InMemoryTracker())
             submissions = fake.submissions
     finally:
         watchdog.cancel()
@@ -2138,7 +2260,7 @@ def test_a_submit_the_job_system_never_confirms_frees_its_slot_while_its_handoff
     """Fault: each form Apply pressed Submit on but the job site never confirmed kept its slot as a handoff, so five of
     them stalled the run with jobs queued and nothing filling (live, 2026-11-26)."""
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
-    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 1)
+    monkeypatch.setattr(rehearsal, "OPEN_FORMS", 0)  # with one Worker: one form open at once
     monkeypatch.setattr(rehearsal, "_confirmed", lambda page, job_system: False)
     monkeypatch.setattr(rehearsal, "CONFIRM_S", 1)
     later = ARC_URL + ("&" if "?" in ARC_URL else "?") + "copy=2"
@@ -2163,7 +2285,7 @@ def test_a_submit_the_job_system_never_confirms_frees_its_slot_while_its_handoff
     try:
         with FakeJobServer(ARC_FORM) as fake:
             rehearsal.rehearse([ARC_URL, later], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
-                               2, keep_open=True, out=lambda line: None)
+                               1, keep_open=True, out=lambda line: None)
     finally:
         watchdog.cancel()
 
@@ -2323,6 +2445,301 @@ def test_an_approved_submit_the_job_system_never_confirms_is_a_handoff_never_pre
     assert len(submissions) == 1  # pressed once; each approve after found it pressed already
     assert board.captions[0]["why"] == rehearsal.UNCONFIRMED
     assert board.captions[0]["submit_said"] == ""
+
+
+def test_an_approved_submit_that_left_the_form_where_it_was_is_handed_over_as_unsent(monkeypatch, tmp_path):
+    """Fault: Lever's hCaptcha held Apply's press back (Palantir, Veeva, live 2026-11-27): the same page, the form
+    still on it, no email. Apply said it may have gone in and marked it sent, so it was never sent at all."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(rehearsal, "_confirmed", lambda page, job_system: False)
+    monkeypatch.setattr(rehearsal, "CONFIRM_S", 1)
+    pressed_on = []
+    monkeypatch.setitem(rehearsal.NEVER_SENT, "greenhouse",
+                        (lambda page: pressed_on.append(1) or 1.0, lambda page, before: before == 1.0))
+    noted = []
+    real_note = rehearsal.batch.note
+    monkeypatch.setattr(rehearsal.batch, "note", lambda url, **kw: (noted.append(kw.get("status")), real_note(url, **kw)))
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            caption = self.captions.get(worker, {})
+            return bool(caption.get("again")) and caption.get("status") != "handoff" and not pressed_on
+
+        def let_go_asked(self, worker: int) -> bool:
+            return self.captions.get(worker, {}).get("status") == "handoff"
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+    finally:
+        watchdog.cancel()
+
+    assert pressed_on == [1]
+    assert board.captions[0]["why"] == rehearsal.NOT_SENT
+    assert rehearsal.batch.SENT not in noted  # nothing went in: never kept from being sent again
+
+
+# Greenhouse's own check in the page, as Epic Games' form answered Apply's press (live, 2026-11-26): the field is
+# marked invalid under a red message, nothing is sent, and the message goes once the field takes an answer.
+REFUSES = r"""(name) => {
+  const field = document.getElementById(name), said = document.createElement('p');
+  said.id = name + '-error'; said.className = 'helper-text helper-text--error';
+  said.textContent = 'Please accept the terms to proceed.';
+  field.after(said);
+  field.setAttribute('aria-invalid', 'true'); field.setAttribute('aria-describedby', said.id);
+  field.value = '';
+  field.addEventListener('input', () => { said.remove(); field.removeAttribute('aria-invalid'); }, {once: true});
+}"""
+
+
+def refused_presses(monkeypatch, refusals: int, field: str = "first_name") -> list[str]:
+    """Approve and submit's press, refused in the page `refusals` times as Greenhouse refuses it (REFUSES on
+    `field`, emptied), then pressed for real. Each press's words, in order."""
+    real_press, presses = send_button.press, []
+
+    def press(page) -> str:
+        if len(presses) < refusals:
+            page.evaluate(REFUSES, field)
+            presses.append("refused")
+            return "Submit application"
+        presses.append(real_press(page))
+        return presses[-1]
+    monkeypatch.setattr(send_button, "press", press)
+    monkeypatch.setattr(rehearsal, "HEAL_AFTER_S", 0)
+    return presses
+
+
+def approved_once(captions: dict, asked: list) -> Callable[[int], bool]:
+    def submit_asked(worker: int) -> bool:
+        if captions.get(worker, {}).get("again") and not asked:
+            asked.append(worker)
+            return True
+        return False
+    return submit_asked
+
+
+def test_a_submit_the_form_refuses_is_fixed_from_the_plan_and_pressed_once_more(monkeypatch, tmp_path):
+    """Fault: a press Greenhouse refused in the page (a field emptied, "Please accept the terms to proceed.") waits
+    out CONFIRM_S and is handed over as maybe sent, though Apply could fill the field it named and send it."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    presses, asked = refused_presses(monkeypatch, 1), []
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            return approved_once(self.captions, asked)(worker)
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+            submissions = fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert presses == ["refused", "Submit application"]  # the field filled again, then one press more
+    assert len(submissions) == 1 and submissions[0].application.get("first_name") == "Test"
+    assert board.captions[0]["status"] == "submitted"
+
+
+def test_a_submit_the_form_still_refuses_after_one_fix_is_handed_over_with_its_words(monkeypatch, tmp_path):
+    """Fault: Apply presses a refused Submit again and again, or hands it over as maybe sent (marked sent, never to
+    be brought back) without the page's own message."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    presses, asked = refused_presses(monkeypatch, 5), []
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            return approved_once(self.captions, asked)(worker)
+
+        def let_go_asked(self, worker: int) -> bool:
+            return self.captions.get(worker, {}).get("status") == "handoff"
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+            submissions = fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert presses == ["refused", "refused"]  # one press more, never a third
+    assert submissions == []
+    assert board.captions[0]["why"] == rehearsal.STILL_REFUSED.format(said="'Please accept the terms to proceed.'")
+
+
+def test_a_refusal_about_no_question_of_the_form_is_handed_over_unpressed(monkeypatch, tmp_path):
+    """Fault: a message Apply can't tie to a question it planned (a whole-form error, a field it never read) is
+    "fixed" by a guess and pressed again, or handed over without the page's words."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(rehearsal, "_confirmed", lambda page, job_system: False)
+    presses, asked = [], []
+
+    def press(page) -> str:
+        page.evaluate("""() => document.body.insertAdjacentHTML('beforeend',
+          '<div role="alert">Please review the form before you send it.</div>')""")
+        presses.append("refused")
+        return "Submit application"
+    monkeypatch.setattr(send_button, "press", press)
+    monkeypatch.setattr(rehearsal, "HEAL_AFTER_S", 0)
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            return approved_once(self.captions, asked)(worker)
+
+        def let_go_asked(self, worker: int) -> bool:
+            return self.captions.get(worker, {}).get("status") == "handoff"
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+    finally:
+        watchdog.cancel()
+
+    assert presses == ["refused"]
+    assert board.captions[0]["why"] == rehearsal.REFUSED.format(said="'Please review the form before you send it.'")
+
+
+def test_a_confirmation_in_an_alert_after_an_approved_submit_is_sent_never_refused(monkeypatch, tmp_path):
+    """Fault: Oracle's "Thank you for your job application." (BGC's, live 2026-11-27, and the confirmation email came)
+    showed in an alert, matched no thanks, and was read as a field error: the card said the site refused it."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.delitem(rehearsal.CONFIRMED, "greenhouse")  # read by THANKS, as Oracle's page is
+    presses, asked = [], []
+
+    def press(page) -> str:
+        page.evaluate("""() => document.body.insertAdjacentHTML('beforeend',
+          '<div role="alert" class="notification-error">Thank you for your job application.</div>')""")
+        presses.append("sent")
+        return "Submit"
+    monkeypatch.setattr(send_button, "press", press)
+    monkeypatch.setattr(rehearsal, "HEAL_AFTER_S", 0)
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            return approved_once(self.captions, asked)(worker)
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+    finally:
+        watchdog.cancel()
+
+    assert presses == ["sent"]  # never pressed again
+    assert board.captions[0]["status"] == "submitted", board.captions[0].get("why")
+
+
+@pytest.mark.parametrize("said", ["Thank you for your job application.", "Thank you for your application!",
+                                  "Thank you for applying."])
+def test_a_job_sites_thanks_reads_as_confirmed(said):
+    assert rehearsal.THANKS.search(said) and FILL_THANKS.search(said)
+
+
+# Workable's answer to Apply's press (Digital Control, Infleqtion, live 2026-11-27): a toast in no field, with no role
+# or error class, gone within seconds; no confirmation and no email followed.
+TOAST = """(lines) => {
+  const toast = document.createElement('div');
+  toast.innerText = lines.join('\\n');
+  document.body.append(toast);
+  setTimeout(() => toast.remove(), 3000);
+}"""
+WORKABLE_TOAST = ["Something went wrong. We are working on this, please try again later."]
+# Oracle's, once a second tile signed in to the same site (Honeywell, live 2026-11-27): it was read as no refusal,
+# and the form was handed over as one that may have gone in.
+ORACLE_OTHER_TAB = ["Your application couldn't be submitted.",
+                    "You already created your profile in another browser tab. To resume your job application, you need "
+                    "to confirm your identity."]
+
+
+@pytest.mark.parametrize("lines, why", [(WORKABLE_TOAST, "SITE_REFUSED"), (ORACLE_OTHER_TAB, "OTHER_TAB_REFUSED")])
+def test_a_site_error_toast_after_an_approved_submit_is_handed_over_as_not_sent(monkeypatch, tmp_path, lines, why):
+    """Fault: Workable's "Something went wrong ... try again later" toast went before the form was read for errors,
+    and the form was handed over as one that may have gone in (marked sent, never brought back), not as refused."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(rehearsal, "_confirmed", lambda page, job_system: False)
+    monkeypatch.setattr(rehearsal, "CONFIRM_S", 30)
+    presses, asked, noted = [], [], []
+    monkeypatch.setattr(batch, "note", lambda url, **fields: noted.append(fields))
+
+    def press(page) -> str:
+        page.evaluate(TOAST, lines)
+        presses.append("refused")
+        return "Submit application"
+    monkeypatch.setattr(send_button, "press", press)
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            return approved_once(self.captions, asked)(worker)
+
+        def let_go_asked(self, worker: int) -> bool:
+            return self.captions.get(worker, {}).get("status") == "handoff"
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+            submissions = fake.submissions
+    finally:
+        watchdog.cancel()
+
+    assert presses == ["refused"] and submissions == []
+    assert board.captions[0]["why"] == getattr(rehearsal, why).format(said=" ".join(lines))
+    assert {"status": batch.SENT} not in noted  # nothing went in: never kept from being sent again
+
+
+def test_a_code_step_after_an_approved_submit_is_asked_for_never_handed_over_as_unconfirmed(monkeypatch, tmp_path):
+    """Fault: Greenhouse's security code step after Apply's press waits out CONFIRM_S and becomes the "may have gone
+    in" Handoff, over the code the student is asked for."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    monkeypatch.setattr(rehearsal, "_confirmed", lambda page, job_system: False)
+    monkeypatch.setattr(rehearsal, "CONFIRM_S", 1)
+    asked, since = [], {}
+
+    def press(page) -> str:  # Greenhouse's code step comes in place of the confirmation
+        page.evaluate("""() => document.body.insertAdjacentHTML('beforeend',
+          '<label for="security_code">Security code</label><input id="security_code" name="security_code">')""")
+        return "Submit application"
+    monkeypatch.setattr(send_button, "press", press)
+
+    class Board(RecordingBoard):
+        def submit_asked(self, worker: int) -> bool:
+            return approved_once(self.captions, asked)(worker)
+
+        def let_go_asked(self, worker: int) -> bool:  # well past CONFIRM_S, the student lets it go
+            return bool(asked) and time.monotonic() - since.setdefault(0, time.monotonic()) > 4
+
+    board = Board()
+    watchdog = threading.Timer(120, _thread.interrupt_main)
+    watchdog.start()
+    try:
+        with FakeJobServer(ARC_FORM) as fake:
+            rehearsal.rehearse([ARC_URL], adapters(fake, board=board), ApplicantProfile.load(profile_with(tmp_path)),
+                               1, keep_open=True, out=lambda line: None)
+    finally:
+        watchdog.cancel()
+
+    assert asked == [0]
+    assert board.captions[0].get("why") != rehearsal.UNCONFIRMED and board.captions[0].get("status") != "handoff"
 
 
 def test_auto_submit_presses_a_clean_held_forms_submit_once_its_wait_is_over(monkeypatch, tmp_path):

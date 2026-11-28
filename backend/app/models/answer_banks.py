@@ -19,10 +19,12 @@ class Answer_Bank(BaseModel):
     '''
     one row per student. `answers` maps a question's folded wording (the
     Fill engine's match: case, spacing, curly quotes and a trailing asterisk
-    don't count) to {"question", "answer", "review"?}: the question as a
-    form words it, the answer (a string, or a list of the options picked;
-    [] is "none of these"), and `review: true` only on a Claude answer the
-    student hasn't reviewed.
+    don't count) to {"question", "answer", "review"?, "options"?}: the
+    question as a form words it, the answer (a string, or a list of the
+    options picked; [] is "none of these"), `review: true` only on a Claude
+    answer the student hasn't reviewed, and `options` only on the student's
+    own pick from one list, which then answers only that list
+    (models/CLAUDE.md, "The Answer bank").
 
     Its own table, not a column of applicant_profiles: every profile read
     loads that row's JSONB columns, and a bank grows to hundreds of KB.

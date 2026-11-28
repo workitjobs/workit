@@ -40,9 +40,12 @@ Apply process                                   Worker k (plain Chrome)
   - `vendor/fixed.js` (S5): Apply's fixed page functions (`apply.plain.fixed`), written from
     the very strings `on_page`, `stuck` and `email_code` evaluate; sets `globalThis.__applyFixed`.
 - **Host:** `com.workit.apply_worker`. Its manifest is written into each Worker profile's
-  own `NativeMessagingHosts/` folder (never Lisul's Chrome folder) and names only the
-  worker extension's origin. Its `path` is a per-profile wrapper that runs
-  `python3 -I apply/plain/host.py --socket <sock> --worker <k>`. The host is stdlib only.
+  own `NativeMessagingHosts/` folder (never Lisul's Chrome folder), or on Windows into one
+  folder for every Worker that a registry key names (`apply.chrome_host`), and names only the
+  worker extension's origin. Its `path` is a wrapper that runs `python3 -I apply/plain/host.py`
+  and names no Worker: the host finds its Worker and the channel from the Chrome that started it
+  (its `--user-data-dir`), since on Windows one wrapper serves every Worker. The host imports
+  only the standard library and psutil.
 - **Socket:** (the channel; on Windows a named pipe, below) `workers.sock` in the Worker
   profiles folder (`APPLY_PROFILES`, default
   `APPLY_HOME/profiles`), mode 0600, in a folder only Lisul can read. One Apply process
@@ -87,7 +90,8 @@ extension joins them before handling. The extension never needs to chunk.
    The open port keeps the MV3 service worker alive.
 3. Host → Apply, first frame (written by the host itself):
    `{"type": "relay", "protocol": 1, "worker": k, "origin": "chrome-extension://<id>/", "host_pid": n}`
-   (`worker` is 0-based everywhere, as `WorkerBrowsers.open(worker=0)`; Worker k's profile is `plain-<k+1>`.)
+   (`worker` is 0-based everywhere, as `WorkerBrowsers.open(worker=0)`; Worker k's profile is `plain-<k+1>`,
+   which the host reads from its Chrome's `--user-data-dir`.)
 4. Extension → Apply:
    ```json
    {"type": "hello", "protocol": 1, "extension": "0.3.0", "features": 5,
@@ -145,7 +149,7 @@ Extension → Apply:
 Error names: `TimeoutError`, `Navigated` (the frame or tab went away mid-op: Apply retries
 like `fill_engine.NAVIGATED`), `NoTab`, `NoFrame`, `NotFound`, `Strict` (strict-mode
 violation: more than one element), `NotActionable` (hidden, disabled, covered; Apply's
-auto-wait retries it), `EvalError` (the page's code threw), `NoCodeScripts` (an init script with no
+auto-wait retries it), `Unfocused` (KAN-716: the page took the focus off the field before any trusted text or key went; nothing was typed, and `PortLocator.fill` tries again), `EvalError` (the page's code threw), `NoCodeScripts` (an init script with no
 guard file), `NoEngine` (`engine.load` before Apply handed the engine over), `Refused`,
 `BadOp`, `Crash`. On the Python side every error raises `apply.plain.page.PortError`,
 a subclass of `playwright.sync_api.Error`, and `TimeoutError` raises
@@ -462,7 +466,7 @@ and Backspace/Delete in a text field go in trusted through the extension's `chro
 (`Input.insertText`; `Input.dispatchKeyEvent` for Backspace and Delete only), with `dom` answering
 the service worker a request (`{__applyType, token}`, `{__applyKey, token}`, `{__applyKeys, chosen}`)
 with `aim` just before and `landed` after it; the op's answer to Apply stays `{"ok": null}`, or is an
-error (`KAN-716 trusted input: ...`) when the input missed. Text never goes in trusted with a line
+error (`KAN-716 trusted input: ...`) when the input missed. For `fill`, `type`, `press`, `keys` and `insert` the service worker attaches the debugger and turns on its focus emulation before the call focuses the field: a Worker's window has no focus, and emulation that came on after the field had it gave the page a window focus that Workday's sign-in answered by moving the focus (Cadence, 2026-11-27). Text never goes in trusted with a line
 break: a lone `"\n"` is the Enter key. A `click` or `check` of a radio, checkbox or option in the top
 frame, with the choice alone under the point, is a trusted left press and release the same way
 (`{__applyClick}`, `Input.dispatchMouseEvent`); every other click is synthetic. Without the debugger they are

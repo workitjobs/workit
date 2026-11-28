@@ -9,7 +9,7 @@ import types
 import pytest
 from fake_workit import FakeWorkIt
 
-from apply import app_window, dashboard, workit
+from apply import app_window, build, dashboard, first_run, workit
 from apply.answer_bank import AnswerBank
 from apply.app_window import FIRST_RUN, SHIM, Bridge
 from apply.dashboard import NO_PORT, Dashboard
@@ -242,8 +242,8 @@ def test_the_apps_page_loads_no_web_font(board):
 
 
 def test_start_shows_the_runs_window_then_the_queue_again_and_says_why_one_stopped(board):
-    """Fault: a second run started over the first, the window left on a finished run, or a run that couldn't
-    start (no engine, W7) said nothing."""
+    """Fault: a second run started over the first, a pick from Find jobs during a run refused or dropped instead of
+    joining it, the window left on a finished run, or a run that couldn't start (no engine, W7) said nothing."""
     import threading
 
     from apply.adapters import SetupError
@@ -264,11 +264,14 @@ def test_start_shows_the_runs_window_then_the_queue_again_and_says_why_one_stopp
     bridge._window = window
     assert "error" in bridge.start([])
     assert bridge.start(["https://jobs.lever.co/acme/1"]) == {"started": 1}
-    assert "error" in bridge.start(["https://jobs.lever.co/acme/2"])  # one run at a time
+    # One run at a time: a start during it joins it as a link sent in does; this run takes none, so it waits.
+    assert bridge.start(["https://jobs.lever.co/acme/2"]) == {"added": 1}
+    assert bridge._waiting == ["https://jobs.lever.co/acme/2"]
     for _ in range(100):
         if shown:
             break
         threading.Event().wait(0.02)
+    assert runs == [["https://jobs.lever.co/acme/1"]]
     assert window.loaded[-1] == app_window.student_page(shown[0])  # the run's own board
     go.set()
     for _ in range(100):
@@ -410,6 +413,32 @@ def test_applied_is_what_the_student_applied_to_on_workit_newest_first(board, tm
         assert "error" in Bridge(board, client).applied()
 
 
+def test_an_applied_jobs_chrome_title_takes_the_title_it_was_queued_with(board, tmp_path):
+    """Fault: a title Apply wrote to WorkIt from a sign-in wall's page (model.job_title) shows on the Applied page,
+    or a job no queue names keeps it where its listing names the role."""
+    from fake_workit import Reply
+
+    amazon = {"apply_url": "https://www.amazon.jobs/en/jobs/10593521/", "company": "Amazon"}
+    rows = {"queued": [{"job": amazon | {"id": "j1", "title": "Software Dev Engineer Intern"}, "open": True}],
+            "applied": [{"job": amazon | {"title": "Log in or create account | Amazon.jobs"}, "applied_at": None},
+                        {"job": {"apply_url": "https://jobs.lever.co/a/1", "company": "A", "title": "Sign in"},
+                         "applied_at": None},
+                        {"job": {"apply_url": "https://jobs.lever.co/b/2", "company": "B", "title": "Log in"},
+                         "applied_at": None}]}
+    named = {"https://jobs.lever.co/a/1": {"title": "Data Intern"}}
+    with FakeWorkIt() as fake:
+        fake.route("GET", f"/applicants/{fake.account['id']}/applications",
+                   lambda seen, fake: Reply(200, rows[seen.path.rsplit("=", 1)[-1]]))
+        client = WorkIt(fake.site, tmp_path / "workit-login.json", fake.keychain)
+        workit.login(client, fake.browser)
+        asked = []
+        bridge = Bridge(board, client, name=lambda link: asked.append(link) or named.get(link, {}))
+        bridge.queue()
+        assert [job["title"] for job in bridge.applied()] == ["Software Dev Engineer Intern", "Data Intern", ""]
+        bridge.applied()
+        assert asked == ["https://jobs.lever.co/a/1", "https://jobs.lever.co/b/2"]  # each link read once
+
+
 def test_a_runs_window_draws_each_queued_job_with_the_logo_the_queue_gave(board, tmp_path):
     """Fault: a job ticked in the queue lost its logo once its run started (KAN-871)."""
     from fake_workit import Reply
@@ -457,7 +486,7 @@ def test_a_runs_window_names_each_job_waiting_to_start_as_the_queue_did(board, t
 
 
 def test_a_run_rehearses_its_links_with_the_students_worker_count_and_closes_its_workers(monkeypatch, tmp_path):
-    """Fault: a run that ignores the Worker count (D24: one to three), shows no window of its own, or leaves its plain
+    """Fault: a run that ignores the Worker count (D24: one to four), shows no window of its own, or leaves its plain
     Workers' Chromes running after it, or lets the Mac sleep mid-run."""
     from contextlib import contextmanager, nullcontext
     from types import SimpleNamespace
@@ -622,11 +651,15 @@ def test_report_this_application_finds_the_record_of_a_form_the_run_held(board, 
     assert "error" in bridge.review_report("form", "It picked the wrong school.", application_id="gh-2")
 
 
-def test_kill_closes_the_window_instead_of_raising_inside_cocoa():
+@pytest.mark.parametrize("quit_by", ["SIGTERM", "SIGINT", "SIGHUP"])
+def test_kill_closes_the_window_instead_of_raising_inside_cocoa(quit_by):
     """Fault: `kill <pid>` raised KeyboardInterrupt inside a Cocoa callback, and macOS showed "python quit
-    unexpectedly"."""
+    unexpectedly"; Ctrl-C did the same, and a closed terminal ended the app at once: no `finally` ran, and its
+    Workers' Chromes stayed open."""
     import os
     import signal
+
+    number = getattr(signal, quit_by)
 
     class Closable:
         closed = False
@@ -636,16 +669,17 @@ def test_kill_closes_the_window_instead_of_raising_inside_cocoa():
 
     import time
 
-    window, before = Closable(), signal.getsignal(signal.SIGTERM)
+    window, before = Closable(), {n: signal.getsignal(n) for n in app_window.QUITS}
     try:
         app_window.closing(window)
-        os.kill(os.getpid(), signal.SIGTERM)
+        os.kill(os.getpid(), number)
         deadline = time.monotonic() + 2
         while not window.closed and time.monotonic() < deadline:
             time.sleep(0.01)
     finally:
         signal.set_wakeup_fd(-1)
-        signal.signal(signal.SIGTERM, before)
+        for n, handler in before.items():
+            signal.signal(n, handler)
 
     assert window.closed
 
@@ -752,6 +786,30 @@ def test_the_dock_badge_shows_the_count_and_nothing_for_zero(monkeypatch):
     assert labels == ["3", ""]
 
 
+def test_a_checkouts_window_shows_workits_name_and_logo_and_the_built_app_keeps_its_bundles(monkeypatch, tmp_path):
+    # Fault: `apply app` from a checkout shows Python's name and a blank page in the Dock, or the Student build's
+    # bundle icon is replaced.
+    icons, info = [], {"CFBundleName": "Python"}
+    image = object()
+    app = types.SimpleNamespace(setApplicationIconImage_=icons.append)
+    appkit = types.SimpleNamespace(
+        NSApplication=types.SimpleNamespace(sharedApplication=lambda: app),
+        NSImage=types.SimpleNamespace(alloc=lambda: types.SimpleNamespace(
+            initWithContentsOfFile_=lambda path: image if path == str(app_window.ICON) else None)))
+    foundation = types.SimpleNamespace(NSBundle=types.SimpleNamespace(
+        mainBundle=lambda: types.SimpleNamespace(infoDictionary=lambda: info)))
+    monkeypatch.setattr(app_window.sys, "platform", "darwin")
+    monkeypatch.setitem(sys.modules, "AppKit", appkit)
+    monkeypatch.setitem(sys.modules, "Foundation", foundation)
+    assert app_window.ICON.is_file()
+    assert app_window.look_like_the_app() is True
+    assert icons == [image] and info["CFBundleName"] == app_window.TITLE
+    assert app_window.look_like_the_app(tmp_path / "app-icon.png") is False  # the built app: no logo beside its code
+    monkeypatch.setattr(build, "STUDENT", True)
+    assert app_window.look_like_the_app() is False
+    assert icons == [image]
+
+
 def test_settings_shows_the_claude_switch_only_to_a_max_plan_developer_window(monkeypatch):
     from apply import claude_cli, student
 
@@ -765,6 +823,34 @@ def test_settings_shows_the_claude_switch_only_to_a_max_plan_developer_window(mo
         assert bridge.settings_state()["claude"] == {"best": True, "login": "your claude login", "dropped": None}
         assert bridge.set_best_model(False) == {"best": False}
         assert bridge.settings_state()["claude"]["best"] is False
+
+
+def test_settings_shows_and_changes_the_safety_level():
+    """Fault: Settings showing another level than the one read, or a level no policy knows kept."""
+    from apply import profile
+
+    with Dashboard(1, OneFrame(), serve=False) as board:
+        bridge = Bridge(board, WorkIt(workit.LIVE))
+        assert bridge.settings_state()["safety"] == "careful"
+        assert bridge.set_safety_level("full_auto") == {"safety": "full_auto"}
+        assert bridge.settings_state()["safety"] == "full_auto"
+        assert profile.load_policies()["auto_submit"] is True
+        assert "error" in bridge.set_safety_level("yolo") and bridge.settings_state()["safety"] == "full_auto"
+    assert all(f'data-level="{level}"' in app_window.FIRST_RUN and f'<option value="{level}">' in app_window.SETTINGS
+               for level in ("careful", "balanced", "full_auto"))
+
+
+def test_settings_offers_automatic_workers_until_the_student_picks_a_count(tmp_path, monkeypatch):
+    """Fault: Settings showing a count the student never picked as their choice, or its Automatic not going back
+    to the count from the computer's memory."""
+    monkeypatch.setattr(first_run, "STATE", tmp_path / "app.json")
+    monkeypatch.setattr(first_run, "memory", lambda: 8 * first_run.GB)
+    with Dashboard(1, OneFrame(), serve=False) as board:
+        bridge = Bridge(board, WorkIt(workit.LIVE))
+        assert bridge.settings_state() | {"notices": None, "safety": None} == {
+            "workers": 0, "automatic": 2, "notices": None, "safety": None}
+        assert bridge.set_workers(3) == {"workers": 3} and bridge.settings_state()["workers"] == 3
+        assert bridge.set_workers(0) == {"workers": 2} and bridge.settings_state()["workers"] == 0
 
 
 def test_a_reply_to_a_page_that_was_replaced_is_dropped_and_any_other_error_still_raises():
@@ -811,3 +897,52 @@ def test_links_sent_in_are_taken_once_per_posting(tmp_path):
                            "https://jobs.lever.co/acme/2"], inbox)
     assert app_window.take_links(inbox) == ["https://job-boards.greenhouse.io/acme/jobs/6270727004",
                                             "https://jobs.lever.co/acme/2"]
+
+
+def test_a_second_kill_while_it_closes_ends_the_app_after_its_chromes_stopped(monkeypatch):
+    """Fault: every quit signal stayed a no-op once the first closed the window: a stuck close left only `kill -9`,
+    which skips the exit sweep, and the Workers' Chromes stayed open."""
+    import os
+    import signal
+    import threading
+    import time
+
+    ended, swept = threading.Event(), []
+    monkeypatch.setattr(app_window.atexit, "_run_exitfuncs", lambda: swept.append(True))
+    monkeypatch.setattr(app_window.os, "_exit", lambda code: (swept.append(code), ended.set()))
+
+    class Stuck:
+        def destroy(self):
+            pass  # the window never goes
+
+    before = {n: signal.getsignal(n) for n in app_window.QUITS}
+    try:
+        app_window.closing(Stuck())
+        os.kill(os.getpid(), signal.SIGTERM)
+        time.sleep(0.2)
+        assert not ended.is_set()  # one: the window closes, the app goes on with its `finally`s
+        os.kill(os.getpid(), signal.SIGINT)
+        ended.wait(2)
+    finally:
+        signal.set_wakeup_fd(-1)
+        for n, handler in before.items():
+            signal.signal(n, handler)
+
+    assert swept == [True, 128 + signal.SIGINT]
+
+
+def test_a_window_that_closes_while_a_quit_reads_the_window_list_leaves_the_read_whole():
+    """Fault: pywebview's Cocoa quit reads each window's close question from its live dict of windows, and a window
+    our close thread destroys mid-question leaves it, so the app died with `dictionary changed size during
+    iteration` (run7, 2026-11-26)."""
+    view = types.SimpleNamespace(instances={"main": "window", "other": "window"})
+    app_window.steady_windows("darwin", view)
+    app_window.steady_windows("darwin", view)  # once only: run() may be called again
+    asked = []
+    for uid in view.instances:  # applicationShouldTerminate_ reads each, a close dialog up
+        asked.append(uid)
+        view.instances.pop("other", None)  # windowWillClose_ of the window our close thread destroyed
+    for window in view.instances.values():
+        view.instances.pop("main")
+    assert asked == ["main", "other"] and view.instances == {}  # pywebview stops the app on `instances == {}`
+    assert type(view.instances) is app_window.SteadyWindows

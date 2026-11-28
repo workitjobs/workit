@@ -125,6 +125,23 @@ class AnswersTab:
         if not self._profile_now().forget_answered(_question(question)):
             raise Refused("That answer is no longer in your profile.", 404)
 
+    def save_pick(self, question: str, answer: str, options: list[str], company: str = "") -> bool:
+        """Lisul's pick from a form's list of `options` that renders a fact his profile holds (3.85 on a GPA list in
+        steps of 0.05, for a 3.86): kept in the bank with those options, as his, so only a list of just those options
+        gets it, never every form that asks by that wording (Freeform, 2026-11-26). False, with nothing saved, for
+        any other answer, which goes to his facts. Raises NotSaved when WorkIt doesn't save it (W11)."""
+        # Imported here: the engine's module imports the bank's, as this one does.
+        from apply import fill_engine
+        from apply.model import Posting, Question
+
+        question, answer = _question(question), _answer(answer, choices=False)
+        asked = Question("q", question, "select", True, tuple(str(o) for o in options))
+        kept = fill_engine.list_pick(self._profile_now(), Posting("", company, "", ""), asked, answer)
+        if kept is None:
+            return False
+        self._bank.answer(question, answer, options=kept)
+        return True
+
     def save_skipped(self, question: str) -> None:
         """Lisul's Skip of an optional question: an empty answer in the Applicant profile, so the engine's plan leaves
         it blank on every later form and never asks it again (KAN-759). An answer he writes later replaces it."""
@@ -302,6 +319,9 @@ def saving_answers(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[
             return "Kept for this application only: the essay is written with it next time."
         if on_page.bare(question):  # a bare From or To: true of one section of this form only (KAN-595)
             return "Kept on this form only: a bare date isn't saved to your facts without what it is for."
+        if (options := (item.get("choices") or {}).get(question)) and tab.save_pick(question, text, options,
+                                                                                   item.get("company") or ""):
+            return "Saved for this list of options: a form that offers just these gets this answer; your facts stay."
         tab.save_answered(question, text)
         return "Saved to your facts: every form that asks it gets this answer."
     return answer

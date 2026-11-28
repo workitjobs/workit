@@ -89,6 +89,20 @@ async def test_the_app_saves_reviews_and_deletes_answers(running, applicant, dat
     assert filed({"label": SHIFTS}) not in bank
 
 
+async def test_a_pick_keeps_the_list_it_came_from_through_an_edit(running, applicant, database):  # noqa: F811
+    """Fault: a pick from one list (a 3.85 on a GPA list in steps of 0.05, Freeform 2026-11-26) lost its list, so it
+    filled every form that asks the same words; or an edit of its answer on the website dropped the list."""
+    gpa, steps = "What is your GPA?", ["3.80", "3.85", "3.90"]
+    await _change(applicant, {"set": [{"question": gpa, "answer": "3.85", "choice": True, "options": steps}]})
+    picked = (await _read(applicant)).json()[filed({"label": gpa})]
+    await _change(applicant, {"set": [{"question": gpa, "answer": "3.90", "choice": True}]})  # the website's edit
+    edited = (await _read(applicant)).json()[filed({"label": gpa})]
+    await _change(applicant, {"set": [{"question": gpa, "answer": "3.90", "options": []}]})
+
+    assert picked["options"] == steps and (edited["answer"], edited["options"]) == ("3.90", steps)
+    assert "options" not in (await _read(applicant)).json()[filed({"label": gpa})]
+
+
 async def test_claudes_draft_never_replaces_the_students_own_answer(running, applicant, database):  # noqa: F811
     await _change(applicant, {"set": [{"question": REMOTE, "answer": "No", "choice": True}]})
 

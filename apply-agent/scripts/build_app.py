@@ -143,11 +143,11 @@ def run(command: list[str], **kwargs) -> None:
 def venv_python(code: str, *args: object) -> str:
     """What `code` prints, run on the build's own Python with `args`."""
     return subprocess.run([PYTHON, "-I", "-c", code, *map(str, args)], check=True, capture_output=True,
-                          text=True).stdout.strip()
+                          text=True, encoding="utf-8").stdout.strip()
 
 
 def git(*args: str) -> str:
-    return subprocess.run(["git", "-C", str(ROOT), *args], check=True, capture_output=True, text=True).stdout.strip()
+    return subprocess.run(["git", "-C", str(ROOT), *args], check=True, capture_output=True, text=True, encoding="utf-8").stdout.strip()
 
 
 def committed(commit: str) -> Path:
@@ -183,10 +183,10 @@ def make_venv(source: Path) -> Path:
 
 def set_student(package: Path) -> None:
     flag = package / "build.py"
-    text = flag.read_text()
+    text = flag.read_text(encoding="utf-8")
     if text.count(STUDENT_LINE[0]) != 1:
         sys.exit(f"{flag} has no single line {STUDENT_LINE[0].strip()!r}: apply.build changed, so fix this script.")
-    flag.write_text(text.replace(*STUDENT_LINE))
+    flag.write_text(text.replace(*STUDENT_LINE), encoding="utf-8")
 
 
 def store_files(package: Path, source: Path) -> str:
@@ -198,7 +198,7 @@ def store_files(package: Path, source: Path) -> str:
     (tree / "worker-extension").symlink_to(source / "worker-extension")
     stamp = subprocess.run([PYTHON, "-c", "from apply.plain import extension; print(extension.store_stamp()['files'])"],
                            cwd=tree, env={**os.environ, "PYTHONPATH": str(tree / "src")}, check=True,
-                           capture_output=True, text=True).stdout.strip()
+                           capture_output=True, text=True, encoding="utf-8").stdout.strip()
     shutil.rmtree(tree)
     return stamp
 
@@ -269,7 +269,7 @@ def make_icon(source: Path) -> Path:
 def compile_app(source: Path, developer: list[str], version: str, scheme: str, capture: str, release: bool,
                 commit: str) -> None:
     def xcrun(*args: str) -> str:
-        return subprocess.run(["/usr/bin/xcrun", *args], check=True, capture_output=True, text=True).stdout.strip()
+        return subprocess.run(["/usr/bin/xcrun", *args], check=True, capture_output=True, text=True, encoding="utf-8").stdout.strip()
 
     # No PYTHON* variable either: PYTHONPATH comes before the venv, so a teammate's could make Nuitka compile the
     # checkout's Apply (STUDENT False, comments in) or another copy of a library.

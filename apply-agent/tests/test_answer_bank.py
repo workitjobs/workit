@@ -178,6 +178,33 @@ def test_the_students_edit_waits_for_workit_and_says_why_its_rule_kept_it_out():
                                 "choice": True}], [])
 
 
+def test_the_students_pick_keeps_the_list_it_came_from_and_an_edit_keeps_it_too():
+    """Fault: a pick from one list (a 3.85 on a GPA list in steps of 0.05, Freeform 2026-11-26) lost its list on its
+    way to WorkIt, or an edit of its answer dropped it, so it filled every form that asks the same words."""
+    server = Server()
+    bank = loaded(server)
+    steps = ("3.80", "3.85", "3.90")
+
+    bank.answer("What is your GPA?", "3.85", options=steps)
+    bank.answer("What is your GPA?", "3.90")  # an edit in the Answers view
+
+    assert server.sent[0][0][0]["options"] == list(steps) and "options" not in server.sent[1][0][0]
+    assert bank.get("What is your GPA?").options == steps and loaded(server).get("What is your GPA?").options == steps
+
+
+def test_the_students_own_answer_for_one_company_wins_over_the_general_one_and_a_draft_never_does():
+    """Fault: an answer filed for one company alone ("... (Strava only)") lost to the general one, or a model's
+    unreviewed draft counted as the student's own (Strava, 2026-11-26)."""
+    bank = AnswerBank()
+    bank.answer("Why this company?", "Its mission.")
+    bank.answer("Why this company? (Strava only)", "I run every morning.")
+    bank.add(HEARD, "From the Simplify list.", "Zipline")
+
+    assert bank.reviewed("Why this company?", "Strava").answer == "I run every morning."
+    assert bank.reviewed("Why this company?", "Acme").answer == "Its mission."
+    assert bank.reviewed(HEARD.label) is None
+
+
 def test_another_writers_save_meanwhile_reads_the_bank_again():
     """Fault: a choice the student gave in the extension never reached the app's memory."""
     server = Server(others=1)

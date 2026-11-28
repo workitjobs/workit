@@ -4,6 +4,8 @@ Chrome starts in the background, and how a Worker comes forward. Each entry is p
 on Windows and Linux is F4's. Needs no browser: in CI."""
 
 import ast
+import contextlib
+import io
 import json
 import os
 import plistlib
@@ -16,14 +18,28 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
 
+import fake_chrome
 import platformdirs
 import psutil
 import pytest
 
-from apply import awake, browsers, captcha, chrome_finder, focus, home, native_host
+from apply import (
+    awake,
+    browsers,
+    captcha,
+    chrome_finder,
+    chrome_host,
+    claude_cli,
+    cli,
+    dashboard,
+    focus,
+    home,
+    native_host,
+    notify,
+)
 from apply.browsers import WorkerBrowsers
 from apply.focus import FocusKeeper, NoKeeper
-from apply.plain import bridge, channel, launcher, seed_setup, tools, window_capture
+from apply.plain import channel, extension, launcher, seed_setup, tools, window_capture
 from apply.plain.bridge import PortError
 from apply.plain.launcher import PlainWorker, PlainWorkers
 
@@ -129,10 +145,46 @@ def test_the_native_host_folder_is_each_oss_chromes(tmp_path):
     assert native_host.chrome_hosts("linux", tmp_path, env={}) == tmp_path / ".config/google-chrome/NativeMessagingHosts"
     assert native_host.chrome_hosts("linux", tmp_path, env={"XDG_CONFIG_HOME": str(tmp_path / "xdg")}) == \
         tmp_path / "xdg/google-chrome/NativeMessagingHosts"
-    assert native_host.chrome_hosts("win32", tmp_path) is None  # a registry key there, not a folder (F4)
-    with pytest.raises(NotImplementedError, match="NativeMessagingHosts"):
-        native_host.install(None, "/venv/bin/python", tmp_path / "home")
-    assert not (tmp_path / "home").exists()
+    assert native_host.chrome_hosts("win32", tmp_path) == chrome_host.WINDOWS_FOLDER  # the one the key names
+
+
+def test_the_accounts_hosts_files_are_where_windows_chrome_looks(tmp_path, monkeypatch):
+    """Faults (P5): on Windows no registry key names the accounts host's manifest, so the WorkIt extension's Sign In
+    with Your Apply Account finds no host; its .bat doesn't set APPLY_HOME (or reads a % in it as a variable), so the
+    host answers from another data folder's Employer accounts; or chrome_host.found, which doctor reads, names
+    another manifest than the key does."""
+    monkeypatch.setattr(chrome_host, "WINDOWS_FOLDER", tmp_path / "native-hosts")
+    home, registry = tmp_path / "ap%1", fake_chrome.FakeRegistry()
+    manifest = native_host.install(native_host.chrome_hosts("win32"), r"C:\venv\python.exe", home, "win32", registry)
+    assert chrome_host.found(native_host.NAME, tmp_path / "elsewhere", "win32", registry) == manifest
+    assert chrome_host.found(native_host.NAME, tmp_path / "elsewhere", "win32", fake_chrome.FakeRegistry()) is None
+    wrapper = Path(json.loads(manifest.read_text())["path"])
+    assert wrapper == home / "apply-accounts-host.bat"
+    bat = (f'@echo off\r\nchcp 65001 >nul\r\nset "APPLY_HOME={tmp_path}{os.sep}ap%%1"\r\n'
+           '"C:\\venv\\python.exe" "-m" "apply.native_host" %*\r\n')
+    assert wrapper.read_bytes() == bat.encode()
+
+
+def test_a_workers_host_files_are_where_each_oss_chrome_looks(tmp_path, monkeypatch):
+    """Faults (P5): on Windows no registry key names the host's manifest (Chrome there reads no folder); the .bat
+    echoes its command or chcp's line into Chrome's pipe, drops Chrome's arguments (%*: the caller's origin), lets
+    cmd.exe read a % in a path as a variable, or can't hold a path such as C:\\Users\\Łukasz; the manifest lets
+    another extension call the host (on Windows every Chrome of this user's finds it); or off Windows the files
+    leave the Worker's profile, or a registry is touched."""
+    monkeypatch.setattr(chrome_host, "WINDOWS_FOLDER", tmp_path / "native-hosts")
+    command = [r"C:\Program Files\py%1\python.exe", "-I", r"C:\Łukasz\host.py"]
+    monkeypatch.setattr(launcher, "host_command", lambda: command)
+    workers, registry = PlainWorkers(tmp_path / "profiles", kind="testing"), fake_chrome.FakeRegistry()
+    manifest = workers.install_host(1, "win32", registry)
+    assert manifest.parent == tmp_path / "native-hosts"
+    assert registry.values == {
+        ("HKEY_CURRENT_USER", rf"{chrome_host.KEY}\com.workit.apply_worker", ""): (registry.REG_SZ, str(manifest))}
+    written = json.loads(manifest.read_text())
+    assert written["allowed_origins"] == list(extension.EXTENSION_ORIGINS)
+    bat = '@echo off\r\nchcp 65001 >nul\r\n"C:\\Program Files\\py%%1\\python.exe" "-I" "C:\\Łukasz\\host.py" %*\r\n'
+    assert Path(written["path"]).read_bytes() == bat.encode()
+    off_windows = workers.install_host(1, "darwin", fake_chrome.NoRegistry())
+    assert off_windows.parent == workers.profile(1) / "NativeMessagingHosts"
 
 
 def test_focuskeeper_runs_on_the_mac_only(monkeypatch):
@@ -148,12 +200,60 @@ def test_focuskeeper_runs_on_the_mac_only(monkeypatch):
         assert keeper.bring(4242) is False  # its caller brings the Worker through Chrome
 
 
-def test_only_the_mac_is_kept_awake_and_only_while_apply_runs():
+def test_off_the_mac_a_notice_goes_to_the_terminal(monkeypatch, capsys):
+    """Fault: a run's notices went to osascript on every OS, so on Windows the first one stopped the run."""
+    monkeypatch.setattr(notify.subprocess, "run", lambda *a, **k: pytest.fail("osascript off the Mac"))
+    assert isinstance(notify.desktop("darwin"), notify.MacNotifier)
+    notify.desktop("win32").notify("Apply", "3 submitted")
+    assert capsys.readouterr().err == "Apply: 3 submitted\n"
+
+
+def test_on_windows_claude_and_its_mcp_server_are_killed_as_a_tree():
+    """Fault: Windows has no os.killpg, and start_new_session does nothing there: each stop of claude raised
+    AttributeError, and claude and its Playwright MCP server kept running."""
+    started = "import subprocess, sys, time; c = subprocess.Popen([sys.executable, '-c', 'import time; " \
+              "time.sleep(60)']); print(c.pid, flush=True); time.sleep(60)"
+    claude = subprocess.Popen([sys.executable, "-c", started], stdout=subprocess.PIPE, text=True)  # no group of its own
+    mcp = psutil.Process(int(claude.stdout.readline()))
+    try:
+        claude_cli.kill_tree(claude, "win32")
+        claude.wait(5)
+        mcp.wait(5)  # psutil.TimeoutExpired while it runs
+    finally:
+        claude.kill()
+        claude.wait()
+        claude.stdout.close()
+        with contextlib.suppress(psutil.Error):
+            mcp.kill()
+
+
+def test_on_windows_apply_writes_utf8_to_a_pipe_or_a_file():
+    """Fault: on Windows a pipe or a file takes the code page (cp1252), so `apply rehearse ... > run.log` stopped at
+    its first "→" with UnicodeEncodeError."""
+    piped, on_the_mac = (io.TextIOWrapper(io.BytesIO(), encoding="cp1252") for _ in range(2))
+    cli.utf8_streams("win32", (piped,))
+    cli.utf8_streams("darwin", (on_the_mac,))
+    piped.write("Asked → answered ✓")
+    piped.flush()
+    assert piped.buffer.getvalue() == "Asked → answered ✓".encode() and on_the_mac.encoding == "cp1252"
+
+
+def test_linux_is_not_kept_awake():
     assert awake.command("darwin", 4242) == ["/usr/bin/caffeinate", "-dims", "-w", "4242"]
-    for system in ("win32", "linux"):
-        assert awake.command(system) is None
-        with awake.awake(system, popen=lambda *a, **k: pytest.fail("an OS call off the Mac")):
-            pass
+    assert awake.command("win32") is None and awake.command("linux") is None
+    with awake.awake("linux", popen=lambda *a, **k: pytest.fail("an OS call"), state=lambda flags: pytest.fail()):
+        pass
+
+
+def test_windows_is_kept_awake_for_the_block_only():
+    """Fault: Windows slept during a run, mid-form (P11): the keep-awake did nothing off the Mac."""
+    asked = []
+    with pytest.raises(KeyError):  # a run that fails lets Windows sleep again too
+        with awake.awake("win32", popen=lambda *a, **k: pytest.fail("Windows needs no process"),
+                         state=lambda flags: asked.append(flags) or 1):
+            assert asked == [0x80000003]  # ES_CONTINUOUS, ES_SYSTEM_REQUIRED and ES_DISPLAY_REQUIRED
+            raise KeyError
+    assert asked == [0x80000003, 0x80000000]  # ES_CONTINUOUS alone: sleep as usual
 
 
 def test_on_the_mac_caffeinate_runs_for_the_block_only():
@@ -397,18 +497,97 @@ def test_off_the_mac_a_tile_takes_the_extensions_frames(monkeypatch, system):
     assert window_capture.mode("darwin") == "native"
 
 
-def test_a_hosts_chrome_is_its_parent_read_with_no_ps(monkeypatch):
-    """Fault: chrome_of reads the host's parent with `ps`, which Windows lacks. P3 made the tile reach it there: its
-    check that a connection is its Worker's own failed on each watch turn (found in review, 2026-11-24)."""
+def test_a_hosts_chrome_is_the_browser_above_it_read_with_no_ps(monkeypatch, tmp_path):
+    """Faults: chrome_of reads the host's parent with `ps`, which Windows lacks (found in review, 2026-11-24), or
+    takes the host's parent for its Chrome: on Windows that is cmd.exe, which starts the host's .bat (P5). Either way
+    the tile's check that a connection is its Worker's own fails on every Worker there."""
     def no_ps(*args, **kwargs):
         raise FileNotFoundError("ps")  # as on Windows
 
     monkeypatch.setattr(window_capture.subprocess, "run", no_ps)
-    assert window_capture.chrome_of(os.getpid()) == os.getppid()
+    host = "import os, sys; print(os.getpid(), flush=True); sys.stdin.read()"  # it ends as its stdin closes
+    chrome = subprocess.Popen(fake_chrome.command(tmp_path / "plain-1", sys.executable, "-c", host),
+                              stdin=subprocess.PIPE, stdout=subprocess.PIPE)
+    try:
+        assert window_capture.chrome_of(int(chrome.stdout.readline())) == chrome.pid
+    finally:
+        chrome.stdin.close()
+        chrome.wait(5)
     assert window_capture.chrome_of(None) is None
 
 
-def test_a_chrome_whose_pid_went_to_another_program_is_never_signalled(monkeypatch):
+def test_on_windows_a_worker_is_asked_to_close_and_killed_only_after_the_wait(tmp_path, monkeypatch):
+    """Fault: on Windows a signal, Popen.terminate and psutil's terminate all kill at once, with no save (P7): a
+    Worker stopped so loses its job sites' sign-ins, the session cookies that --restore-last-session keeps."""
+    monkeypatch.setattr(launcher, "TASKKILL", fake_chrome.taskkill(tmp_path / "asked"))
+    monkeypatch.setattr(launcher, "STOP_WAIT", 0.5)
+    chrome = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        launcher._stop(chrome, "win32")  # this stand-in never closes: it has no window
+        assert (tmp_path / "asked").read_text() == f"/PID {chrome.pid}"  # asked while it ran, and no /F
+        assert chrome.returncode is not None  # killed only once it didn't quit in time
+    finally:
+        chrome.kill()
+        chrome.wait()
+
+
+def test_off_the_mac_the_apply_window_is_chrome_itself_found_by_its_profile(tmp_path, monkeypatch):
+    """Fault: every rehearsal and run opened its Apply window with `open -na` and the Dock app, and found it with
+    pgrep, none of which Windows has: `apply rehearse` stopped at its start there, and each window's close too."""
+    real_run = subprocess.run
+
+    def run(arguments, **kwargs):
+        if arguments[0] in ("open", "pgrep", "osascript"):
+            pytest.fail(f"a Mac command off the Mac: {arguments}")
+        return real_run(arguments, **kwargs)
+
+    started, chromes = [], []
+
+    def start(arguments, profile, log, system, front=False):  # a stand-in Chrome, as launcher's Windows start
+        started.append((arguments, front))
+        chromes.append(subprocess.Popen([fake_chrome.PYTHON, "-c", "import time; time.sleep(60)", *arguments[1:]]))
+        return chromes[-1]
+
+    monkeypatch.setattr(dashboard.subprocess, "run", run)
+    monkeypatch.setattr(launcher, "start_in_background", start)
+    monkeypatch.setattr(chrome_finder, "find", lambda system=None: Path("C:/Chrome/chrome.exe"))
+    # Windows' taskkill as a Chrome takes it: its window closes, and so it quits.
+    asked = tmp_path / "asked"
+    monkeypatch.setattr(launcher, "TASKKILL", (sys.executable, "-c", f"import os, sys; open({str(asked)!r}, 'w')"
+                                               ".write(' '.join(sys.argv[1:])); os.kill(int(sys.argv[2]), 15)"))
+    profile = tmp_path / "dashboard"
+    try:
+        dashboard.open_window("http://127.0.0.1:5001", profile, front=False, system="win32")
+        (arguments, front), = started
+        assert arguments[0] == str(Path("C:/Chrome/chrome.exe")) and not front
+        assert {"--app=http://127.0.0.1:5001", f"--user-data-dir={profile}"} <= set(arguments)
+        assert dashboard.window_open(profile, "win32")  # found by its profile
+        dashboard.open_window("http://127.0.0.1:5001", profile, system="win32")  # this server's window: not again
+        assert len(started) == 1
+        dashboard.open_window("http://127.0.0.1:6002", profile, system="win32")  # an older run's: it quits first
+        assert asked.read_text() == f"/PID {chromes[0].pid}"  # asked to close: a signal would kill it at once
+        assert len(started) == 2 and dashboard._window_chromes(profile, "win32")[0][1] == "http://127.0.0.1:6002"
+    finally:
+        for process in chromes:
+            process.kill()
+            process.wait()
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="the flag is Windows' own: macOS refuses it")
+def test_on_windows_taskkill_opens_no_console_window(monkeypatch):
+    """Fault: taskkill is a console program, so from the app, which has no console, each stop flashed one."""
+    asked = []
+    monkeypatch.setattr(launcher.subprocess, "run", lambda arguments, **kwargs: asked.append(kwargs))
+    chrome = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+    try:
+        launcher.ask_to_quit(chrome, "win32")
+    finally:
+        chrome.kill()
+        chrome.wait()
+    assert asked[0]["creationflags"] & launcher.CREATE_NO_WINDOW
+
+
+def test_a_chrome_whose_pid_went_to_another_program_is_never_signalled(tmp_path, monkeypatch):
     """Fault: launcher.Chrome polls and signals a bare PID. Its Chrome had ended, the OS gave the PID to another
     program (played by this test's own process), and _stop sent that program SIGTERM, then SIGKILL (found in review,
     2026-11-24). psutil refuses a reused PID: is_running() is False, and each signal raises NoSuchProcess."""
@@ -433,6 +612,9 @@ def test_a_chrome_whose_pid_went_to_another_program_is_never_signalled(monkeypat
     chrome.kill()
     launcher._stop(chrome)
     assert sent == []
+    monkeypatch.setattr(launcher, "TASKKILL", fake_chrome.taskkill(tmp_path / "asked"))
+    launcher.ask_to_quit(chrome, "win32")  # taskkill would close that other program's windows
+    assert not (tmp_path / "asked").exists()
 
 
 def test_on_windows_the_channel_is_a_named_pipe_one_for_each_folder(tmp_path, monkeypatch):
@@ -441,17 +623,47 @@ def test_on_windows_the_channel_is_a_named_pipe_one_for_each_folder(tmp_path, mo
     reaches os.getuid, which Windows lacks (P4)."""
     monkeypatch.delattr(os, "getuid")
     long = tmp_path / ("x" * 120)
-    path = bridge.socket_path(long, "win32")
+    path = channel.socket_path(long, "win32")
     assert path == long / "workers.sock"  # no /tmp fallback: on Windows the path only names the pipe
     assert channel.pipe_name(path).startswith("\\\\.\\pipe\\workit-apply-")
     assert channel.pipe_name(path) == channel.pipe_name(long / "workers.sock")
-    assert channel.pipe_name(path) != channel.pipe_name(bridge.socket_path(tmp_path / "two", "win32"))
+    assert channel.pipe_name(path) != channel.pipe_name(channel.socket_path(tmp_path / "two", "win32"))
     monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))  # Windows' temp folder, played here
     assert tools.socket_folder("win32") == tmp_path / "apply"
     made = []
     monkeypatch.setattr(channel, "ConnectionListener", lambda address, family, at: made.append((address, family)))
     channel.listen(path, "win32")
     assert made == [(channel.pipe_name(path), "AF_PIPE")]
+
+
+def _text_mode(mode: ast.expr | None) -> bool:
+    return mode is None or (isinstance(mode, ast.Constant) and isinstance(mode.value, str) and "b" not in mode.value)
+
+
+def _default_encoding(call: ast.Call) -> bool:
+    """Whether `call` reads or writes text with no `encoding`, so in the OS's own: read_text, write_text, open or
+    fdopen in a text mode, a path's open(), and a command's output as text (text=True)."""
+    keywords = {k.arg: k.value for k in call.keywords}
+    if "encoding" in keywords:
+        return False
+    if any(k.arg in ("text", "universal_newlines") and isinstance(k.value, ast.Constant) and k.value.value is True
+           for k in call.keywords):
+        return True
+    func = call.func
+    name = func.attr if isinstance(func, ast.Attribute) else func.id if isinstance(func, ast.Name) else ""
+    if name in ("read_text", "write_text"):
+        return True
+    if name == "fdopen" or isinstance(func, ast.Name) and name == "open":
+        return _text_mode(keywords.get("mode", call.args[1] if len(call.args) > 1 else None))
+    if name == "open":  # a path's open(mode): a page's or a browser's open(url) takes no mode
+        if "mode" in keywords:
+            return _text_mode(keywords["mode"])
+        if not call.args:
+            return not call.keywords
+        first = call.args[0]  # a mode, never a URL: webbrowser.open("https://...") takes no encoding
+        return isinstance(first, ast.Constant) and isinstance(first.value, str) and set(first.value) <= set("rwxabt+") \
+            and _text_mode(first)
+    return False
 
 
 def _stops_windows(node: ast.AST, module: Path) -> str | None:
@@ -467,18 +679,21 @@ def _stops_windows(node: ast.AST, module: Path) -> str | None:
         return "checks a process with os.kill(pid, 0) (P2: psutil.pid_exists)"
     if isinstance(node, ast.Attribute) and node.attr == "AF_UNIX" and module.name != "channel.py":
         return "makes a Unix socket of its own (P4: open the channel through apply.plain.channel)"
+    if isinstance(node, ast.Call) and _default_encoding(node):
+        return 'reads or writes text in the OS\'s encoding (P13: cp1252 on Windows): give it encoding="utf-8"'
     return None
 
 
 def test_no_module_of_apply_makes_a_call_that_stops_windows():
     """Faults: a module imports `fcntl` again (P1: on Windows no command, window or seed setup then starts),
     checks a process with `os.kill(pid, 0)` (P2: on Windows signal 0 is CTRL_C_EVENT, and any other number ends the
-    process), or makes a Unix socket outside the channel (P4: Python on Windows has no AF_UNIX). It reads the
-    source: on this computer each call works, and portalocker itself imports `fcntl` on macOS and Linux, so only
-    Windows would show the fault."""
+    process), makes a Unix socket outside the channel (P4: Python on Windows has no AF_UNIX), or reads or writes
+    text with no encoding (P13: on Windows that is cp1252, so a UTF-8 file with "Łukasz" in it fails to read, and
+    one with "→" fails to write). It reads the source: on this computer each call works, and portalocker itself
+    imports `fcntl` on macOS and Linux, so only Windows would show the fault."""
     source = Path(home.__file__).parent
     found = [f"{path.relative_to(source)}:{node.lineno}: {why}"
              for path in sorted(source.rglob("*.py"))
-             for node in ast.walk(ast.parse(path.read_text()))
+             for node in ast.walk(ast.parse(path.read_text(encoding="utf-8")))
              if (why := _stops_windows(node, path))]
     assert found == []

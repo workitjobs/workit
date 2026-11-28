@@ -167,21 +167,21 @@ def run_suite(folder: Path) -> tuple[bool, str]:
     with tempfile.TemporaryDirectory(prefix="apply-repair-profiles-") as profiles:
         done = subprocess.run(
             ["uv", "run", "pytest", "-q", "-p", "no:cacheprovider"], cwd=folder / APP, capture_output=True,
-            text=True, timeout=3600, env=_env(profiles),
+            text=True, timeout=3600, env=_env(profiles), encoding="utf-8"
         )
     return done.returncode == 0, (done.stdout + done.stderr).strip()[-1500:]
 
 
 def run_engine_suite(engine: Path) -> tuple[bool, str]:
     """The Fill engine's tests in its worktree (`npm test` rebuilds dist/ first)."""
-    done = subprocess.run(["npm", "test"], cwd=engine, capture_output=True, text=True, timeout=3600, env=_node_env())
+    done = subprocess.run(["npm", "test"], cwd=engine, capture_output=True, text=True, timeout=3600, env=_node_env(), encoding="utf-8")
     return done.returncode == 0, (done.stdout + done.stderr).strip()[-1500:]
 
 
 def install_engine(engine: Path) -> None:
     """The engine's dependencies, as its lock file pins them, for its tests."""
     subprocess.run(["npm", "ci", "--no-audit", "--no-fund"], cwd=engine, check=True, capture_output=True, text=True,
-                   timeout=900, env=_node_env())
+                   timeout=900, env=_node_env(), encoding="utf-8")
 
 
 def _node_env() -> dict:
@@ -204,7 +204,7 @@ def repair_later(requests: RepairRequests, policy: dict, spawn: Callable = subpr
     if not policy.get("max_per_day") or not requests.waiting():
         return False
     requests.folder.mkdir(parents=True, exist_ok=True)
-    with open(requests.folder / "repair.log", "a") as log:
+    with open(requests.folder / "repair.log", "a", encoding="utf-8") as log:
         spawn([sys.executable, "-m", "apply.cli", "repair"], cwd=APPLY, stdin=subprocess.DEVNULL, stdout=log,
               stderr=subprocess.STDOUT, start_new_session=True)
     return True
@@ -343,7 +343,7 @@ class Repairer:
     def _engine_branch(self, folder: Path) -> str:
         """The branch Apply's submodule tracks (.gitmodules), where engine Repairs merge."""
         found = subprocess.run(["git", "-C", str(folder), "config", "-f", ".gitmodules", f"submodule.{ENGINE}.branch"],
-                               capture_output=True, text=True).stdout.strip()
+                               capture_output=True, text=True, encoding="utf-8").stdout.strip()
         return found or ENGINE_BRANCH
 
     def _gate(self, folder: Path, base: str, head: str, engine_base: str, engine_head: str) -> str:
@@ -522,7 +522,7 @@ class Repairer:
             self._git(self._repo, "branch", "-D", branch)
 
     def _git(self, folder: Path, *args: str) -> str:
-        return subprocess.run(["git", "-C", str(folder), *args], check=True, capture_output=True, text=True).stdout.strip()
+        return subprocess.run(["git", "-C", str(folder), *args], check=True, capture_output=True, text=True, encoding="utf-8").stdout.strip()
 
 
 def _changed_code(before: str, after: str, names: tuple[str, ...]) -> str:

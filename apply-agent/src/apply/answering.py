@@ -67,7 +67,7 @@ def refresh(workit) -> None:
     except (WorkItError, OSError):
         return
     if isinstance(served, dict) and served.get("types") and served.get("order"):
-        CACHE.write_text(json.dumps(served, indent=1, sort_keys=True) + "\n")
+        CACHE.write_text(json.dumps(served, indent=1, sort_keys=True) + "\n", encoding="utf-8")
         _served.cache_clear()
         _patterns.cache_clear()
 
@@ -75,7 +75,7 @@ def refresh(workit) -> None:
 @cache
 def _served() -> tuple[dict[str, TypeGuide], tuple[str, ...]]:
     try:
-        served = json.loads(CACHE.read_text())
+        served = json.loads(CACHE.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         # Imported here: adapters imports modules that import this one.
         from apply.adapters import SetupError

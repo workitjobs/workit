@@ -867,7 +867,16 @@ Find files with a directory listing; these are the rules for where code goes.
   the rules above, else a scraped job no feed lists (an added one, or one
   the feed closed: `job_with_link`, the same three rules), else a new
   **added job** (`add_job`: `added_by_student`, published, only company,
-  title and link). `track_only` takes any web link, not only a form auto
+  title and link, plus its logo sources: `services/added_logos.py` copies
+  `company_domain` and `company_logo_url` from a scraped posting of the
+  same company, whole name, case aside, else reads the employer's
+  registered domain and favicon from a link on its own site; a hiring
+  system's, job board's or other vendor's host gives none, or the card
+  drew initials for every job Apply recorded; tests
+  `tests/test_added_logos.py`). A job read with neither source (one added
+  before) takes its own site's at read, in the applications list
+  (`auto_apply/queries._with_own_site_logo`); migration `b3e7a1c9d452`
+  copies the catalog's into the added jobs from before, once. `track_only` takes any web link, not only a form auto
   apply fills; a closed job gets the application and stays closed, as it
   is (never reopened or retitled); and the application is saved unless one
   exists (`track`), where Write with Claude moves it to needs_you. New jobs
@@ -2142,11 +2151,13 @@ go then. A change needs to work on Cloudflare only.
      never committed. Skipped, those answers are lost with the column.
   4. `uv run alembic upgrade head` for `c3f9a1d27b6e`, which sits on
      `d6a2f8c41e07`.
-  `b7e4c2a9d816` sits on `756dd185aedb` (the scraper's cycle leases), so
-  step 1 applies `main`'s migrations before it first where they are not
-  yet applied. It sat on `a9d4c2e7f893` until main's scraper migrations
-  took that place (2026-11-26): two revisions on one parent made two heads,
-  and `upgrade head` refused to run.
+  `b7e4c2a9d816` sits on `b3e7a1c9d452` (the added jobs' catalog logos),
+  which sits on `756dd185aedb` (the scraper's cycle leases), so step 1
+  applies `main`'s migrations before it first where they are not yet
+  applied. It sat on `a9d4c2e7f893` until main's scraper migrations took
+  that place (2026-11-26), then on `756dd185aedb` until main's
+  `b3e7a1c9d452` took that one (2026-11-27): two revisions on one parent
+  made two heads each time, and `upgrade head` refused to run.
 - **Apply `f45841235b98` (`job_postings_feed_idx`, KAN-916) once its PR
   has merged, never from its branch.** A revision that `main` lacks breaks
   every teammate's Alembic (`alembic/CLAUDE.md`). It follows KAN-915's

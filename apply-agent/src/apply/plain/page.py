@@ -46,12 +46,26 @@ from apply.plain.script import keep_engine
 
 DEFAULT_TIMEOUT = 30000  # ms, as Playwright's
 POLL = 0.1  # s between tries of an action whose element is missing or not actionable
+UNFOCUSED_TRIES = 3  # fills of a field whose page moved its focus before the trusted text went (KAN-716)
 FULL_PAGE_MAX = 20000  # CSS px of a page a full-page screenshot covers, from its top
 STRIP_S = 0.6  # s a full-page screenshot takes for each viewport of the page
 VIEWPORT = "() => ({width: innerWidth, height: innerHeight})"  # page.viewport_size (a fixed function)
 NAVIGATED = re.compile(r"context was destroyed|navigat", re.IGNORECASE)
 # Page events read from the tab's requests (ops/accounts.js net.watch), by the port's event each comes from.
 WATCHED = {"request": "request", "response": "response", "requestfinished": "response", "requestfailed": "requestfailed"}
+# The elements marked `token`, in the document and in every open shadow root in it: Playwright's selectors find an
+# element in a shadow root (SmartRecruiters' buttons are spl-button's, live 2026-11-27), which the document's own
+# querySelectorAll never reaches. Each one's mark comes off here, as the extension's unmark finds none there.
+MARKED = """const __marked = (token) => {
+  const found = [], pick = `[data-apply-mark="${CSS.escape(token)}"]`;
+  const walk = (root) => {
+    found.push(...root.querySelectorAll(pick));
+    for (const el of root.querySelectorAll('*')) if (el.shadowRoot) walk(el.shadowRoot);
+  };
+  walk(document);
+  for (const el of found) el.removeAttribute('data-apply-mark');
+  return found;
+};"""
 ROLE_ARGUMENTS = ("checked", "disabled", "expanded", "include_hidden", "level", "name", "pressed", "selected", "exact",
                   "description")
 
@@ -389,7 +403,16 @@ class PortLocator(_Queries):
         self.click(**options)
 
     def fill(self, value: str, force: bool = False, timeout: float | None = None, **_) -> None:
-        self._do("fill", "fill", value, {"force": force}, timeout=timeout)
+        """Playwright's fill. Its trusted text (KAN-716) goes only while the field still has the focus it was given; a
+        page that moved it before any text was sent (`Unfocused`) gets the fill again, which focuses and selects the
+        field anew, up to UNFOCUSED_TRIES times. A page that keeps moving it still raises."""
+        for tries_left in range(UNFOCUSED_TRIES - 1, -1, -1):
+            try:
+                return self._do("fill", "fill", value, {"force": force}, timeout=timeout)
+            except PortError as error:
+                if error.kind != "Unfocused" or not tries_left:
+                    raise
+            time.sleep(POLL)
 
     def clear(self, force: bool = False, timeout: float | None = None, **_) -> None:
         self.fill("", force=force, timeout=timeout)
@@ -551,10 +574,8 @@ class PortLocator(_Queries):
         else:
             self._frame._until("Locator.evaluate", "mark", self._selector, token, timeout=timeout)
         try:
-            pick = "[...document.querySelectorAll(" + json.dumps(f'[data-apply-mark="{token}"]') + ")]"
-            if not every:
-                pick += "[0]"
-            code = ("async ([__arg]) => { const __f = (\n" + expression.strip().rstrip(";") + "\n); const __e = " + pick +
+            pick = f"__marked({json.dumps(token)})" + ("" if every else "[0]")
+            code = ("async ([__arg]) => { " + MARKED + " const __f = (\n" + expression.strip().rstrip(";") + "\n); const __e = " + pick +
                     "; if (" + ("false" if every else "!__e") + ") throw new Error('element is gone'); "
                     "return typeof __f === 'function' ? await __f(__e, __arg) : __f; }")
             return self._frame.evaluate(code, [arg])
@@ -761,7 +782,7 @@ def _init_script(worker: Connection, script: str | None, path) -> None:
     by guard.control instead of an init script."""
     from apply.plain import guards
 
-    script = Path(path).read_text() if path is not None else script
+    script = Path(path).read_text(encoding="utf-8") if path is not None else script
     if not script:
         raise ValueError("add_init_script needs a script or a path")
     worker.call("guard.script", **guards.init_script(script))

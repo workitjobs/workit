@@ -13,7 +13,8 @@ The check reads, once per run or rehearsal:
 - Apply's own Tracker (`tracker.json`): a submitted row with the same
   Application ID or job;
 - the Records: a rehearsal's or a run's Record of the same Application with
-  `after-submit.png` (only a submit saves one);
+  `after-submit.png` (only a submit saves one), or whose README says submitted
+  (a confirmation whose screenshot failed saves none);
 - the Waiting writes: an applied write WorkIt hasn't taken yet. WorkIt Auto
   Apply keeps no Tracker file and no Record past a submit (W11), so a
   submit made while WorkIt was down is only there until WorkIt has it.
@@ -57,6 +58,8 @@ OUTCOMES = {Stage.INTERVIEWING: str(Outcome.INTERVIEW), Stage.OFFER: str(Outcome
 
 # Where Records live: a rehearsal's (cli.REHEARSALS) and a live run's clone (records.CLONE).
 RECORDS = (HOME / "rehearsals", HOME / "apply-records")
+# The README line of a Record whose Application was sent (records.readme's "- Status: ...").
+SUBMITTED = f"- Status: {Status.SUBMITTED}"
 
 
 @dataclass(frozen=True)
@@ -163,9 +166,20 @@ class Check:
         if not application_id:
             return None
         for root in self._records:
-            for sent in sorted(root.glob(f"*/*-{application_id}/after-submit.png"), reverse=True):
-                return Applied(_day(sent.parent.parent.name), f"its Record says submitted: {sent.parent}")
+            for folder in sorted(root.glob(f"*/*-{application_id}"), key=lambda f: f.parent.name, reverse=True):
+                if (folder / "after-submit.png").exists() or _says_submitted(folder / "README.md"):
+                    return Applied(_day(folder.parent.name), f"its Record says submitted: {folder}")
         return None
+
+
+def _says_submitted(readme: Path) -> bool:
+    """Whether a Record's README gives its status as submitted (apply.records). A form sent through its emailed code
+    (Astranis, run10) was saved as submitted with no after-submit.png, its confirmation's screenshot having failed,
+    so the next run filled it again as new."""
+    try:
+        return any(line.startswith(SUBMITTED) for line in readme.read_text(encoding="utf-8").splitlines()[:12])
+    except OSError:
+        return False
 
 
 def _day(text: object) -> date | None:

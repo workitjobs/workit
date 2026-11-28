@@ -61,6 +61,9 @@ class Entry:
     answer: str | list[str]  # a multi-select's answer is the options ticked
     own: bool = False  # the student's own answer, or a draft they reviewed; a model's draft until then
     none: bool = False  # a multi-select none of whose options holds (answer []): its boxes stay unticked
+    # The list the student's own pick came from (Freeform, 2026-11-26): the Fill engine gives it only to a form that
+    # offers just these options (its fromThisList). A model's draft has none: the engine maps its text to each list.
+    options: tuple[str, ...] = ()
 
 
 class NotSaved(Exception):
@@ -218,6 +221,15 @@ class AnswerBank:
             found = self._entries.get(key(question))
         return found if found is not None and _answered(found) else None
 
+    def reviewed(self, question: str, company: str = "") -> Entry | None:
+        """The student's own answer to `question` (theirs, or a draft they reviewed: `own`): the one filed for
+        `company` alone ("<question> (<company> only)") first, else the one under its wording. It wins over any draft
+        or essay (Strava, 2026-11-26)."""
+        for wording in ([f"{question} ({company.strip()} only)"] if company.strip() else []) + [question]:
+            if (entry := self.get(wording)) and entry.own:
+                return entry
+        return None
+
     def answers(self) -> dict[str, Entry]:
         """Every answer, by its key."""
         with self._lock:
@@ -264,10 +276,11 @@ class AnswerBank:
             self._go(change)
         return True
 
-    def answer(self, question: str, answer: str | list[str]) -> None:
+    def answer(self, question: str, answer: str | list[str], options: Iterable[str] = ()) -> None:
         """The student's own answer to `question` (the Apply window, Ask Claude's offer): it replaces any draft.
-        Raises NotSaved when WorkIt doesn't save it."""
-        self._wait(_set(question, _picked(answer), own=True, student=True))
+        `options`: the list a pick came from, which it then answers alone (WorkIt keeps them; with none, the entry
+        keeps the list it has). Raises NotSaved when WorkIt doesn't save it."""
+        self._wait(_set(question, _picked(answer), own=True, student=True, options=options))
 
     def review(self, question: str) -> bool:
         """Mark `question`'s answer reviewed, unchanged: the student's from now on. False if the bank lacks it;
@@ -431,8 +444,10 @@ class AnswerBank:
         elif change.wrong:  # WorkIt holds a draft the review found wrong meanwhile: deleted now
             self._go(_Change(change.filed, change.question, None))
         else:
+            was = self._entries.get(change.filed)  # WorkIt keeps the list an entry has when a change names none
             self._entries[change.filed] = entry = _new(change.question, change.entry["answer"],
-                                                        own=not change.entry["review"])
+                                                        own=not change.entry["review"],
+                                                        options=change.entry.get("options", was.options if was else ()))
             _mask([entry])
         stale = version is not None and version != self._version + 1
         if version is not None and not stale:
@@ -453,7 +468,7 @@ def _old_entries(path: Path) -> list[dict]:
     """The old file's answered entries as PATCH takes them, read as Apply wrote it (YAML 1.2: a bare Yes stays a
     word). `source: lisul` not marked `reviewed: false` is the student's own, as WorkIt's import reads it
     (backend/app/services/apply_answers.py, `is_own`)."""
-    found = YAML(typ="safe", pure=True).load(path.read_text()) or {}
+    found = YAML(typ="safe", pure=True).load(path.read_text(encoding="utf-8")) or {}
     entries = []
     for filed, entry in found.items() if isinstance(found, dict) else ():
         if not isinstance(entry, dict) or entry.get("answer") is None:
@@ -463,6 +478,8 @@ def _old_entries(path: Path) -> list[dict]:
             continue
         first = entry.get("first_seen") if isinstance(entry.get("first_seen"), dict) else {}
         company = str(first.get("company") or "").strip()
+        # No options go: the old file kept every choice's list, so a pick from one list can't be told from the rest,
+        # and with a list each would answer only forms offering just it (W11: the engine maps a choice's text).
         entries.append(_set(str(entry.get("question") or filed), answer,
                             own=entry.get("source") == "lisul" and entry.get("reviewed") is not False,
                             choice=bool(entry.get("options")), form={"company": company} if company else None).entry)
@@ -470,18 +487,20 @@ def _old_entries(path: Path) -> list[dict]:
 
 
 def _set(question: str, answer: str | list[str], own: bool, *, choice: bool = False, form: dict | None = None,
-         student: bool = False) -> _Change:
+         student: bool = False, options: Iterable[str] = ()) -> _Change:
     """A change that saves `answer` to `question`: the student's own, or the model's, flagged for review. `choice`
     for a pick from the form's options, and `form` names the form it came from (`job_id` or `company`): WorkIt's
-    rule reads them, and keeps neither."""
+    rule reads them, and keeps neither. `options`, the list the student's own pick came from, WorkIt keeps."""
     asked = one_line(question)
     entry = {"question": asked, "answer": answer, "review": not own, "choice": choice or isinstance(answer, list)}
+    if listed := [str(o) for o in options]:
+        entry["options"] = listed
     return _Change(key(asked), asked, entry | (form or {}), student=student)
 
 
-def _new(question: str, answer: str | list[str], own: bool) -> Entry:
+def _new(question: str, answer: str | list[str], own: bool, options: Iterable[str] = ()) -> Entry:
     picked = [str(a).strip() for a in answer] if isinstance(answer, list) else str(answer).strip()
-    return Entry(one_line(question), picked, own=own, none=picked == [])
+    return Entry(one_line(question), picked, own=own, none=picked == [], options=tuple(options))
 
 
 def _entry(found: dict) -> Entry:
@@ -489,7 +508,8 @@ def _entry(found: dict) -> Entry:
     answer = found["answer"]
     return Entry(question=str(found.get("question") or ""),
                  answer=[str(a) for a in answer] if isinstance(answer, list) else str(answer),
-                 own=found.get("own") is not False, none=found.get("none") is True and answer == [])
+                 own=found.get("own") is not False, none=found.get("none") is True and answer == [],
+                 options=tuple(str(o) for o in found.get("options") or ()))
 
 
 def _answered(entry: Entry) -> bool:

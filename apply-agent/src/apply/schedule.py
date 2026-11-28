@@ -78,7 +78,7 @@ class Scheduler:
         self._logs.mkdir(parents=True, exist_ok=True)
         said = []
         for job in self._jobs:
-            self._plist(job).write_text(plist(job, uv=self._uv, project=self._project, logs=self._logs, path=self._path))
+            self._plist(job).write_text(plist(job, uv=self._uv, project=self._project, logs=self._logs, path=self._path), encoding="utf-8")
             said.append(f"Wrote {self._plist(job)}: apply {' '.join(job.command)} {_when(job)}.")
         if load:
             for job in self._jobs:
@@ -142,7 +142,7 @@ class Launchctl:
         return subprocess.run(["launchctl", "print", f"{self.domain}/{label}"], capture_output=True).returncode == 0
 
     def _launchctl(self, *args: str) -> None:
-        done = subprocess.run(["launchctl", *args], capture_output=True, text=True)
+        done = subprocess.run(["launchctl", *args], capture_output=True, text=True, encoding="utf-8")
         if done.returncode:
             raise RuntimeError(f"launchctl {' '.join(args)}: {done.stderr.strip() or done.returncode}")
 

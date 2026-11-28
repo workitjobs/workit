@@ -6,6 +6,7 @@ from pathlib import Path
 import psutil
 import pytest
 
+from apply import chrome_host
 from apply.plain import demo
 from apply.plain.launcher import NEVER, PlainWorkers, chrome_for_testing
 
@@ -34,7 +35,7 @@ def test_a_plain_worker_has_no_automation_switch_and_says_hello(workers):
     assert hello["webdriver"] is False
     assert hello["engine"] == workers.bridge.engine
     assert not (running.profile / "DevToolsActivePort").exists()
-    assert (running.profile / "NativeMessagingHosts" / "com.workit.apply_worker.json").exists()
+    assert (chrome_host.folder(running.profile) / "com.workit.apply_worker.json").exists()
 
 
 def test_stop_ends_only_the_chrome_it_started(workers):

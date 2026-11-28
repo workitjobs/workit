@@ -16,14 +16,11 @@ stay) before it is welcomed, once; one still older is welcomed as `stale`, and A
 one line.
 """
 
-import hashlib
 import itertools
 import json
-import os
 import socket
 import struct
 import sys
-import tempfile
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -31,13 +28,10 @@ from pathlib import Path
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from apply.home import HOME
 from apply.plain import channel
 from apply.plain.extension import EXTENSION_ORIGINS, code_hash, engine_identity
 
 PROTOCOL = 1
-SOCKET = "workers.sock"
-SOCKET_PATH_MOST = 100  # macOS caps a Unix socket path at 104 bytes
 CHUNK_CHARS = 200_000  # characters of JSON per chunk: at most 800 KB of UTF-8, under Chrome's 1 MB
 CHUNK_OVER = 512 * 1024  # a message longer than this goes as chunks
 CALL_TIMEOUT = 60.0  # s an op may take, beyond its own timeout
@@ -89,18 +83,6 @@ class Refused(Exception):
 
 class BridgeBusy(Exception):
     """Another Apply process is listening on the socket."""
-
-
-def socket_path(home: Path = HOME, system: str = sys.platform) -> Path:
-    """`home`/workers.sock, or, when that path is too long for a socket, one under
-    /tmp/apply-<uid>/ (0700) named by a hash of `home`. PlainWorkers passes its profiles folder. On Windows the path
-    only names the channel's pipe and holds its secret beside it (channel.pipe_name), so it has no length to keep
-    under, and Windows has no os.getuid."""
-    path = home / SOCKET
-    if system == "win32" or len(str(path).encode()) <= SOCKET_PATH_MOST:
-        return path
-    folder = Path(tempfile.gettempdir() if len(tempfile.gettempdir()) < 40 else "/tmp") / f"apply-{os.getuid()}"
-    return folder / f"{hashlib.sha256(str(home.resolve()).encode()).hexdigest()[:16]}.sock"
 
 
 def _frame(message: dict) -> bytes:
@@ -229,8 +211,8 @@ class Bridge:
     """Listens for the Workers' relays. `start` before launching a Worker; `wait_for(k)` then
     gives that Worker's Connection once its hello passed."""
 
-    def __init__(self, path: Path | None = None, engine: dict | None = None, expects: int = FEATURES):
-        self.path = path or socket_path()
+    def __init__(self, path: Path, engine: dict | None = None, expects: int = FEATURES):
+        self.path = path
         self._engine = engine
         # The vendor set this Apply wrote into the Workers' extension folder ("vendor/sets/<id>"), named
         # in each welcome: a Worker whose extension takes it is never refused for another checkout's engine.

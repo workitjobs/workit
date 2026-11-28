@@ -380,3 +380,18 @@ def test_an_encoded_subject_that_speaks_of_a_reset_gives_a_rehearsal_no_link():
     assert b"=?utf-8?" in raw.lower()
     parsed = __import__("email").message_from_bytes(raw)
     assert gmail._link(gmail._subject_and_text(parsed), (ACME,), resets=False) is None
+
+
+def test_recent_mail_carries_its_gmail_thread_and_message_ids():
+    # Fault: the to-do scan's dedupe by thread reading no thread id (every mail its own to-do).
+    class ThreadedImap(FakeImap):
+        def fetch(self, number: bytes, parts: str):
+            status, [(head, raw), tail] = super().fetch(number, parts)
+            ids = f" X-GM-THRID 17{int(number)} X-GM-MSGID 18{int(number)}".encode() if "X-GM-THRID" in parts else b""
+            return status, [(head.replace(b" RFC822", ids + b" RFC822"), raw), tail]
+
+    imap = ThreadedImap([(NOW, mail("Glean <recruiting@glean.com>", "Next steps", "Please complete the assessment."))])
+
+    [found] = GmailMailbox("test.person@example.com", "app-password", connect=imap).read_mail(search="newer_than:7d")
+
+    assert (found.thread, found.message_id) == ("171", "181")

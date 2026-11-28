@@ -134,11 +134,11 @@ def _stock(type: str, raw: dict) -> Stock:
 
 def _read() -> dict:
     with _lock:
-        return (_yaml().load(PATH.read_text()) if PATH.exists() else None) or {}
+        return (_yaml().load(PATH.read_text(encoding="utf-8")) if PATH.exists() else None) or {}
 
 
 def _write(data: dict) -> None:
-    with PATH.open("w") as f:
+    with PATH.open("w", encoding="utf-8") as f:
         _yaml().dump(data, f)
 
 

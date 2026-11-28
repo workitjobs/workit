@@ -969,11 +969,22 @@ WorkIt Auto Apply and the WorkIt extension fill again on any later form
 - **One row per student** (`applicant_id`, CASCADE from the profile):
   `answers` JSONB maps the question's folded wording (the Fill engine's
   match: `services/apply_answers.py`'s `wording`) to `{"question",
-  "answer", "review"?}`. An answer is a string, or a list of the options
-  picked, `[]` for "none of these". `review: true` is only on a Claude
-  answer the student hasn't reviewed: it still fills forms, but as not
-  `own`, so a form that bans AI text never takes it. Nothing else is
-  kept: no options, source, company, dates, uses or facts.
+  "answer", "review"?, "options"?}`. An answer is a string, or a list of
+  the options picked, `[]` for "none of these". `review: true` is only on
+  a Claude answer the student hasn't reviewed: it still fills forms, but
+  as not `own`, so a form that bans AI text never takes it. `options` is
+  only on the student's own pick from a list that renders a fact their
+  profile holds (a 3.85 on a GPA list in steps of 0.05, Freeform
+  2026-11-26, from `main`'s merge into KAN-834): the Fill engine then gives
+  it only to a form offering just those options (its `fromThisList`), in
+  the app and the extension alike. A save that names no `options` keeps
+  the ones the entry holds, so the website's edit of the answer keeps its
+  list; `[]` drops them. Nothing else is kept: no source, company, dates,
+  uses or facts. **Still open:** `main`'s stale drafts (ENFOS,
+  2026-11-26: a draft replaced once the Story bank lines it drew on are
+  gone) need each draft's facts, which no entry keeps; left out for now
+  at the user's call, so a draft stays until the student reviews or
+  removes it.
 - **Its own table, not a column of `applicant_profiles`**: every profile
   read loads that row's JSONB columns, and a bank grows to hundreds of KB
   (W11's "Size").

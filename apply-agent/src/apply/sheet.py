@@ -94,9 +94,9 @@ class NoSheet(Exception):
 
 def live_tracker_sheet() -> gspread.Spreadsheet:
     """The Sheet `setup` saved for live runs. Raises NoSheet when none was."""
-    if not SHEET_ID.is_file() or not SHEET_ID.read_text().strip():
+    if not SHEET_ID.is_file() or not SHEET_ID.read_text(encoding="utf-8").strip():
         raise NoSheet(f"no Tracker Sheet is set up ({SHEET_ID} is missing; docs/tracker-setup.md)")
-    return open_sheet(SHEET_ID.read_text().strip())
+    return open_sheet(SHEET_ID.read_text(encoding="utf-8").strip())
 
 
 def live_tracker() -> "SheetTracker":
@@ -436,7 +436,7 @@ def main(argv: list[str] | None = None) -> None:
     spreadsheet = open_sheet(sheet_id)
     lay_out(spreadsheet)
     SHEET_ID.parent.mkdir(parents=True, exist_ok=True)
-    SHEET_ID.write_text(sheet_id + "\n")
+    SHEET_ID.write_text(sheet_id + "\n", encoding="utf-8")
     print(f"The Tracker is ready: {spreadsheet.url}")
 
 

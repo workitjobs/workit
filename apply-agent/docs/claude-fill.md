@@ -10,6 +10,13 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   that button, with word to stop. A click the drive guard still blocked on
   the button Claude then names as the submit leaves the form filled
   (`claude_fill._only_its_submit`); any other block is a Handoff.
+- A step where Claude names no Next and no button that sends is a Handoff
+  (KAN-636), unless plain code finds the job system's own last-step Submit
+  (`claude_fill.LAST_STEP_SUBMIT`: Oracle Recruiting's pagination Submit,
+  whose words come from i18n). It must show, be enabled (plain code waits
+  up to `SUBMIT_SETTLES_S` while Oracle disables it to check the last
+  answers), and be the one button of its words. Then the form is held at its last step as when
+  Claude names it: nothing presses it until Approve and submit.
 - Claude's stop for a captcha holds the fill only when Apply's own check
   sees the challenge or its box showing to a person (`captcha.shows`,
   `captcha.unsolved`; KAN-760, `docs/captchas-and-bot-blocks.md`). Else
@@ -234,10 +241,30 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   each one, leaving Honeywell's required Country empty (2026-11-25). A label read
   under its section's heading ("Address: Country") also fits the dropdown named
   by the part after it, and a box that shows its choice only as its value
-  (Oracle's) reads back as picked. An option a click can't reach is pressed on
+  (Oracle's) reads back as picked, as does one that shows only the code of a
+  "<code> (<name>)" choice (Oracle's phone "+1 (United States)" shows "+1"; read
+  as unpicked, BGC's went to Claude each round, 2026-11-27). An option a click can't reach is pressed on
   its own element (`_press_option`, the engine's `press`): Oracle's required
   field's error paragraph lay over the open graduation month list and took every
   click on its options.
+- A dropdown that lists nothing until searched (Oracle's address City, County
+  and Zip Code, read with no choices) is searched by plain code
+  (`_search_pick`): it types the answer and picks the one option whose first
+  comma part is the answer, else the one whose other parts the plan also gives
+  ("Springfield, Sangamon, IL" for a plan with Sangamon and IL). Two that fit, or
+  none, and it clears the typed words and leaves the field to Claude. Skipped
+  before, Honeywell's three took Claude 21 turns and 5 million tokens
+  (2026-11-27).
+  Such a box's first places, listed when it opens unsearched, are never read
+  as its choices (`_searched`: Oracle's geography fields but Country): read so,
+  County's first 500 held no applicant's county, and the plan left all three
+  blank. An answer that names a whole option ("Springfield, Sangamon, IL")
+  fits that option, and a box that already shows its place is never pressed
+  again (a press on the picked option empties it). "Address: County" is
+  planned as the bare "County", never as the home address's.
+- A box the job site locked (read-only) that already shows its answer
+  (Oracle's email once signed in) is read back by plain code and never given
+  to Claude: its fill failed, and every field of the same batch with it.
 - A choice question asked as a group of checkboxes (Oracle's races) is ticked by
   plain code too (`_tick_in_groups`), after the dropdowns: the group's name is its
   `aria-labelledby`, `aria-label` or legend, its options are its boxes' labels,
@@ -278,6 +305,16 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   Claude couldn't delete (`entries_kept`) holds the form: "Verify: Remove this entry, which your profile
   doesn't list: ..." (`ClaudeFill.extra_entries`, `worker.EXTRA_ENTRY`). Verifying holds a section read back
   with more entries than planned too (`docs/held-forms.md`).
+- A jobs or schools section with fewer entries than planned has its add button pressed by plain code, by the name
+  Claude gives it (`add_button`, `steps._the_add`, KAN-728): the first such section's on the page. A jobs section
+  Claude names by its own heading ("Experience (entries)", SmartRecruiters') is read as "Work Experience", the name
+  the Fill engine answers (`_entry_label`). An entry that opens in an editor of its own (SmartRecruiters') is kept
+  only once its own Save is pressed, which Claude does before it reads the section's count back. Where several visible buttons share that name
+  (SmartRecruiters' "Add" in Experience and in Education, live 2026-11-27), the one pressed is the one whose
+  part of the page (the widest around it with no other such button) has an aria-label or first heading with a
+  word of the short section's name ("Work Experience"). None, or more than one, stays a Handoff. The look crosses
+  shadow roots: SmartRecruiters' "Add" is an spl-button's own button, named by its host's aria-label ("Add experience
+  entry"), and a step's fields are read in shadow roots too (`steps.FIELDS_SHOWN`), where its spl-inputs hold them.
 
 ## Form pages
 

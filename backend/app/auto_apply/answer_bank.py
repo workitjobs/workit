@@ -83,14 +83,17 @@ class Kept:
     """One answer for the bank: the question as the form words it, the
     answer (a list for the options picked; [] is "none of these"), `review`
     for a Claude answer the student hasn't reviewed, `choice` when it is a
-    pick from the form's options (the rule reads its question alone), and
-    the form's company, when it came from a form."""
+    pick from the form's options (the rule reads its question alone),
+    `options` for the list a pick of the student's own came from (None
+    keeps what the bank holds), and the form's company, when it came from a
+    form."""
 
     question: str
     answer: str | list[str]
     review: bool = False
     choice: bool = False
     company: str | None = None
+    options: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -200,9 +203,12 @@ def companies_named(text: str, known: Collection[str]) -> set[str]:
     return named
 
 
-def _entry(kept: Kept) -> dict:
+def _entry(kept: Kept, held: dict | None = None) -> dict:
+    """`kept` as the bank stores it; with no `options` of its own it keeps those of the entry it replaces (`held`)."""
     answer = [str(a) for a in kept.answer] if isinstance(kept.answer, list) else kept.answer.strip()
-    return {"question": kept.question.strip(), "answer": answer, **({"review": True} if kept.review else {})}
+    options = list(kept.options) if kept.options is not None else list((held or {}).get("options") or [])
+    return {"question": kept.question.strip(), "answer": answer, **({"review": True} if kept.review else {}),
+            **({"options": options} if options else {})}
 
 
 def served(answers: dict) -> dict[str, SavedAnswer]:
@@ -210,7 +216,7 @@ def served(answers: dict) -> dict[str, SavedAnswer]:
     for every answer but a flagged one, `none` for "none of these"."""
     return {
         filed: SavedAnswer(question=entry["question"], answer=entry["answer"], own=not entry.get("review"),
-                           none=True if entry["answer"] == [] else None)
+                           none=True if entry["answer"] == [] else None, options=entry.get("options") or None)
         for filed, entry in answers.items()
     }
 
@@ -294,13 +300,16 @@ async def _merge(db: AsyncSession, applicant_id: uuid.UUID, entries: Collection[
     unheld = iter(unsupported)
     kept_out: dict[str, str] = {}
     written: dict = {}
+    # What each entry replaces, for the options an edit of its answer keeps (Kept.options).
+    held = (stored.answers if (stored := await answer_banks.fetch(db, applicant_id)) else {}) \
+        if any(k.options is None for k in entries) else {}
     for kept, reason in zip(entries, why):
         if reason is None and next(unheld):
             reason = UNSUPPORTED
         if reason:
             kept_out[kept.question] = reason
         elif filed := key(kept.question):
-            written[filed] = _entry(kept)
+            written[filed] = _entry(kept, held.get(filed))
     # Their Claude's answer never replaces the student's own: theirs is the one later forms take.
     for filed in await answer_banks.reviewed_keys(db, applicant_id, [k for k, e in written.items() if e.get("review")]):
         kept_out[written.pop(filed)["question"]] = THEIRS
@@ -327,7 +336,8 @@ async def change(
         raise NotFound("No application for that job.")
     changed = await _merge(db, applicant_id, [
         Kept(question=e.question, answer=e.answer, review=e.review, choice=isinstance(e.answer, list) or e.choice,
-             company=companies.get(e.job_id) if e.job_id else e.company)
+             company=companies.get(e.job_id) if e.job_id else e.company,
+             options=tuple(e.options) if e.options is not None else None)
         for e in entries
     ], deleted)
     await db.commit()

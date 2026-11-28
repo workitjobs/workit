@@ -96,7 +96,6 @@ def _pages():
 
 @pytest.fixture
 def plain_page():
-    from apply.plain.bridge import Bridge
     from apply.plain.launcher import PlainWorkers, chrome_for_testing
     from apply.plain.page import PortPage
 
@@ -105,7 +104,7 @@ def plain_page():
     except FileNotFoundError:
         pytest.skip("needs Chrome for Testing")
     server, folder = _pages(), Path(tempfile.mkdtemp(prefix="apw-sent-", dir="/tmp"))
-    workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"))
+    workers = PlainWorkers(folder, kind="testing")
     try:
         worker = workers.launch(0).connection
         page = PortPage(worker, worker.call("tabs.create", url="about:blank", active=False)["tab"])

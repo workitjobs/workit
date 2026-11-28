@@ -47,12 +47,10 @@ class ApplicantProfile:
     @classmethod
     def load(cls, path: Path, policies: Path = POLICIES) -> "ApplicantProfile":
         """A policies.yaml beside the profile overrides `policies` key by key; none does in the Student build."""
-        facts = _yaml().load(path.read_text()) or {}
+        facts = _yaml().load(path.read_text(encoding="utf-8")) or {}
         _refuse_secrets(facts)
-        rules = load_policies(policies)
         beside = path.parent / "policies.yaml"
-        if not build.STUDENT and beside.exists() and beside.resolve() != policies.resolve():
-            rules |= yaml.safe_load(beside.read_text()) or {}
+        rules = load_policies(policies, beside if beside.exists() and beside.resolve() != policies.resolve() else None)
         return cls(facts, path.parent, rules, path)
 
     def save(self) -> None:
@@ -66,11 +64,11 @@ class ApplicantProfile:
                     self._saver(list(self._changes))
                 self._changes = []
                 return
-            facts = (_yaml().load(self._path.read_text()) or {}) if self._path.exists() else {}
+            facts = (_yaml().load(self._path.read_text(encoding="utf-8")) or {}) if self._path.exists() else {}
             for change in self._changes:
                 _apply(facts, *change)
             _refuse_secrets(facts)
-            with self._path.open("w") as f:
+            with self._path.open("w", encoding="utf-8") as f:
                 _yaml().dump(facts, f)
             self._facts, self._changes = facts, []
 
@@ -179,16 +177,22 @@ def _apply(facts: dict, kind: str, key: str, value: Any) -> None:
     facts[last] = value
 
 
-def load_policies(path: Path = POLICIES) -> dict:
+def load_policies(path: Path = POLICIES, beside: Path | None = None) -> dict:
     """The policies, for what runs without an Applicant profile (the dry run, the Feed):
-    the defaults with the data folder's policies.yaml laid over them key by key. The Student build reads no
-    policies.yaml: its own fixed policies (apply.build.STUDENT_POLICIES) go over the defaults instead."""
-    rules = yaml.safe_load(path.read_text()) or {}
+    the defaults, then the Safety level's (apply.safety), then the data folder's policies.yaml and the one
+    `beside` the profile, key by key. The Student build reads no policies.yaml: its level is the one the window
+    keeps in app.json, and its own fixed policies (apply.build.STUDENT_POLICIES) go over the rest."""
+    from apply import safety
+
+    rules = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     if build.STUDENT:
-        return rules | build.STUDENT_POLICIES
+        return safety.resolve(rules, {}, safety.STATE) | build.STUDENT_POLICIES
+    user: dict = {}
     if Path(path).resolve() == POLICIES.resolve() and OVERRIDE.is_file():
-        rules |= yaml.safe_load(OVERRIDE.read_text()) or {}
-    return rules
+        user |= yaml.safe_load(OVERRIDE.read_text(encoding="utf-8")) or {}
+    if beside is not None:
+        user |= yaml.safe_load(beside.read_text(encoding="utf-8")) or {}
+    return safety.resolve(rules, user, safety.STATE)
 
 
 def joins_facts(facts: dict, answer: Any) -> bool:

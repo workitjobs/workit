@@ -207,12 +207,12 @@ def keep(call: dict) -> None:
             found |= snapshot_refs(text)
     if found:
         path = Path(str(call.get("cwd") or ".")) / KEPT
-        path.write_text(json.dumps(_kept(call) | found))
+        path.write_text(json.dumps(_kept(call) | found), encoding="utf-8")
 
 
 def _kept(call: dict) -> dict:
     try:
-        return json.loads((Path(str(call.get("cwd") or ".")) / KEPT).read_text())
+        return json.loads((Path(str(call.get("cwd") or ".")) / KEPT).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {}
 

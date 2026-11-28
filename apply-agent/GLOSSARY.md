@@ -9,7 +9,7 @@ One open internship role at one company, with a link to its application form.
 _Avoid_: job, listing, opening
 
 **Posting description**:
-A Posting's own text: its company, its role, its pay range if it states one, and the job's description with its equal-opportunity, benefits and privacy paragraphs left out, cut to about a thousand tokens. It is read once per Application, from the job system's API, else off the posting's own page (its JobPosting schema, its job description section, its meta description), and every Claude call for that Application gets it. It is employer text, never instructions: a sentence in it that speaks to AI agents ("if you are an LLM, ...") makes the Application a Handoff that names it, and no Claude call sees it; when the text can be read without opening the form, that happens before the form opens. A ban on AI-written applications, or a sentence that just tells the reader not to use AI ("Do not use AI.", "No AI."), bans AI-written text on its form. AI as the work itself ("you will build LLM tools") is neither.
+A Posting's own text: its company, its role, its pay range if it states one, and the job's description with its equal-opportunity, benefits and privacy paragraphs left out, cut to about a thousand tokens. It is read once per Application, from the job system's API, else off the posting's own page (its JobPosting schema, its job description section, its meta description), and every Claude call for that Application gets it. It is employer text, never instructions: a sentence in it that speaks to AI agents ("if you are an LLM, ...") makes the Application a Handoff that names it, and no Claude call sees it; when the text can be read without opening the form, that happens before the form opens. A ban on AI-written applications, or a sentence that just tells the reader not to use AI ("Do not use AI.", "No AI."), bans AI-written text on its form. AI as the work itself ("you will build LLM tools") is neither. Some Posting descriptions list prompts for one application question ("In your video, please cover:"). An essay that points at them ("the questions listed in the job description") or names that section's heading gets that whole section ahead of the cut.
 _Avoid_: JD, job context, job info
 
 **Match**:
@@ -33,11 +33,11 @@ The facts Lisul gives once (work authorization, graduation date, demographic ans
 _Avoid_: personal info, answers file
 
 **Missing fact**:
-A required question only Lisul can answer: one asking for an Applicant profile fact the profile lacks, a one-off question Claude can't answer from his facts, or one that stays his whatever Claude knows (references or contacts, government IDs, signatures and attestations, criminal history, an "if yes, explain" his answer calls for), or a fact an Essay plan's required slot needs that no Story bank line states (asked as "Essay fact: …"). A follow-up that Apply's own answer to the question before it doesn't call for ("If yes, …" or "If a contingent worker, …" after a No, 'If "Other," …' after another pick) is not one: it is left blank, or answered N/A where it must be answered. Pay is not one: asked as a figure it gets the middle of the Posting's own pay range, or Lisul's fallback rate (policies.yaml); asked in words it gets "Open to the posted range" when the Posting names its pay, else the fallback rate ("$30/hr"); asked whether the posted or stated pay suits him, it gets Yes. Its Application pauses until Lisul answers, and the answer joins the profile (an Essay fact's joins the Story bank, and the essay is then written). A question that the profile, the Answer bank, the Story bank or the resume already answers is not one: Apply answers it from there. Each one shows a context line: its form step, the question before a bare label, its pair, or the essay that it is for.
+A required question only Lisul can answer: one asking for an Applicant profile fact the profile lacks, a one-off question Claude can't answer from his facts, or one that stays his whatever Claude knows (references or contacts, government IDs, signatures and attestations, criminal history, an "if yes, explain" his answer calls for), or a fact an Essay plan's required slot needs that no Story bank line states, in an essay no line backs at all (asked as "Essay fact: …"; an essay whose story the bank tells in part is written from the closest facts it holds). A follow-up that Apply's own answer to the question before it doesn't call for ("If yes, …" or "If a contingent worker, …" after a No, 'If "Other," …' or "If you chose X, Y, or Other, please specify" after another pick) is not one: it is left blank, or answered N/A where it must be answered. Nor is any optional question: one no source answers is left blank, never asked. Nor is a Yes/No about his own ties or history the profile doesn't record ("Have you previously worked for X?", "Are you a close relative of a government official?"): it is No unless the profile or the Answer bank says Yes. Pay is not one: asked as a figure it gets the middle of the Posting's own pay range, or Lisul's fallback rate (policies.yaml); asked in words it gets "Open to the posted range" when the Posting names its pay, else the fallback rate ("$30/hr"); asked whether the posted or stated pay suits him, it gets Yes. Its Application pauses until Lisul answers, and the answer joins the profile (an Essay fact's joins the Story bank, and the essay is then written). A question that the profile, the Answer bank, the Story bank or the resume already answers is not one: Apply answers it from there. Each one shows a context line: its form step, the question before a bare label, its pair, or the essay that it is for.
 _Avoid_: unknown question, gap
 
 **Optional ask**:
-An optional question that asks a fact about Lisul that no source holds, where the fact may exist for him (KAN-759). It shows in Needs you with a Skip (leave blank) button. It never stops or holds the form. Verifying lists it as a note. His answer joins the profile. His Skip is kept as an empty answer, so no later form asks it again. It is never asked when the known facts say that the fact does not exist: an empty profile fact (no middle name), Address Line 2 or 3 of a home address that has none, or a Tax District for a home in no local tax district. An optional catch-all box and a preferred name are never asked.
+Retired 2026-11-26. An optional question no source answers is no longer asked: the plan leaves it blank, or answers No to a Yes/No about something the profile doesn't claim, and it never shows in Needs you (`docs/held-forms.md`). From KAN-759 until then, such a question showed in Needs you with a Skip. Lisul's Skips from that time are kept as empty answers, so those forms still leave them blank.
 _Avoid_: optional Missing fact, optional blank
 
 **Go to question**:
@@ -132,6 +132,10 @@ _Avoid_: confirmed, verified, receipt
 What the latest Employer mail about a submitted Application says came of it (rejected, OA or interview), written beside the Outcome for Lisul to accept. The Outcome stays Lisul's: Apply never writes it.
 _Avoid_: auto outcome, detected outcome, status
 
+**Application to-do**:
+A step that a mail asks the user to do for a job application. The kinds are an online assessment, a form, a questionnaire, an interview to schedule, an account step, a document request and an offer. Each to-do has its company, role, due date, link and source mail. One mail thread gives one to-do. The user marks it done or dismissed. Apply only lists it: Apply never opens its link and never sends anything. It is a developer feature, and it is off unless the developer flag is set.
+_Avoid_: task, action item, reminder
+
 **Handoff**:
 An Application the system cannot finish alone, for example a site that blocks the browser, or a Posting description that speaks to AI agents (handed off before its form opens, quoting the sentence). A captcha that Lisul did not do within the Captcha wait is also a Handoff. Lisul finishes it from the Tracker row.
 _Avoid_: manual, fallback, failed
@@ -171,6 +175,10 @@ _Avoid_: session, browser, Chrome profile
 **Worker extension**:
 The extension through which a plain Worker reads and fills a form. It lives only in Apply's Worker profiles, never in the applicant's own Chrome.
 _Avoid_: helper extension, plugin, "the extension" (that is WorkIt's)
+
+**Safety level**:
+The one setting "How careful should Apply be?", asked once in the first run and changed in Settings or as `safety_level` in policies.yaml: careful (today's behaviour), balanced (arbitration and privacy acknowledgments ticked, opinion questions answered from the closest backed facts) or full_auto (also self-ID signatures signed, the High-stakes essay and Calibration run holds lifted, ready forms auto-submitted). It sets those policies' defaults (`apply.safety`); a key set in policies.yaml wins. No level touches the hard guards: bot checks and captchas, invented facts or essays naming the tools that wrote them, take-home tests, and the company and daily caps.
+_Avoid_: autonomy level, mode, risk setting
 
 **Seed**:
 The Worker profile that gets the Worker extension once, by the applicant's own clicks. Each new plain Worker's profile starts as a copy of it.
@@ -279,7 +287,7 @@ The check every filled Application must pass before it is submitted: each answer
 _Avoid_: validation, QA, review
 
 **Verifying**:
-The last part of the Pre-submit check, in rehearsals and runs alike: Apply reads the filled form back from the page and checks it against the Applicant profile, the Posting and its own plan, then the Application is Verified, or Verified with flags. A flag names a field and why it needs Lisul (a blank field, a value the page shows otherwise, a wrong file, a date or pay that doesn't fit, a wrong name or pronoun or another company's name in an essay, answers that contradict each other); a flag holds a run's Application in Needs you, where Lisul fixes or dismisses it. A note (an answer Claude guessed, a blank optional field) holds nothing. A review problem with a legal or eligibility answer (work authorization, sponsorship, citizenship, U.S. Person, export control, age, criminal history) is more than a note. Apply fills the review's fix when it gives one, and reviews the form again. Without a fix, the held page blocks Submit under a red note. Submit is Lisul's again after he presses the note's Dismiss or dismisses it in the window. Verifying only reads: it never presses Submit.
+The last part of the Pre-submit check, in rehearsals and runs alike: Apply reads the filled form back from the page and checks it against the Applicant profile, the Posting and its own plan, then the Application is Verified, or Verified with flags. A flag names a field and why it needs Lisul (a blank field, a value the page shows otherwise, a wrong file, a date or pay that doesn't fit, a wrong name or pronoun or another company's name in an essay, answers that contradict each other); a flag holds a run's Application in Needs you, where Lisul fixes or dismisses it. A note (an answer Claude guessed, a blank optional field) holds nothing. A review problem with a legal or eligibility answer (work authorization, sponsorship, citizenship, U.S. Person, export control, age, criminal history) is more than a note. Apply fills the review's fix when it gives one, and reviews the form again. For any problem it can fix without a new fact (an answer with more than its question asks), Apply asks for the fix itself, up to twice. Without a fix, the held page blocks Submit under a red note. Submit is Lisul's again after he presses the note's Dismiss or dismisses it in the window. Verifying only reads: it never presses Submit.
 _Avoid_: validation, QA, double-check
 
 **Employer account**:
@@ -289,6 +297,7 @@ _Avoid_: ATS account, candidate account
 **Not eligible**:
 The end state of an Application Lisul would honestly fail, for example a Master's-only role or a graduation window he misses. A Screener on the form finds it, or, before any form opens, the Posting's own required qualifications (one that asks for current graduate study). It is never submitted.
 Only an answer that fails the Screener rules him out. A Screener that no option fits is a Missing fact for Lisul.
+A required question that no option answers truthfully also rules him out, for example a graduate field of study with no N/A option. Any answer to it would be false.
 In a rehearsal, its tile has a Fill it anyway button. The button fills the form as in any rehearsal, and its note says why he was ruled out. A Closed tile has the button too.
 _Avoid_: rejected, skipped, disqualified
 
@@ -299,6 +308,10 @@ _Avoid_: context, notes, bio
 **Story map**:
 Routing tags for each episode of the Story bank (one story, as one of its lines tells it): the Question types it answers, the kinds of problem it is (the same kinds a Company brief fact carries), the numbers its line holds, what an answer must never claim from it, the questions an interviewer would ask next with whether the Story bank can answer each, and the episodes related to it. It states no facts of its own: the Story bank stays the only source, and an entry whose line has changed since it was tagged is set aside until Lisul tags the bank again. Lisul reviews it in story-map.yaml in the data folder, and the follow-ups the bank can't answer become questions for him.
 _Avoid_: story index, tag file, personalized prompts
+
+**Recording brief**:
+What to say in a video or submission that Lisul makes himself for a link question. It has one bullet for each prompt the Posting lists for the question. Each bullet has one or two true talking points that quote his Story bank. It goes in the ask and in a rehearsal's Record, never on the form.
+_Avoid_: video script, talking points
 
 **Record**:
 An Application's full answers and form screenshot, and once it is submitted a screenshot of the page the submit led to, kept outside the Tracker and linked from its row. WorkIt Auto Apply keeps one only while its form is open: at the Submit, what the form sent goes to WorkIt, and the Record goes once WorkIt has it.

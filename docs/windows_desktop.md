@@ -1,8 +1,8 @@
 # WorkIt Auto Apply on Windows
 
-**Status (KAN-929):** being built. P1 to P4 are built and tested on the
-Mac. Nothing has run on Windows yet. Section 7 says what comes next.
-This note takes F4 and W4's "Found on the way" list
+**Status (KAN-929):** being built. P1 to P5, P7 to P9, P12, P13 and
+P11's keep awake, notices and temp folder are built and tested on the Mac. Nothing has run on Windows yet: section 7's
+check list is next. This note takes F4 and W4's "Found on the way" list
 (`desktop_application_auto_apply.md`) one problem at a time. Paths
 without a folder are under `apply-agent/src/apply/`.
 
@@ -34,9 +34,11 @@ the Worker extension, in Worker k's Chrome, on profile APPLY_PROFILES/plain-<k>
   (`PlainWorkers.launch`) and stops it by its PID. One to three Workers
   (D24).
 - **The host file** is the native messaging manifest that tells Chrome
-  which program is the host. Today `PlainWorkers.install_host` writes it,
-  with a `#!/bin/sh` wrapper, into each Worker profile's
-  `NativeMessagingHosts/`.
+  which program is the host. `PlainWorkers.install_host` writes it, with
+  a wrapper, where the Worker's Chrome looks (`chrome_host.folder`): on
+  macOS and Linux a `#!/bin/sh` wrapper in each Worker profile's
+  `NativeMessagingHosts/`, on Windows a `.bat` in
+  `APP_FOLDER/native-hosts`, which a registry key names (P5).
 - **CDP Workers** (`browsers.WorkerBrowsers`) need no extension, host or
   seed. Lever, SmartRecruiters and Workable block them, so
   `worker_mode: protected` sends those hosts to plain Workers.
@@ -107,10 +109,12 @@ rules. What the code doesn't say:
 - **Two jobs in one folder need two lock files:** a second lock on a file
   that this process holds waits for good. So the Repair's one-at-a-time
   lock is `repairs/.running.lock` (`repairer.RUNNING`).
-- **Unix-only calls that are left** fail only when they run: SIGTERM (P7);
-  and in developer-only modules, `os.killpg` in `claude_cli.stream_claude`
-  (`ask_model: claude`) and `os.getuid()` in `schedule.Launchctl` (the
-  Mac's scheduled runs, which D10 drops).
+- **Unix-only calls that are left** fail only when they run: in a
+  developer-only module, `os.getuid()` in `schedule.Launchctl` (the Mac's
+  scheduled runs, which D10 drops). `claude_cli.stream_claude`
+  (`ask_model: claude`) stopped claude with `os.killpg`, which raised on
+  each stop on Windows: `claude_cli.kill_tree` kills the tree through
+  psutil there (2026-11-27).
 
 ### P2. "Is it still running?": built
 
@@ -166,31 +170,62 @@ format.
 locks `answer-bank.yaml` and a new one `answer-bank.lock`. And an old
 Bridge sends no challenge, so a new host waits 5 s and gives up.
 
-### P5. The host file (native messaging manifest and wrapper)
+### P5. The host file (native messaging manifest and wrapper): built
 
-- **What breaks.** Chrome on Windows reads no `NativeMessagingHosts`
-  folder. It reads the registry key
-  `HKEY_CURRENT_USER\Software\Google\Chrome\NativeMessagingHosts\<name>`,
-  whose value is the manifest's path (`native_host.WINDOWS_KEY`). And
-  Windows can't run a `#!/bin/sh` wrapper. The accounts host for the
-  student's own Chrome (`native_host.install`) raises
-  `NotImplementedError` on Windows.
-- **Who.** Both, for plain Workers.
-- **Fix.**
-  - Write the key with `winreg`, and a `.bat` wrapper. The package can
-    use its own `.exe`.
-  - The key is one per Windows user, for every Chrome profile. So one
-    wrapper serves every Worker and can't carry `--worker <k>`. The host
-    finds its Worker from its parent Chrome's `--user-data-dir`
-    (`plain-<k>`), on every OS.
+- **What broke.** Chrome on Windows finds a host only through the
+  registry (Chromium's `launch_context_win.cc`, read 2026-11-26): the
+  default value of
+  `HKEY_CURRENT_USER\Software\Google\Chrome\NativeMessagingHosts\<name>`
+  (then `HKLM`) is the manifest's path (`chrome_host.KEY`). Every build
+  reads this key, Chrome for Testing too. And Windows can't run a
+  `#!/bin/sh` wrapper.
+- **Who.** Both, for plain Workers. A developer, for the accounts host.
+- **Built: the host finds its Worker from its Chrome, on every OS.** The
+  key is one per Windows user, so one wrapper serves every Worker and
+  every profiles folder, and can name neither a Worker nor a channel.
+  - The host takes the nearest browser above it (`host.browser_of`):
+    Chrome starts a `.bat` host through `cmd.exe /d /s /c`, so its parent
+    is no Chrome. That browser's `--user-data-dir`, `plain-<k>`, gives
+    the Worker, and the folder above it the channel
+    (`channel.socket_path`).
+  - So a Bridge listens only there: `PlainWorkers` takes no Bridge of its
+    own. The long-path fallback is always `/tmp`, never `$TMPDIR`: the
+    host runs in its Chrome's environment, launchd's on the Mac.
+  - The host imports psutil (decided 2026-11-26): the standard library
+    can't read another process's arguments on Windows.
+  - The tile takes the same browser (`window_capture.chrome_of`), for its
+    check that a connection is its Worker's own (`tile._foreign_to`).
+- **Built: the key and a `.bat` for the Workers' host** (`chrome_host`).
+  - The manifest and the `.bat` go in one fixed folder,
+    `APP_FOLDER/native-hosts`, never a profile: a key that named a test's
+    temporary folder would name a deleted file once that test ended.
+  - The `.bat` starts with `@echo off`, or cmd.exe writes the command into
+    Chrome's pipe. Each part is quoted with each `%` doubled, then `%*`
+    passes on Chrome's arguments. It is UTF-8, and its `chcp 65001 >nul`
+    makes cmd.exe read it so: the OEM code page (437 on US Windows) can't
+    hold a path such as `C:\Users\Łukasz`, and every Worker's start failed
+    (found in review, 2026-11-26).
+  - A file is written only when its text changes: on Windows a file that
+    Chrome or cmd.exe has open can't be replaced.
   - The student's everyday Chrome sees the key too. That is safe: only
-    the Worker extension may call the host (`allowed_origins`).
-  - **Check the host's parent.** The tile proves that a connection is its
-    Worker's own by the host's parent (`window_capture.chrome_of`,
-    `tile._foreign_to`). Chrome on Windows may start a host through
-    `cmd.exe` (recalled, not read in Chromium's source). If so, accept
-    the Worker's Chrome anywhere among the host's ancestors
-    (`psutil.Process(host_pid).parents()`).
+    the Worker extension may call the host (`allowed_origins`), and the
+    host connects only from a `plain-<k>` profile. The seed's extension
+    tries every 2 s, so during the seed's setup a host starts and exits
+    every 2 s.
+  - A checkout and the installed app on one Windows user share the key:
+    the last one that starts a Worker owns it. Either one's host serves
+    the other's Workers while their channel code is the same.
+  - The package can use its own `.exe`, which starts through cmd.exe
+    too, unless the `NativeHostsExecutablesLaunchDirectly` policy is on.
+- **Built: the accounts host** (`native_host.install`, `apply
+  chrome-passwords`) takes the same key and `.bat`, whose `set` line
+  gives the host its data folder (`APPLY_HOME`). `doctor` reads the
+  manifest that the key names (`chrome_host.found`), and its test of
+  that runs on the Mac and in CI (`Machine.system`).
+- **Still open (Windows):** Chrome runs the `.bat` and the host says
+  hello; a venv's `python.exe`, a launcher, finds psutil under `-I`;
+  `chcp 65001` in the hidden cmd.exe that Chrome starts, with a user
+  folder such as `C:\Users\Łukasz`.
 - **Done when.** A plain Worker on Chrome for Testing says hello on
   Windows.
 
@@ -204,53 +239,61 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
   with a window and let the OS keep that window behind.
 - **Done when.** It is measured, and the result is written here.
 
-### P7. Stopping a Chrome cleanly (signals)
+### P7. Stopping a Chrome cleanly: built from the Mac
 
-- **What it is.** Apply stops a Chrome with SIGTERM, then SIGKILL after
-  10 s (`Desk.terminate`, `launcher.Chrome`, `launcher._stop`, and the
-  tests' `chrome_reaper`). SIGTERM lets Chrome save.
-- **What breaks.** On Windows, SIGTERM, `Popen.terminate()` and psutil's
-  `terminate` all end the process at once, with no save. A Worker loses
-  the session cookies that `--restore-last-session` keeps, so its job-site
-  sign-ins go (KAN-718). The seed loses Developer mode and Load unpacked.
-- **Who.** Mostly the user: a developer on Chrome for Testing has no
-  seed, but their Workers still lose their sign-ins at each stop.
-- **Fix: options.**
-  - `taskkill /PID <pid>`, with no `/F`, asks the windows to close, as a
-    click on X does. Measure that Chrome saves.
-  - For the seed: ask the student to close that Chrome window, and wait.
-    The wizard already waits for it (`seed_setup._quit`). This sends no
-    signal at all.
-  - A Worker with no window (P6) may have nothing to close. Measure that.
+- **What broke.** Apply stopped a Chrome with SIGTERM, then SIGKILL after
+  10 s. SIGTERM lets Chrome save. On Windows, SIGTERM, `Popen.terminate()`
+  and psutil's `terminate` all end the process at once, with no save. A
+  Worker lost the session cookies that `--restore-last-session` keeps, so
+  its job-site sign-ins went (KAN-718). The seed lost Developer mode and
+  Load unpacked.
+- **Built.** `launcher.ask_to_quit` is the one ask, for a Worker
+  (`_stop`, `reclaim`) and the seed (`Desk.terminate`): SIGTERM on macOS
+  and Linux, and on Windows `taskkill /PID <pid>` with no `/F`, which asks
+  the windows to close, as a click on X does (with `CREATE_NO_WINDOW`:
+  from the app, a console program would flash a console). A Worker that is still up
+  after `STOP_WAIT` is killed, as before. The seed is never killed: the
+  wizard says what to close, and waits.
+- **Still open (Windows):** Chrome saves on that close, and a Worker with
+  no window (P6) has nothing to close, so it waits 10 s and is killed.
+  And a close, as a click on X, runs a page's "Leave site?" check
+  (`beforeunload`): a job site's form that Apply typed into can keep its
+  Worker open, and then the kill after 10 s loses its sign-ins.
 - **Done when.** On Windows, a setting changed in the seed's Chrome is on
   disk after that Chrome stops.
 
-### P8. The seed wizard on Windows
+### P8. The seed wizard on Windows: built from the Mac
 
 - **What it is.** `apply plain seed`, and the app's first-run Seed step,
   which runs the same wizard (`first_run.seed`).
-- **What breaks.** P5 and P7, and its words are the Mac's: "Finder",
-  "Cmd+Shift+G", "Cmd+V" and "Cmd+Q" (`seed_setup.instruction`, `_quit`).
+- **What broke.** P5 and P7, and its words were the Mac's: "Finder",
+  "Cmd+Shift+G", "Cmd+V", "Return" and "Cmd+Q".
 - **Who.** The user. A developer skips the seed (P9).
-- **Fix.** Give `instruction` and `_quit` a text for each OS, picked by a
-  `system` argument. On Windows: "File Explorer", and in the folder
-  picker, Ctrl+L, Ctrl+V, Enter, then Select Folder.
+- **Built.** `seed_setup.WORDS` has each OS's file manager and keys, which
+  `instruction` and the `Wizard` pick by `system`. On Windows: File
+  Explorer; in the folder picker Ctrl+L, Ctrl+V, Enter, then Select
+  Folder; and to quit, Exit in Chrome's three-dot menu.
+- **Still open (Windows):** the folder picker takes those keys, and a
+  folder dragged from File Explorer loads.
 - **Done when.** `uv run apply plain seed` ends with "Setup is done" on
   Windows.
 
-### P9. The developer's way past the seed
+### P9. The developer's way past the seed: built
 
-- **What it is.** `plain_chrome: testing` (or `APPLY_PLAIN_CHROME=testing`,
-  `launcher.chrome_kind`) runs plain Workers on Chrome for Testing, with
-  no seed.
-- **What breaks.** The app window's first run ignores it:
-  `first_run.seed_problem` makes `PlainWorkers(kind="chrome")`, so
-  `uv run apply app` stays on the Seed step.
-- **Fix.** Outside the Student build, `seed_problem` reads
-  `chrome_kind()`, and the Seed step is done when it is `testing`. The
-  Student build keeps Google Chrome (D21).
-- **Done when.** `uv run apply app` with `plain_chrome: testing` gets past
-  first run with no seed.
+`plain_chrome: testing` (or `APPLY_PLAIN_CHROME=testing`,
+`launcher.chrome_kind`) runs plain Workers on Chrome for Testing, with no
+seed. The app window's first run asked for the seed anyway, so
+`uv run apply app` stayed on the Seed step. Now `first_run.seed_problem`
+reads `chrome_kind()`, and the Seed step comes only for Google Chrome
+(PR #676, 2026-11-26).
+
+- **The Student build keeps Google Chrome (D21):** it reads no
+  `policies.yaml`, and `policies.default.yaml` says `plain_chrome:
+  chrome`. Only `APPLY_PLAIN_CHROME` changes it.
+- **First run's first step still looks for Google Chrome**
+  (`chrome_finder.find`), with Chrome for Testing too.
+- **Still open (Windows):** `uv run apply app` with `plain_chrome:
+  testing` gets past first run with no seed.
 
 ### P10. The Windows package
 
@@ -262,9 +305,24 @@ decisions beside D17 and D18.
 
 ### P11. Smaller gaps
 
-- **Keep awake.** `awake.command` returns None off the Mac, so Windows can
-  sleep during a run. Use `SetThreadExecutionState` (`ctypes`) or
-  `wakepy`.
+- **Keep awake: built from the Mac.** Windows could sleep during a run.
+  `awake.awake` now calls `SetThreadExecutionState` through `ctypes`
+  (system and display on), and sets it back when the run ends. Windows
+  clears it when the thread ends, so a crash can't leave it on. No
+  `wakepy`: it would be a library for one call. **Still open
+  (Windows):** the screen stays on through a long run.
+- **Notices: built from the Mac.** `apply run` and the Repairer sent
+  each notice to Notification Center through `osascript`, on every OS, so
+  on Windows the first notice stopped the run. Off the Mac a notice now
+  goes to the terminal (`notify.desktop`, `TerminalNotifier`). A Windows
+  toast needs a library: later, if a developer misses it.
+- **A temp data folder: built from the Mac.** `home.in_temp` compared
+  path text with "/", so on Windows a data folder in the temp folder was
+  never refused (KAN-665). It compares path parts now.
+- **Not ported, developer-only:** the Repairer (`apply repair`, after a
+  run with `repair.max_per_day`) starts `npm` by its bare name, which is
+  `npm.cmd` on Windows: `subprocess` finds only an `.exe` so. `claude`
+  from npm is `claude.cmd` too; the native installer's `claude.exe` works.
 - **Smooth tiles.** The Swift capture helper is the Mac's. Elsewhere a
   tile shows about 2 frames a second until `Page.startScreencast` (W6).
 - **Focus.** Off the Mac, the extension's `windows.focus` brings a Worker
@@ -279,6 +337,43 @@ decisions beside D17 and D18.
   items (`account list`, `account list 2`, ...), read until one is
   missing, and forget each one in Remove All My Data.
 
+### P12. A developer's Apply window: built from the Mac
+
+- **What broke.** Every `apply rehearse` and `apply run` opens its Apply
+  window (`dashboard.open_window`) with the Dock app and `open -na`,
+  finds it with `pgrep`, and raises it with AppleScript. Windows has none
+  of them, so each run stopped at its start, and each window's close too.
+  Found on the way (2026-11-27): M1 needed it.
+- **Built.** Off the Mac the window is Google Chrome itself
+  (`_open_elsewhere`), started with `--app` on the window's own profile
+  through `launcher.start_in_background`, and found by that profile
+  (`browsers.chrome_pid`, then its `--app`). It quits through
+  `ask_to_quit`. With no Chrome, the run goes on and prints the address.
+  A tile's Show in Finder goes through `seed_setup.reveal`.
+- **Still open.** Off the Mac nothing raises the window: `raise_window`
+  says False. The button still says "Show in Finder". **Windows:** the
+  window opens behind the student's work, and closes when its run ends.
+  With an answer draft not saved, its page asks "Leave site?" first
+  (`dashboard_page.py`), so it stays open until the student answers.
+
+### P13. Text in the OS's encoding: built from the Mac
+
+- **What broke.** 177 text reads and writes named no encoding
+  (`read_text`, `write_text`, `open`, and a command's output with
+  `text=True`), so they used the OS's own: UTF-8 on a Mac, the code page
+  on Windows (cp1252 on US Windows). A UTF-8 file with "Łukasz" in it
+  failed to read there, and an answer with "→" failed to write. Chrome's
+  Preferences, the profile, the Answer bank and the Fill engine are UTF-8.
+  Found on the way (2026-11-27).
+- **Built.** Each one names `encoding="utf-8"`, and
+  `tests/test_each_os.py` fails on a new one in `src/apply`.
+- **Built: the output too.** A pipe or a file takes the code page as
+  well, so `apply rehearse ... > run.log` stopped at its first "→".
+  `cli.main` makes stdout and stderr UTF-8 on Windows
+  (`cli.utf8_streams`). The console is UTF-8 already.
+- **Tests on Windows run with `PYTHONUTF8=1`:** the tests' own reads and
+  writes name no encoding. The source test covers Apply's.
+
 ## 5. Kind of fix
 
 `apply-agent/CLAUDE.md` ("Code that differs by OS") has the rules: a
@@ -289,14 +384,14 @@ Windows entry, since the Mac has none.
 
 | Problem | Kind of fix |
 |---|---|
-| P1 to P4 | Built (above) |
-| P5 host file | A Windows entry: the key (`winreg`) and a `.bat` wrapper. The host finds its Worker the same way on every OS |
+| P1 to P5, P9 | Built (above) |
 | P6 no startup window | Measure first. A Windows entry only if Chrome quits |
-| P7 clean quit | The seed: the student closes its window. A Worker: `taskkill` with no `/F`, after a measurement |
-| P8 wizard words | A Windows text in the same function |
-| P9 first run | The same code on every OS |
+| P7 clean quit | Built: `taskkill` with no `/F` in `ask_to_quit`'s Windows entry |
+| P8 wizard words | Built: a Windows text in the same function |
 | P10 package | Windows-only build, installer and signing scripts, outside Apply's code |
-| P11 keep awake | A Windows entry in `awake.command`, or `wakepy` |
+| P11 keep awake | Built: a Windows entry in `awake.awake` |
+| P12 Apply window | Built: one entry for the Mac and one for the rest, in each window function |
+| P13 encoding | Built: the same code on every OS |
 | P11 account list | The same code on every OS: numbered items |
 
 ## 6. Tests
@@ -308,9 +403,15 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 
 | Problem | Test, new or extended | The fault it turns red |
 |---|---|---|
-| P5 | `tests/test_native_host.py`, `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, the `.bat` starts the host, the host finds its Worker from its parent's `--user-data-dir` | A host speaks for the wrong Worker |
-| P7, P8 | `tests/test_plain_seed_setup.py`: on Windows the wizard never ends the seed's Chrome by force, and says the Windows words | A forced stop loses the student's clicks |
-| P9 | `tests/test_first_run.py`: `plain_chrome: testing` passes the Seed step in a Developer checkout; the Student build still needs the seed | The Student build skips the seed |
+| P5 | Built: `tests/test_plain_bridge.py`, the real host under a fake Chrome (`tests/fake_chrome.py`), with a process between them as cmd.exe | A host speaks for the wrong Worker or channel |
+| P5 | Built: `tests/test_each_os.py`, the tile's `chrome_of` under the same fake | The tile takes cmd.exe for a Worker's Chrome |
+| P5 | Built: `tests/test_each_os.py`, with a fake `winreg`: the key names the manifest, the `.bat` passes Chrome's arguments and echoes nothing, and only the Worker extension may call the host | Chrome on Windows finds no host, or the host gets a broken port |
+| P5 | Built: `tests/test_each_os.py`, the accounts host's key, `.bat` and `chrome_host.found` | The accounts host can't start on Windows, or reads another data folder |
+| P7 | Built: `tests/test_plain_seed_setup.py`, the seed's Chrome is asked with `taskkill` and no `/F`, never killed; `tests/test_each_os.py`, a Worker is asked first and killed only after `STOP_WAIT`, and a reused PID is never asked | A forced stop loses the student's clicks and the Workers' sign-ins |
+| P8 | Built: `tests/test_plain_seed_setup.py`, every line the wizard says on Windows | A Windows user is told Finder and Cmd keys |
+| P12 | Built: `tests/test_each_os.py`, the window on Windows opens, is found by its profile, isn't opened twice, and an older one is asked to close | A developer's run on Windows stops at its start |
+| P13 | Built: `tests/test_each_os.py` reads the source | A text read or write in Windows' code page |
+| P9 | Built: `tests/test_first_run.py`: with `plain_chrome: testing`, first run needs no seed | Workers on Chrome for Testing wait on a seed they never use |
 | P11 account list | `tests/test_local_data.py`: 30 accounts save and read back through a fake keychain that refuses an item over 2,560 bytes, and Remove All My Data forgets every item | The 18th account isn't saved on Windows |
 | All | A real plain Worker on Chrome for Testing says hello and fills (`test_plain_workers.py`, `test_plain_guards.py`, `test_plain_routing.py`) | A break anywhere between Apply and the extension |
 
@@ -319,6 +420,9 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
   pass, and more as each fix lands; after M2, the real plain Worker tests
   on Chrome for Testing. Without it, the next Mac-only change breaks
   Windows with no red check. Write it into `.github/CLAUDE.md`.
+- **The tests' Chrome reaper does nothing off POSIX**
+  (`tests/chrome_reaper.py`): a test run that is killed on Windows leaves
+  its Chromes open. Close them in Task Manager.
 - **No test checks** P6, whether Chrome saves at P7's stop, or the host
   under a school's managed Chrome. Check them by hand on Windows, and
   write each result in section 8.
@@ -327,8 +431,8 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 
 | Step | Goal | Problems | Setting | What works after it |
 |---|---|---|---|---|
-| M1 | A developer runs CDP Workers | P1, P2, P3 (built) | `worker_mode: cdp` | Every host fills except Lever, SmartRecruiters and Workable |
-| M2 | A developer runs plain Workers, with no seed | P4 (built), P5, P6, P9 | `plain_chrome: testing` | Every host fills, with no seed |
+| M1 | A developer runs CDP Workers | P1, P2, P3, P12 (built) | `worker_mode: cdp` | Every host fills except Lever, SmartRecruiters and Workable |
+| M2 | A developer runs plain Workers, with no seed | P4, P5, P9 (built), P6 | `plain_chrome: testing` | Every host fills, with no seed |
 | M3 | A user runs the app | P7, P8, P10, P11 | the Student build | The download, the seed in Google Chrome, first run |
 
 **The Windows checks come last** (decided 2026-11-24). Fixes go on from a
@@ -336,7 +440,63 @@ Mac until every blocker seems fixed. Then a teammate runs all the checks
 on Windows at once: M1 with `worker_mode: cdp`, then plain Workers, then
 section 8. Each result goes into this note.
 
-**Next: P5.**
+**Next: the Windows checks below.** Every fix that a Mac can make is in.
+P6 and the "Still open (Windows)" lines need a Windows computer.
+
+### The Windows checks, in order
+
+On Windows 11 with Google Chrome, Git, Node.js and uv, in PowerShell. Write
+each result into this note: under its problem's "Still open (Windows)",
+or in section 8. A step that fails stops the steps after it only when it
+says so.
+
+1. **Set up.** `git clone --recurse-submodules` the repo, check out the
+   branch under test, then in `apply-agent`: `uv sync` and
+   `uv run playwright install chromium`.
+2. **The per-OS tests.** `$env:PYTHONUTF8 = "1"` (P13), then
+   `uv run pytest -q -n auto tests/test_each_os.py tests/test_locks.py
+   tests/test_plain_channel.py tests/test_plain_bridge.py
+   tests/test_doctor.py tests/test_plain_seed_setup.py
+   tests/test_first_run.py`. Then every file of CI's `apply-fast` list
+   (`.github/workflows/ci.yml`, its "Fast tests" step), with
+   `-m "not nightly"`. Each file that passes goes into the Windows CI job
+   later (section 6).
+3. **doctor.** `uv run apply doctor` prints a line for each check, and
+   none of them crashes.
+4. **Sign in.** `uv run apply login`, or the window: `uv run apply app`.
+5. **M1, CDP Workers.** `worker_mode: cdp` in
+   `$HOME\.config\apply\policies.yaml`, edited in Notepad or VS Code:
+   `>` in Windows PowerShell 5.1 writes UTF-16, which Apply can't read.
+   Only a rehearsal or the window makes that folder, so first
+   `mkdir -Force $HOME\.config\apply`. Then
+   `uv run apply rehearse https://job-boards.greenhouse.io/formlabsinternships/jobs/8223362`.
+   The Apply window opens behind your work (P12), the form fills and is
+   held, and the window closes when you end the run. Then the same
+   command through cmd, `cmd /c "uv run apply rehearse
+   https://job-boards.greenhouse.io/formlabsinternships/jobs/8223362 >
+   run.log 2>&1"`: it ends as before, and `run.log` holds the "→" (P13). Windows
+   PowerShell 5.1 would save the output again in its own encoding.
+6. **M2, plain Workers.** `worker_mode: plain` and `plain_chrome: testing`,
+   then the same rehearsal. The Worker says hello (P4, P5). If it never
+   does, look in Task Manager for a `chrome.exe` with `plain-1` in its
+   command line: none means that Chrome quit at its start with no window
+   (P6). Then `uv run pytest -q tests/test_plain_workers.py
+   tests/test_plain_guards.py tests/test_plain_routing.py`.
+7. **P7, a clean stop.** In a plain Worker, sign in to a job site, end the
+   run, and rehearse that site again: you are still signed in. Do it once
+   more on a form that asks "Leave site?" once it has text in it, such as
+   a Workday application that Apply typed into: say what Chrome shows when
+   Apply asks it to close, and whether the sign-in is still there.
+8. **P8, the seed.** `plain_chrome: chrome`, then `uv run apply plain
+   seed`. Do each step as it says (Ctrl+L, Ctrl+V and Enter in the folder
+   picker; a drag from File Explorer). It ends with "Setup is done", which
+   also proves P7's save for the seed.
+9. **P9, first run.** `plain_chrome: testing`, then `uv run apply app`:
+   first run gets past the Seed step with no seed.
+10. **P11, keep awake.** Start a run in the window. In an administrator
+    PowerShell, `powercfg /requests` lists `python.exe` under SYSTEM and
+    DISPLAY; after the run, it doesn't.
+11. **Section 8.** Answer each open question there.
 
 ## 8. Open questions
 
@@ -344,8 +504,6 @@ section 8. Each result goes into this note.
   D21's reason against it (Allow User Scripts) is out of date since
   KAN-839 removed user scripts. Not checked: its bot signals on the
   protected hosts. It is built for testing, and doesn't update itself.
-- Which registry key does Chrome for Testing read for native hosts? It
-  may not be Google Chrome's.
 - Does Chrome save when `taskkill` with no `/F` stops it?
 - Does `--no-startup-window` keep Chrome running on Windows?
 - How long does `chrome_pid`'s scan take on Windows (P3)? If it is too
