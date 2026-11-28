@@ -110,7 +110,9 @@ export function StyleCard({
       </div>
 
       {!editing && (
-        <p className="text-body text-ink-muted mt-2 whitespace-pre-line">{card ?? "None yet."}</p>
+        <p className="text-body text-ink-muted mt-2 break-words whitespace-pre-line">
+          {card ?? "None yet."}
+        </p>
       )}
 
       {editing && (

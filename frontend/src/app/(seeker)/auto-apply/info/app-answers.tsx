@@ -233,7 +233,7 @@ export function AppAnswers() {
                     {row.label}
                   </p>
                   {editing !== key(row) && (
-                    <p className="text-body text-ink-muted whitespace-pre-line">
+                    <p className="text-body text-ink-muted break-words whitespace-pre-line">
                       {valueText(row.value)}
                     </p>
                   )}

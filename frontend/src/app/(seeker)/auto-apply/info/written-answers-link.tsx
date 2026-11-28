@@ -24,7 +24,7 @@ export function WrittenAnswersLink() {
         part="written-answers"
         id="written-answers-heading"
         title="Written Answers"
-        description="Essays for the forms the WorkIt Chrome extension fills, written by your Claude or pasted by you. Read, change or remove them there."
+        description="Essays for the forms the WorkIt Chrome extension fills, written by your Claude or pasted by you. Read or remove them there."
       />
       <ButtonLink href="/auto-apply/answers" variant="secondary" size="sm" className="mt-4">
         Open Written Answers

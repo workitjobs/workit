@@ -1434,7 +1434,11 @@ tracker row, and the tab title comes from the posting's own read:
   and Written by AI under an answer AI wrote. The app keeps it on WorkIt at
   the student's Submit, so its Mac keeps no Record. An application sent
   another way (the extension, by hand) keeps the quiet line, which says
-  where the answers come from. Both were dashed boxes, the
+  where the answers come from; only a 404 is "none kept". Any other failed
+  read is `LoadFailed compact` in its place: shown as the quiet line, a
+  slow API read as lost answers. An answer breaks a long word
+  (`break-words`), as a link answer would run past the card on a phone.
+  Both were dashed boxes, the
   upload dropzone's outline on the grey ground, until 2026-11-10, and read
   as places to drop a file.
 - **Overview**, the job page's name for the posting's tab, for an open
@@ -2622,7 +2626,8 @@ goes into the other.
 Answer Bank part's last card: the door to Written Answers, the Chrome
 extension's essays, always there (Up Next's notice leads there only while
 a question waits). Its glyph is the extension's puzzle piece, as the
-page's line is.
+page's line is. It says "Read or remove": the page's saved answers have
+Remove with Undo and no edit.
 
 **Answers From WorkIt Auto Apply (W11, 2026-11-27)** (`app-answers.tsx`,
 `lib/app-answers-actions.ts`, `lib/app-answers.ts`) is the second card of

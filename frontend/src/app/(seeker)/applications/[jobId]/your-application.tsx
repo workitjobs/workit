@@ -5,6 +5,7 @@ import { FileIcon } from "@/components/icons";
 import { StatTile } from "@/components/stat-tile";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { LoadFailed } from "@/components/ui/load-failed";
 import { Section } from "@/components/ui/section";
 import { cn } from "@/lib/cn";
 import type { SentResume } from "@/lib/sent-resume-actions";
@@ -33,6 +34,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  *  Auto Apply filled it (W11, routers/sent_applications.py); `ai` on an
  *  answer AI wrote. A multi-select's answer is the options picked. */
 export type SentAnswer = { question: string; answer: string | string[]; ai: boolean };
+/** What the application page read: the answers, null when none was kept,
+ *  "failed" when the read failed. */
+export type SentAnswers = SentAnswer[] | null | "failed";
 
 /** The card's headline: where the application stands, in a few words. */
 const HEADLINE: Record<StageKey, string> = {
@@ -93,7 +97,7 @@ export function YourApplication({
   /** The sent resumes linked to this job posting, newest first. */
   sent: SentResume[];
   /** What the application sent (null: none kept, as for one sent another way). */
-  answers?: SentAnswer[] | null;
+  answers?: SentAnswers;
   now: Date;
   /** The job's panel above already shows the match (a live posting with a
    *  score), so this card leaves it out: the same ring twice on one page
@@ -257,12 +261,16 @@ export function YourApplication({
           )}
 
           <h3 className="text-label text-ink mt-5 font-semibold">Answers</h3>
-          {answers && answers.length > 0 ? (
+          {answers === "failed" ? (
+            <LoadFailed title="Your Answers Aren't Loading Right Now" compact className="mt-2">
+              We couldn&apos;t reach what this application sent. Try again in a few minutes.
+            </LoadFailed>
+          ) : answers && answers.length > 0 ? (
             <dl className="divide-border-subtle mt-2 flex flex-col divide-y">
               {answers.map((a, n) => (
                 <div key={n} className="py-3 first:pt-0 last:pb-0">
                   <dt className="text-body text-ink font-medium">{a.question}</dt>
-                  <dd className="text-body text-ink-muted whitespace-pre-line">
+                  <dd className="text-body text-ink-muted break-words whitespace-pre-line">
                     {Array.isArray(a.answer) ? a.answer.join("; ") : a.answer}
                   </dd>
                   {a.ai && (
