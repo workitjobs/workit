@@ -17,7 +17,8 @@ from urllib.parse import unquote, urlsplit
 
 from apply import fill_engine, workday
 from apply.adapters import JobSite
-from apply.feed import normalize_url
+from apply.eligibility import OUTSIDE_US
+from apply.feed import LIVE, abroad, normalize_url
 from apply.model import NOT_A_POSTING, Posting, Status
 from apply.worker import Result
 
@@ -65,6 +66,12 @@ def resolve(url: str, site: JobSite) -> tuple[Posting, Result | None]:
             posting = _posting(url, *names(url, site))
         except Exception:
             pass  # unnamed: the Filler meets whatever is wrong (a closed Posting, say) and says so
+    try:
+        places = abroad(url, site.fetch(LIVE))
+    except Exception:
+        places = []  # no Feed now: the Posting's own "Location:" line still counts (eligibility.outside_us)
+    if places:
+        return posting, Result(Status.NOT_ELIGIBLE, f"{OUTSIDE_US}: {'; '.join(places)}")
     return posting, None
 
 

@@ -422,3 +422,21 @@ def test_a_pasted_workday_link_neither_the_feed_nor_the_job_api_has_is_named_by_
     snc, _ = resolve("https://wd1.myworkdaysite.com/recruiting/snc/External/job/Southern-Pines-NC/"
                      "Software-Engineer-Intern--Summer-2027-_R0031229", site)
     assert (snc.company, snc.title) == ("SNC", "Software Engineer Intern Summer 2027")
+
+
+def test_a_pasted_link_the_feed_lists_only_outside_the_us_is_not_eligible():
+    # Apple's App Intelligence internship is in Cambridge, UK (live): pasted as a Request, it skips the Feed's US filter.
+    pasted = "https://jobs.apple.com/en-us/details/200696199"
+    abroad = feed_record(company_name="Apple", url=pasted, locations=["Cambridge, UK"])
+    site = Pages({LIVE: json.dumps([abroad]).encode()})
+
+    posting, result = resolve(pasted, site)
+
+    assert (result.status, result.reason) == (Status.NOT_ELIGIBLE, "Posting is outside the US: Cambridge, UK")
+
+
+def test_a_pasted_link_the_feed_lists_in_the_us_too_goes_ahead():
+    pasted = "https://jobs.apple.com/en-us/details/200696199"
+    both = feed_record(company_name="Apple", url=pasted, locations=["London, UK", "Cupertino, CA"])
+
+    assert resolve(pasted, Pages({LIVE: json.dumps([both]).encode()}))[1] is None
