@@ -24,6 +24,8 @@ import {
   type Status,
 } from "@/lib/resume-reading";
 
+import { dayLabel } from "@/lib/scrape-status";
+
 import { DayColumns, type Series } from "../day-columns";
 import { count } from "../format";
 import { FIRST_SECTION_TARGET, READING_SECTIONS } from "../pages";
@@ -56,7 +58,14 @@ const LEVELS: Record<Status["level"], { Icon: Glyph; chip: string }> = {
   none: { Icon: MinusCircleIcon, chip: "bg-well text-ink-meta" },
 };
 
-/** One number of the first row: its label over the figure, a rule at its left from the second on. */
+/**
+ * One number of the first row: its label over the figure, a rule at its left
+ * from the second on. The lead is `text-hero` (40px) and the rest
+ * `text-heading` (26px): at 40px beside 36px the four read as equal, so the
+ * lead did not lead. Each is a subgrid over the row's two tracks, labels in
+ * one and figures in the other, and the figures sit on one baseline, which
+ * two sizes side by side need.
+ */
 function Figure({
   label,
   value,
@@ -70,11 +79,11 @@ function Figure({
   lead?: boolean;
 }) {
   return (
-    <div className="@3xl/main:border-border-surface @3xl/main:border-l @3xl/main:pl-8 @3xl/main:first:border-l-0 @3xl/main:first:pl-0">
+    <div className="@3xl/main:border-border-surface row-span-2 grid grid-rows-subgrid gap-y-1 @3xl/main:border-l @3xl/main:pl-8 @3xl/main:first:border-l-0 @3xl/main:first:pl-0">
       <dt className="text-label text-ink-meta">{label}</dt>
-      <dd className="mt-1 flex items-baseline gap-1.5">
+      <dd className="flex items-baseline gap-1.5 self-baseline">
         <span
-          className={cn("text-ink tabular-nums", lead ? "text-hero font-medium" : "text-figure")}
+          className={cn("text-ink font-medium tabular-nums", lead ? "text-hero" : "text-heading")}
         >
           {value}
         </span>
@@ -150,6 +159,7 @@ export function PerDay({
       values={new Map(days.map((d) => [d.day, [d.ai, d.parser]]))}
       says={([a, p]) => `${count(a)} by AI, ${count(p)} by the rule-based parser`}
       caption={`${count(ai)} resumes read by AI and ${count(parser)} by the rule-based parser`}
+      plotClassName="min-h-40"
       className={className}
     />
   );
@@ -186,7 +196,7 @@ export function Reasons({
             const { label, fault } = reasonOf(r.reason);
             const Icon = REASON_ICON[r.reason] ?? QuestionIcon;
             return (
-              <li key={r.reason} className="border-border-subtle border-b py-3 last:border-b-0">
+              <li key={r.reason} className="border-border-subtle border-b py-2.5 last:border-b-0">
                 <div className="flex items-center gap-3">
                   <Icon
                     size={18}
@@ -197,9 +207,13 @@ export function Reasons({
                   <p className="text-body text-ink tabular-nums">{count(r.readings)}</p>
                 </div>
                 {/* Starts under the label: the glyph's 18px and the row's 12px gap. */}
-                <span className="bg-well mt-2 ml-[30px] block h-1 overflow-hidden rounded-full">
+                <span className="bg-well mt-1.5 ml-[30px] block h-1 overflow-hidden rounded-full">
                   <span
-                    className={cn("block h-full rounded-full", fault ? "bg-danger" : "bg-ink-meta")}
+                    // A by-design reason is a lighter grey than a failure's red, so the failures lead.
+                    className={cn(
+                      "block h-full rounded-full",
+                      fault ? "bg-danger" : "bg-ink-subtle",
+                    )}
                     style={{ width: `${(r.readings / most) * 100}%` }}
                   />
                 </span>
@@ -228,7 +242,7 @@ export function Accuracy({
     <Panel
       section={READING_SECTIONS.accuracy}
       className={className}
-      action={run && <span className="text-note text-ink-meta">Scored {run.ran}</span>}
+      action={run && <span className="text-note text-ink-meta">Scored {dayLabel(run.ran)}</span>}
     >
       {run === null ? (
         <p className="text-body text-ink-muted">No scoring run is recorded yet.</p>

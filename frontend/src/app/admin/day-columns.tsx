@@ -48,6 +48,7 @@ export function DayColumns({
   values,
   says,
   caption,
+  plotClassName = "min-h-56",
   className,
 }: {
   section: AdminSection;
@@ -61,6 +62,8 @@ export function DayColumns({
   says: (counts: readonly number[]) => string;
   /** The window's sum in words, for a screen reader, before the days in view. */
   caption: string;
+  /** The least height of the columns' area. A page whose chart is not its main thing passes a shorter one. */
+  plotClassName?: string;
   className?: string;
 }) {
   const none = series.map(() => 0);
@@ -80,7 +83,7 @@ export function DayColumns({
         <figcaption className="sr-only">
           {caption}, {range}.
         </figcaption>
-        <div className="flex min-h-56 flex-1 gap-3">
+        <div className={`flex flex-1 gap-3 ${plotClassName}`}>
           <div
             className="text-note text-ink-meta flex w-10 flex-col justify-between text-right tabular-nums"
             aria-hidden

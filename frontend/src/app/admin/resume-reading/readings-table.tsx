@@ -8,6 +8,7 @@ import { SelectField } from "@/components/ui/select-field";
 import { Tip } from "@/components/ui/tip";
 import { cn } from "@/lib/cn";
 import { type RecentReading, reasonOf, routeName } from "@/lib/resume-reading";
+import { dayLabel } from "@/lib/scrape-status";
 
 import { count, when } from "../format";
 import { READING_SECTIONS } from "../pages";
@@ -65,7 +66,8 @@ function AccountId({ id }: { id: string }) {
  * glyph, the reader, then the model or the reason), which keeps every row
  * one line and the table inside its card: a column each, with the reason in
  * a pill, gave nine columns, rows of two heights and a sideways scroll.
- * The time has no year, which the period's days already say, and the skills
+ * The time is written as the chart's days are ("Nov 27 19:42"), with no
+ * year, which the period's days already say, and the skills
  * a reading found are left out: the entries say whether it found anything,
  * and with both the table was 28px wider than its card at a 1440px window.
  */
@@ -133,7 +135,7 @@ export function ReadingsTable({ rows }: { rows: RecentReading[] }) {
                     className="border-border-subtle text-ink border-b last:border-b-0"
                   >
                     <td className={cn(TD, "whitespace-nowrap tabular-nums")}>
-                      {when(r.at).slice(5)}
+                      {dayLabel(r.at.slice(0, 10))} {when(r.at).slice(11)}
                     </td>
                     <td className={TD}>
                       <AccountId id={r.account} />

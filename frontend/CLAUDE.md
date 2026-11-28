@@ -3863,7 +3863,13 @@ user found it dense and "AI-ish". What was wrong, measured, and what to do:
 - **One number leads the first screen.** Every card had the same weight
   and the largest number was the size of the page title. The page's
   answer and its four numbers now stand on the ground with no box, and
-  the lead number is `text-hero`.
+  the lead number is `text-hero` (40px) beside three at `text-heading`
+  (26px): at 40px beside 36px the four read as equal. Two sizes side by
+  side sit on one baseline, which a subgrid row gives them (`Figure` in
+  `resume-reading/parts.tsx`).
+- **One format for one kind of value.** A day is "Nov 27" everywhere on
+  the page (`dayLabel`), and a time "Nov 27 19:42": the chart, the
+  accuracy card and the table each wrote a date their own way.
 - **The space between groups is larger than the space inside one.** A
   card had 20px of padding and 16px to its neighbour, so the page read as
   one slab. Groups are 32px apart (`gap-8`), and cards in a group 16px.
@@ -3876,8 +3882,14 @@ user found it dense and "AI-ish". What was wrong, measured, and what to do:
 - **A glyph only where it carries meaning**: one per reason and one per
   reader, so a list scans by shape. Never beside every number or title.
 - **Red is a model's failure; grey is by design** (the daily limit, a file
-  with no text). The rule-based parser's series in the chart is amber: a
-  weaker reading, not a failure.
+  with no text), and the grey is the light one (`ink-subtle`): a dark
+  grey bar on the longest reason took the eye from the red failures under
+  it. The rule-based parser's series in the chart is amber: a weaker
+  reading, not a failure.
+- **A chart that is not the page's main thing passes `DayColumns` a
+  shorter `plotClassName`.** Beside a list, the list's rows still set the
+  row's height (six reasons are 376px), so the chart cannot be shorter
+  than the card beside it.
 - **Numbers that are compared share a baseline**: two side by side, one
   under a label that wrapped, did not line up, so they are rows.
 - **A table's rows are one line, and it fits its card at a 1440px
