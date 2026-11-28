@@ -19,7 +19,7 @@ from apply.clock import SystemClock
 from apply.feed import SimplifyFeed
 from apply.gmail import GmailMailbox
 from apply.keychain import GMAIL, PHONE_PUSH, SystemKeychain
-from apply.notify import MacNotifier, NtfyNotifier, RecordingNotifier
+from apply.notify import NtfyNotifier, RecordingNotifier, desktop
 from apply.profile import ApplicantProfile
 from apply.records import FolderRecords, GitRecords
 from apply.sheet import TABS
@@ -81,7 +81,7 @@ def test_apply_run_without_fakes_wires_every_live_adapter(monkeypatch, tmp_path)
     assert len(looked_up) == 2
     assert isinstance(adapters.clock, SystemClock)
     assert isinstance(adapters.records, GitRecords)
-    assert isinstance(adapters.notifier, MacNotifier)
+    assert type(adapters.notifier) is type(desktop())  # Notification Center on the Mac, the terminal elsewhere
     assert isinstance(adapters.keychain, SystemKeychain)
     cli.main(["run", "--profile", str(mine), "--workers", "4"])
     assert opened == ["the-sheet"]  # copied one time only
