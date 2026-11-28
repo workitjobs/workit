@@ -71,6 +71,7 @@ from apply import (
     trace,
     upload_origin,
     usage,
+    vault_sign_in,
     verify,
     workday,
     workit,
@@ -148,6 +149,7 @@ ANYWAY_WHY = f"{ANYWAY}: Apply opens the form and fills it as in any rehearsal. 
 FILLED_ANYWAY = "Filled anyway: {}"
 # How a pause at a sign-in ended when Apply went on by itself: Lisul signed in on the page (KAN-670).
 SIGNED_IN = "signed in"
+VAULT = "signed in from the vault"  # a sign-in pause the vault's login got past (apply.vault_sign_in)
 # On the Resume button of a sign-in pause where a captcha showed: Apply no longer goes on by itself.
 CAPTCHA_SHOWED = "A captcha showed: do it, then press Resume. Apply won't go on by itself now"
 # Why a paused rehearsal can't go on, on its Resume button.
@@ -1085,6 +1087,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
             history.extend(f"{at} {REFUSED.format(kind)}" for kind in refused[noted:])
         noted = len(refused)
     shown: list[Rehearsed] = []  # each pause's summary, already handed out: the fill's Record goes on them too
+    vaulted: set[str] = set()  # the hosts this fill signed in to from the vault: each once (apply.vault_sign_in)
     posting, result = resolve(url, site)
     # Before any page opens (form_behind opens one for an unknown job system): never fill a form sent already.
     applied = adapters.applied_before.of(posting, url)
@@ -1126,23 +1129,29 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
         summary.usage = usage.since(used)
         summary.files = list(files)
         note_refusals()
-        history.append(f"{at} Paused: {one_line(summary.why) or summary.outcome}")
-        summary.history = tuple(history)
-        shown.append(summary)
-        # Its Record now, while the page is open to screenshot: a shutdown while the page is held never gets
-        # to the save at the fill's end (HPE and Cohesity, 2026-11-03).
-        _save_record(summary, stopped, stopped.filled or Filled((), {}, {}, site.screenshot(), html=site.html()), adapters,
-                     shown)
-        trace.event("pause", reason=stopped.reason)
-        board.update(n, status=summary.outcome, line=summary.line(), why=one_line(summary.why), filled=summary.filled,
-                     asked=summary.asked, missing=list(summary.missing), resume={"ok": True}, history=list(history))
-        _noted(url, site, adapters, summary.posting, summary.outcome, summary)
-        if not (went := pause(summary, blocked)):
-            return False
+        # At a sign-in, Apply first signs in from the vault, where it holds the page's exact host's login
+        # (apply.vault_sign_in), before the tile shows a pause: past it, the fill goes on at once.
+        went = _from_vault(summary, site, vaulted) if summary.outcome == SIGN_IN else False
+        if not went:
+            history.append(f"{at} Paused: {one_line(summary.why) or summary.outcome}")
+            summary.history = tuple(history)
+            shown.append(summary)
+            # Its Record now, while the page is open to screenshot: a shutdown while the page is held never gets
+            # to the save at the fill's end (HPE and Cohesity, 2026-11-03).
+            _save_record(summary, stopped, stopped.filled or Filled((), {}, {}, site.screenshot(), html=site.html()),
+                         adapters, shown)
+            trace.event("pause", reason=stopped.reason)
+            board.update(n, status=summary.outcome, line=summary.line(), why=one_line(summary.why),
+                         filled=summary.filled, asked=summary.asked, missing=list(summary.missing), resume={"ok": True},
+                         history=list(history))
+            _noted(url, site, adapters, summary.posting, summary.outcome, summary)
+            if not (went := pause(summary, blocked)):
+                return False
         history.append(f"{adapters.clock.now().strftime('%H:%M')} " + (
-            "Went on by itself: you signed in on the page" if went == SIGNED_IN
+            "Went on by itself: Apply signed in from the vault" if went == VAULT
+            else "Went on by itself: you signed in on the page" if went == SIGNED_IN
             else "Resumed: you pressed Resume; Apply went on from the page as you left it"))
-        trace.event("resume", signed_in=went == SIGNED_IN)
+        trace.event("resume", signed_in=went in (SIGNED_IN, VAULT))
         # Filling again: its caption anew, as a fill's start gives it (filling clears the tile).
         board.update(n, company=posting.company, role=posting.title, job_system=posting.job_system,
                      posting_url=posting.url, link=url, application_id=posting.id, status="filling", files=list(files),
@@ -1838,6 +1847,29 @@ class _Auto:
         return True
 
 
+def _from_vault(summary: "Rehearsed", site, tried: set[str]) -> str | bool:
+    """A fill paused at a sign-in: the vault's login for the page's exact https host, read from the page's own URL,
+    typed and pressed by plain code (apply.vault_sign_in). VAULT when the page went past its password; else False,
+    and the pause is the student's as before. A refused password, or a Keychain that wouldn't give the login, is
+    said in the pause's `why`: "Sign-in failed" once, never typed again."""
+    page = site.held_page() if hasattr(site, "held_page") else None
+    if page is None:
+        return False
+    try:
+        done = vault_sign_in.sign_in(page, tried)
+    except Exception as error:  # never in the way of the pause: the student signs in instead
+        print(f"The vault's sign-in stopped: {type(error).__name__}", file=sys.stderr)
+        return False
+    if done.how == vault_sign_in.SIGNED_IN:
+        return VAULT
+    if done.how == vault_sign_in.FAILED:
+        summary.why = done.why
+    elif done.why.startswith(vault_sign_in.NO_KEYCHAIN[:20]):
+        print(done.why, file=sys.stderr)
+        summary.why = f"{summary.why.rstrip()} {done.why}".strip()
+    return False
+
+
 class _Kept:
     """The job site as one rehearsed link sees it: every page opens in that
     link's own Worker profile, under the submit guard, and the last one
@@ -2250,6 +2282,13 @@ class _Kept:
             rearm(self._page)
         self._lifted = False
 
+    def held_page(self):
+        """The open page, while Apply still drives it (not yet handed to Lisul); else None."""
+        try:
+            return self._page if self._page is not None and not self._lifted and not self._page.is_closed() else None
+        except Exception:
+            return None
+
     def is_open(self) -> bool:
         try:
             return self._page is not None and not self._page.is_closed()
@@ -2268,9 +2307,14 @@ class _Kept:
         try:
             if not self._page or self._page.is_closed():
                 return b""
-            if hasattr(self._page, "record_html"):
+            if hasattr(self._page, "record_html"):  # its password boxes the vault's sign-in emptied (vault_sign_in)
                 return self._page.screenshot(full_page=True, timeout=15_000)
-            return self._page.screenshot(timeout=15_000)
+            # Each password box masked too: a "show password" toggle never puts one in a Record (apply.vault).
+            try:
+                mask = [self._page.locator("input[type=password]")]
+            except Exception:
+                mask = []
+            return self._page.screenshot(timeout=15_000, mask=mask) if mask else self._page.screenshot(timeout=15_000)
         except Exception:
             return b""
 
