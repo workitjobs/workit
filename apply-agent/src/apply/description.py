@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from apply import company
 from apply.adapters import JobSite
 from apply.company import text_of
-from apply.model import Posting, Question, one_line
+from apply.model import Posting, Question, job_title, one_line
 
 CAP = 4_000  # characters of the Posting's text in each call, about 1,000 tokens
 
@@ -305,7 +305,7 @@ def names_on_page(page) -> tuple[str, str]:
             break
         if m := shape.match(one_line(found["page_title"])):
             company, title = company or m["company"].strip(), title or m["title"].strip()
-    return bare_company(company), title
+    return bare_company(company), job_title(title)
 
 
 def _salary(salary) -> str:

@@ -1,12 +1,13 @@
 // The window: one screen that answers "what do I do now?".
 import { ArrowClockwiseIcon, ArrowSquareOutIcon, CheckIcon, GearSixIcon, ListChecksIcon, MagnifyingGlassIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { ApplyState, Run } from "./apply.ts";
 import type { AppliedJob, App as AppMethods, Bridge, Queued, Usage } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
 import { Find } from "./find.tsx";
 import { Report } from "./report.tsx";
+import { topOnSwitch } from "./scroll.ts";
 import { Todos } from "./todos.tsx";
 import { Button, Logo, cx, pressed } from "./ui.tsx";
 import { type Job, type View, type Waits, addsJobs, findsJobs, joinedWords, appliedJobs, bar, chosen, headline, limit, notStarted, queueNote, STARTING_WAIT, HOW_IT_WORKS, WAITING_FOR_SCREEN, startWords, stopActions, submittedLine, stopWords, usageLine, usedShare, view, needsYou, runLine, working } from "./view.ts";
@@ -48,6 +49,9 @@ export function App({ bridge }: { bridge: Bridge }) {
     if (v?.running && !wasRunning.current && (page === "add" || page === "find")) setPage("home");
     if (v) wasRunning.current = v.running;
   }, [v?.running, page]);
+  // Each page opens at its top, never at the last page's scroll (scroll.ts). Before paint, so it never flashes.
+  const [toTop] = useState(() => topOnSwitch(window));
+  useLayoutEffect(() => toTop(page), [toTop, page]);
   if (!v) return <Connecting lost={lost} />;
   // No run going: the queue, when the window has one to show (app_window.Bridge's app methods).
   // Add jobs brings it back once there is something else to show.

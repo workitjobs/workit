@@ -71,6 +71,7 @@ from apply.model import (
     Status,
     host_company,
     is_company,
+    job_title,
     one_line,
 )
 from apply.presubmit import Found, backed_by_policies, replan, review
@@ -403,7 +404,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
         # Else its link's host, when it is a job site known to be one company's (amazon.jobs: Amazon).
         company, title = _names(filler)
         planned.posting = posting = replace(posting, company=posting.company or company or host_company(posting.url),
-                                            title=posting.title or title)
+                                            title=posting.title or job_title(title))
         # A rehearsal shows its form while Claude writes its answers; a run opens it only once they're written.
         if not rehearse and (stop := planned.add(questions)):
             return stop
