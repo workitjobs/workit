@@ -784,34 +784,45 @@ Auto Apply downloads it (`GET /apply-app/engine`, W7 of
   4. `gh workflow run publish-engine.yml --ref main`, then check its log for
      "Published".
 
-## Publish WorkIt Auto Apply (`workflows/publish-app.yml`, KAN-941)
+## Publish WorkIt Auto Apply (`workflows/publish-app.yml`, KAN-941, KAN-950)
 
 Builds a release of the Mac app from `main` on a GitHub-hosted Apple
-Silicon Mac, signs it for Sparkle, and puts it in the R2 bucket
-`auto-apply-desktop` behind https://downloads.workitjobs.ai (W8 step 4 of
+Silicon Mac, signs it with WorkIt's Developer ID, has Apple notarize it,
+signs it for Sparkle, and puts it in the R2 bucket `auto-apply-desktop`
+behind https://downloads.workitjobs.ai (W8 steps 2 and 4 of
 `../docs/desktop_application_auto_apply.md`). Every installed app reads the
 feed there, `appcast.xml`, and updates itself; the website's Download for
 Mac links `WorkIt-Auto-Apply.dmg`. How a person publishes:
 `apply-agent/docs/app-build.md`, Publish a release. The workflow's comments
 give each step's mechanism; these are its rules.
 
-- **A release is built and signed here only** (D32): the update key lives
-  in the environment, and the build is a clean checkout of `main`. From
-  step 2, the Developer ID signature and notarizing join this job, with
-  their secrets in the same environment.
+- **A release is built and signed here only** (D32): the Developer ID
+  certificate, the notarization key and the update key live in the
+  environment, and the build is a clean checkout of `main`. The
+  certificate goes into a keychain the run makes, which only `codesign`
+  may use, on a runner thrown away after the job.
 - **Every installed app installs what it publishes,** at its next check
   (at launch and each day), when the student quits, with no question.
   Test `main`'s app on a Mac first.
-- **Two refusals guard every app.** A commit that isn't `main`'s newest: a
-  re-run of an old run would publish old code under a new build number.
-  A build number that isn't higher than the live feed's: every app would
-  ignore it while the run passed (numbering: `apply-agent/CLAUDE.md`,
-  `CFBundleVersion`). To undo a bad build, revert it on `main` and publish
-  again.
+- **Three refusals guard every app.** A commit that isn't `main`'s newest:
+  a re-run of an old run would publish old code under a new build number.
+  A DMG with no notarization ticket (`publish_app.py`): macOS would block
+  it on every student's Mac. A build number that isn't higher than the
+  live feed's: every app would ignore it while the run passed (numbering:
+  `apply-agent/CLAUDE.md`, `CFBundleVersion`). To undo a bad build, revert
+  it on `main` and publish again.
 - **The feed goes last.** The build's own DMG, then the website's
   `WorkIt-Auto-Apply.dmg`, then `appcast.xml`, so the feed only ever names
   a DMG that is there. An R2 upload replaces a file whole or not at all,
   so the workflow retries a dropped upload freely.
+- **A declined key stops the run at once, with its fix; a missed answer
+  is tried again.** Each step names the secret and what to do: a
+  certificate that isn't base64, a wrong `.p12` password, an expired or
+  revoked certificate, a notarization key Apple declines (401) or a
+  missing agreement (403), and a token R2 declines. A failure no try
+  again fixes is never retried. Tried again: an upload R2 dropped, a
+  timestamp Apple's server missed, a notarization whose connection
+  dropped, and a ticket not there yet to staple.
 - **After a failed run, start a new run** (`gh workflow run
   publish-app.yml --ref main`): a re-run builds again, and is refused once
   `main` has a newer commit. A run that failed after the website's DMG
@@ -819,19 +830,24 @@ give each step's mechanism; these are its rules.
   the next publish; any other failure leaves the live build as it was.
 - **Secrets,** of the `auto-apply-desktop` environment only (`main` only),
   from Infisical's `workit-prod/auto-apply-desktop`
-  (`../docs/secrets.md`): `SPARKLE_PRIVATE_KEY` and the three
-  `R2_AUTO_APPLY_DESKTOP_*` keys of a token that writes only this bucket.
+  (`../docs/secrets.md`): the five `APPLE_*` keys (the Developer ID
+  certificate and its password, the notarization key, its ID and issuer),
+  `SPARKLE_PRIVATE_KEY`, and the three `R2_AUTO_APPLY_DESKTOP_*` keys of a
+  token that writes only this bucket.
   Whoever can change a workflow on `main` can read them, so a workflow
   change gets the same review as code.
 - **Time and cost.** `macos-15` has 3 M1 cores and 7 GB; a release took
-  3.5 minutes on a 10-core M2 Pro, so expect 10 to 20 here (not measured
-  yet; the job's timeout is 60 minutes). The run takes one of the
+  3.5 minutes on a 10-core M2 Pro, so expect 10 to 20 here, and Apple's
+  notarization a few minutes more (not measured yet; the job's timeout is
+  90 minutes, the notarize step's 45). The run takes one of the
   organization's 5 macOS jobs (CI, the Apply jobs) and can queue behind
   them. Free while the repo is public; once W0 makes Apply's repo private,
   a Mac minute counts as about 10 of the plan's free minutes.
-- **Setup, once** (the user's steps, done 2026-11-26): the bucket
-  `auto-apply-desktop`, its custom domain `downloads.workitjobs.ai`, the
-  token, and the `/auto-apply-desktop` sync to the environment.
+- **Setup, once** (the user's steps): the bucket `auto-apply-desktop`, its
+  custom domain `downloads.workitjobs.ai`, the token, and the
+  `/auto-apply-desktop` sync to the environment (done 2026-11-26). Then,
+  for step 2, not done yet: the Apple enrollment and its five keys
+  (`../docs/secrets.md`, Load the Apple keys).
 
 ## Harvest Common Crawl boards (`workflows/harvest-commoncrawl.yml`)
 

@@ -1,9 +1,10 @@
 name: Publish WorkIt Auto Apply
 
-# KAN-941 (W8 step 4 of docs/desktop_application_auto_apply.md, D32): builds a release of the Mac app from main on a
-# GitHub-hosted Apple Silicon Mac, signs it for Sparkle, and puts it in the R2 bucket behind
-# https://downloads.workitjobs.ai. Every installed app reads the feed there (appcast.xml) and updates itself, and the
-# website's Download for Mac links the DMG. No person's computer builds or signs a release, or holds the update key.
+# KAN-941 and KAN-950 (W8 steps 2 and 4 of docs/desktop_application_auto_apply.md, D32): builds a release of the Mac
+# app from main on a GitHub-hosted Apple Silicon Mac, signs it with WorkIt's Developer ID, has Apple notarize it, signs
+# it for Sparkle, and puts it in the R2 bucket behind https://downloads.workitjobs.ai. Every installed app reads the
+# feed there (appcast.xml) and updates itself, and the website's Download for Mac links the DMG. No person's computer
+# builds or signs a release, or holds the signing keys.
 # .github/CLAUDE.md's "Publish WorkIt Auto Apply" section has the why and the one-time setup.
 #
 # By hand from main only: `gh workflow run publish-app.yml --ref main`. Every installed app installs what it
@@ -23,8 +24,10 @@ jobs:
   publish:
     if: github.ref == 'refs/heads/main'
     runs-on: macos-15 # Apple Silicon (D18)
-    timeout-minutes: 60
-    # The update key and the R2 keys are secrets of this environment, which takes jobs from main only.
+    # The build, then Apple's notarization, which takes minutes and rarely more (its step has a bound of its own).
+    timeout-minutes: 90
+    # The signing keys, the notarization key and the R2 keys are secrets of this environment, which takes jobs from
+    # main only.
     environment: auto-apply-desktop
     env:
       BUCKET: auto-apply-desktop
@@ -45,10 +48,68 @@ jobs:
 
       - uses: astral-sh/setup-uv@v3
 
-      # The commit's own files, complete notices, no ccache (apply-agent/scripts/build_app.py).
+      # In a keychain of this run's own, unlocked with a password made here, and only codesign may use the key. The
+      # runner is thrown away after the job. The build finds the identity there itself.
+      - name: Put the Developer ID certificate in this run's keychain
+        env:
+          CERTIFICATE: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD }}
+        run: |
+          if [ -z "$CERTIFICATE" ] || [ -z "$CERTIFICATE_PASSWORD" ]; then
+            echo "::error::APPLE_DEVELOPER_ID_CERTIFICATE or its password is not set in the auto-apply-desktop environment (docs/secrets.md, workit-prod/auto-apply-desktop)."
+            exit 1
+          fi
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          PASSWORD=$(openssl rand -base64 24)
+          security create-keychain -p "$PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$PASSWORD" "$KEYCHAIN"
+          if ! echo "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12" 2> /dev/null; then
+            echo "::error::APPLE_DEVELOPER_ID_CERTIFICATE isn't base64: it must be the one line that base64 -i <file>.p12 wrote (docs/secrets.md)."
+            exit 1
+          fi
+          STATUS=0
+          OUT=$(security import "$RUNNER_TEMP/certificate.p12" -k "$KEYCHAIN" -f pkcs12 -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign 2>&1) || STATUS=$?
+          rm "$RUNNER_TEMP/certificate.p12"
+          if [ "$STATUS" -ne 0 ]; then
+            case "$OUT" in
+              *password*) echo "::error::APPLE_DEVELOPER_ID_CERTIFICATE_PASSWORD doesn't open the certificate: it must be the password typed when the .p12 was exported." ;;
+              *) echo "::error::APPLE_DEVELOPER_ID_CERTIFICATE isn't a .p12 file macOS can import ($OUT): export it again from Keychain Access (docs/secrets.md)." ;;
+            esac
+            exit 1
+          fi
+          security set-key-partition-list -S apple-tool:,apple: -k "$PASSWORD" "$KEYCHAIN" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN" | awk '/"Developer ID Application: / {print $2; exit}')
+          if [ -z "$IDENTITY" ]; then
+            # Without -v, find-identity also lists a certificate it won't sign with, and why. Only the reason is
+            # printed: the certificate's name is a person's (D20).
+            WHY=$(security find-identity -p codesigning "$KEYCHAIN" | grep -o 'CSSMERR_[A-Z_]*' | head -1 || true)
+            case "$WHY" in
+              CSSMERR_TP_CERT_EXPIRED) echo "::error::The Developer ID certificate has expired: make a new one and put it in Infisical (docs/secrets.md, Load the Apple keys)." ;;
+              CSSMERR_TP_CERT_REVOKED) echo "::error::Apple revoked the Developer ID certificate: make a new one and put it in Infisical (docs/secrets.md, Load the Apple keys)." ;;
+              CSSMERR_TP_NOT_TRUSTED) echo "::error::This Mac doesn't trust the Developer ID certificate: it lacks Apple's Developer ID intermediate certificate (DeveloperIDG2CA.cer)." ;;
+              *) echo "::error::APPLE_DEVELOPER_ID_CERTIFICATE holds no Developer ID Application certificate with its private key${WHY:+ ($WHY)}: export the certificate with its key (docs/secrets.md)." ;;
+            esac
+            exit 1
+          fi
+
+      # The commit's own files, complete notices, no ccache, every program signed with the hardened runtime and the
+      # Developer ID (apply-agent/scripts/build_app.py).
       - name: Build the release
         working-directory: apply-agent
         run: python3 scripts/build_app.py --release
+
+      # Before Sparkle's signature: stapling the ticket changes the DMG. A step that times out leaves Apple's check
+      # running; a new run submits again.
+      - name: Notarize it with Apple
+        working-directory: apply-agent
+        timeout-minutes: 45
+        env:
+          APPLE_NOTARY_KEY: ${{ secrets.APPLE_NOTARY_KEY }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: python3 scripts/notarize_app.py
 
       - name: Sign it for Sparkle and write the feed
         working-directory: apply-agent
@@ -88,10 +149,19 @@ jobs:
             exit 1
           fi
           # The CLI retries each request itself; this retries a whole file the CLI gave up on (R2 dropped the
-          # connection). An upload replaces a file whole or not at all, so a try again is always safe.
+          # connection). An upload replaces a file whole or not at all, so a try again is always safe. A declined
+          # token fails at once: no try again fixes it.
           put() {
             for TRY in 1 2 3 4 5; do
-              aws s3 cp --endpoint-url "$R2_ENDPOINT" --no-progress "$@" && return 0
+              STATUS=0
+              OUT=$(aws s3 cp --endpoint-url "$R2_ENDPOINT" --no-progress "$@" 2>&1) || STATUS=$?
+              echo "$OUT"
+              [ "$STATUS" -eq 0 ] && return 0
+              case "$OUT" in
+                *InvalidAccessKeyId*|*SignatureDoesNotMatch*|*AccessDenied*|*Unauthorized*|*Forbidden*)
+                  echo "::error::R2 declined the token: R2_AUTO_APPLY_DESKTOP_ACCESS_KEY_ID and _SECRET_ACCESS_KEY must be one live token's, with Object Read & Write on the $BUCKET bucket, and the endpoint must be its account's (docs/secrets.md, workit-prod/auto-apply-desktop)."
+                  return 1 ;;
+              esac
               echo "::warning::Upload of $1 failed (try $TRY of 5)."
               [ "$TRY" -lt 5 ] && sleep $((TRY * 15))
             done
