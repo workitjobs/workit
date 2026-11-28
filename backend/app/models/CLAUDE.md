@@ -406,6 +406,33 @@ change here must keep:
   Rows from before `d642d93fcfbc` are NULL, not backfilled. The rule and
   its normalization: `../../CLAUDE.md`, "A duplicate resume is refused".
 
+## The reading log — `resume_readings.py` (KAN-898)
+
+- **One row per reading of an upload**: Upload, the parse preview,
+  Import Updated Resume and Import Again (`route`), who read it
+  (`read_by`, model or parser), why the parser's reading was saved
+  (`reason`, null for the model's: no text, no AI reading left today,
+  model unavailable or out of quota, timeout, the wrong shape, nothing
+  backed), the time (`duration_ms`), the entries and skills it found and
+  how many of the model's fields the check against the text dropped
+  (`fields_dropped`, null when no reply came back to check). It shows how
+  often production falls back to the parser (KAN-806).
+- **Never the resume's text, a name or a field's value.** Its text
+  columns hold only the code's own words, `ROUTES` and `PARSER_REASONS`
+  in the model file; a new column is checked by
+  `tests/test_resume_readings.py`, which lists every column.
+- **No CHECK on its text columns, on purpose**: the row commits with the
+  student's upload, so a value the database refused would fail the
+  upload. A new reason needs no migration.
+- Written only by `services/resume_reading.py`'s `read_upload`, with the
+  route's other writes, so a failed save keeps none; the preview commits
+  it alone, as it commits its AI use. A confirm reads nothing, so it adds
+  no row: its preview did. CASCADE from `applicant_profiles`. Kept 90
+  days (`services/retention.py`). Read by `app.scripts.reading_report`.
+  Migration `74b507514e4a` (RLS on, no policies), a new table: apply it
+  before the deploy, since every reading writes a row and answers 500
+  without it.
+
 ## Student documents — `documents.py` (KAN-369)
 
 - **One file per student and kind** (`student_documents`, PK
