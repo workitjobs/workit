@@ -72,7 +72,9 @@ UNBACKED = {"entries": [{"section": "experience", "title": "Pilot", "organizatio
                          "bullets": ["Flew cargo routes"]}], "skills": []}
 
 COLUMNS = {"id", "applicant_id", "created_at", "route", "read_by", "reason", "duration_ms", "entries", "skills",
-           "fields_dropped"}
+           "fields_dropped", "model", "input_tokens", "output_tokens"}
+# The names ScriptedLLM gives its endpoints, in chain order (workit_scout.testing)
+MODELS = ("model-0", "model-1")
 
 
 def _rate_limited() -> RateLimitError:
@@ -115,13 +117,14 @@ async def test_no_text_and_no_reading_left_need_no_model():
 
 
 async def test_a_model_slower_than_the_wait_is_a_timeout(monkeypatch):
-    async def slow(raw_text, llm, *, identity):
+    async def slow(raw_text, llm, *, identity, answered=None):
         await asyncio.sleep(5)
 
     monkeypatch.setattr(bank_import, "read_with_model", slow)
     monkeypatch.setattr(bank_import, "MODEL_WAIT_SECONDS", 0.01)
     reading = await bank_import.read_resume(TEXT, ScriptedLLM(["{}"]), Identity(name=NAME))
     assert (reading.read_by, reading.reason) == ("parser", "timeout")
+    assert (reading.model, reading.input_tokens, reading.output_tokens) == (None, None, None)
 
 
 async def test_a_model_reading_counts_the_fields_the_text_does_not_back():
@@ -130,6 +133,40 @@ async def test_a_model_reading_counts_the_fields_the_text_does_not_back():
     assert (reading.read_by, reading.reason, reading.fields_dropped) == ("model", None, 2)
     assert "Trained a neural network on satellite images" not in [b for e in reading.entries for b in e.bullets]
     assert "Rust" not in [name for name, _ in reading.skills]
+
+
+# --- the model that replied and its tokens (KAN-955), no database ------------------
+
+
+async def test_a_model_reading_names_the_model_that_replied_and_its_tokens():
+    reply = json.dumps(READING)
+    # The first model is out of quota, so the second one reads
+    reading = await bank_import.read_resume(TEXT, ScriptedLLM(_rate_limited(), [reply]), Identity(name=NAME))
+    assert (reading.read_by, reading.model) == ("model", MODELS[1])
+    # ScriptedLLM costs a token a character: the prompt read, the reply written
+    assert reading.input_tokens > len(bank_import.MODEL_PROMPT)
+    assert reading.output_tokens == len(reply)
+
+
+@pytest.mark.parametrize(("reply", "reason"), [
+    ("not json", "wrong_shape"),
+    (json.dumps(UNBACKED), "nothing_backed"),
+], ids=["wrong shape", "nothing backed"])
+async def test_a_reply_that_is_not_saved_still_names_its_model_and_tokens(reply, reason):
+    # The reply was paid for, so the log counts it
+    reading = await bank_import.read_resume(TEXT, ScriptedLLM([reply]), Identity(name=NAME))
+    assert (reading.read_by, reading.reason) == ("parser", reason)
+    assert (reading.model, reading.output_tokens) == (MODELS[0], len(reply))
+    assert reading.input_tokens > 0
+
+
+@pytest.mark.parametrize("script", [lambda: _down(), lambda: _rate_limited()], ids=["down", "out of quota"])
+async def test_a_reading_no_model_replied_to_names_no_model(script):
+    reading = await bank_import.read_resume(TEXT, ScriptedLLM(script()), Identity(name=NAME))
+    assert (reading.model, reading.input_tokens, reading.output_tokens) == (None, None, None)
+    # And so does one that asked no model
+    reading = await bank_import.read_resume(TEXT)
+    assert (reading.model, reading.input_tokens, reading.output_tokens) == (None, None, None)
 
 
 # --- the rows, on real Postgres ---------------------------------------------------
@@ -243,6 +280,27 @@ async def test_a_model_reading_is_logged_and_the_next_one_says_none_was_left(stu
     assert (model["read_by"], model["reason"], model["fields_dropped"]) == ("model", None, 2)
     assert model["entries"] + model["skills"] == first.json()["bank"]["found"]
     assert (parser["route"], parser["read_by"], parser["reason"]) == ("import_again", "parser", "no_uses_left")
+    # KAN-955: the model that replied and its tokens; none where no model was asked
+    assert model["model"] == MODELS[0]
+    assert model["input_tokens"] > 0 and model["output_tokens"] == len(json.dumps(READING))
+    assert (parser["model"], parser["input_tokens"], parser["output_tokens"]) == (None, None, None)
+
+
+async def test_a_model_name_longer_than_its_column_never_fails_the_upload(student, database):
+    from workit_scout.settings import Endpoint
+
+    from app.models.resume_readings import MODEL_NAME_LENGTH
+
+    client, applicant_id = student
+    fake = ScriptedLLM([json.dumps(READING)])
+    long = Endpoint("http://endpoint0.test/v1", "m" * (MODEL_NAME_LENGTH + 50))
+    fake._scripts = {long: fake._scripts[fake._endpoints[0][0]]}
+    fake._endpoints = [(long, fake._endpoints[0][1])]
+    fake_models.use(fake)
+
+    res = await client.post(f"/applicants/{applicant_id}/resumes", files=_file())
+    assert res.status_code == 200, res.text
+    assert [r["model"] for r in await _rows(database)] == ["m" * MODEL_NAME_LENGTH]
 
 
 async def test_the_log_keeps_no_resume_text_or_name(student, database):
@@ -259,7 +317,7 @@ async def test_the_log_keeps_no_resume_text_or_name(student, database):
         # Every text column holds one of the code's own words, never the resume's
         for column, value in row.items():
             if isinstance(value, str):
-                assert value in {*ROUTES, "model", "parser", *PARSER_REASONS}, column
+                assert value in {*ROUTES, "model", "parser", *PARSER_REASONS, *MODELS}, column
         for said in (NAME, "Rivera", "Lakeside", "Hillcrest", "555-0123", "Cleaned survey records"):
             assert said not in str(row)
 

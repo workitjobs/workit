@@ -1183,7 +1183,7 @@ async def test_a_model_slower_than_the_wait_leaves_the_parsers_reading(monkeypat
 
     from app.services import bank_import
 
-    async def slow(raw_text, llm, *, identity):
+    async def slow(raw_text, llm, *, identity, answered=None):
         await asyncio.sleep(5)
 
     monkeypatch.setattr(bank_import, "read_with_model", slow)

@@ -1215,7 +1215,9 @@ Find files with a directory listing; these are the rules for where code goes.
   `resume_readings`, `app/models/CLAUDE.md`): `read_upload` writes the
   route, the reader, the reason `read_resume` gives for saving the
   parser's reading (`Reading.reason`), the time, the counts and the model's
-  fields the check dropped (`checked_drafts`, `unbacked_skills`), never the
+  fields the check dropped (`checked_drafts`, `unbacked_skills`), the model
+  that replied and its tokens (KAN-955: `complete_json`'s `answered`,
+  through `Reading.model`, `input_tokens` and `output_tokens`), never the
   text, with the use, so a failed save keeps neither; the reason changes
   nothing the reading saves. `app.scripts.reading_report` counts them by
   day, reader and reason (KAN-806 needs those numbers). Tests:
@@ -2242,6 +2244,12 @@ go then. A change needs to work on Cloudflare only.
   and reached `main` before the code did (the KAN-888 group's migrations).
   The bank job runs none of the reading code and never reads the table,
   so it needs no pull or restart for it.
+- **Apply `4c07869c8bf9` (`resume_readings.model`, `input_tokens`,
+  `output_tokens`, KAN-955) before the deploy that writes them.** The row
+  each reading adds names the three columns, so deployed first, every
+  upload, parse preview, Import Updated Resume and Import Again answers
+  500. All three are nullable and old code never names them, so applying
+  it early is safe. The bank job needs no pull or restart for it either.
 - **Apply `e6a2c8f4b015` (`bank_skills.position`, KAN-816) before the
   deploy that maps it.** The model selects the column with every skill and
   `load_bank` orders by it, so deployed first, `GET /bank`, uploads,

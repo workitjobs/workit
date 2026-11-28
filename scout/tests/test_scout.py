@@ -246,6 +246,33 @@ def test_a_structured_call_returns_the_checked_object():
     assert ask_json(fake) == Entry(title="Intern", bullets=["Built a robot"])
 
 
+def test_a_structured_call_says_which_model_replied_and_its_tokens():
+    reply = '{"title": "T", "bullets": []}'
+    fake = ScriptedLLM(rate_limited(), [reply])
+    answered = llm_module.Answered()
+    messages = [{"role": "user", "content": "draft it"}]
+    asyncio.run(fake.complete_json(messages, Entry, identity=Identity(), answered=answered))
+    # The second endpoint replied; ScriptedLLM costs a token a character
+    assert answered.model == endpoint(1).model
+    assert answered.spent == llm_module.Spent(len("draft it"), len(reply))
+
+
+def test_a_reply_that_fails_the_check_still_says_who_gave_it():
+    answered = llm_module.Answered()
+    messages = [{"role": "user", "content": "draft it"}]
+    with pytest.raises(llm_module.InvalidReply):
+        asyncio.run(ScriptedLLM(["not json"]).complete_json(messages, Entry, identity=Identity(), answered=answered))
+    assert (answered.model, answered.spent.output_tokens) == (endpoint(0).model, len("not json"))
+
+
+def test_a_structured_call_no_endpoint_answers_names_no_model():
+    answered = llm_module.Answered()
+    messages = [{"role": "user", "content": "draft it"}]
+    with pytest.raises(llm_module.ScoutUnavailable):
+        asyncio.run(ScriptedLLM(rate_limited()).complete_json(messages, Entry, identity=Identity(), answered=answered))
+    assert answered == llm_module.Answered()
+
+
 def test_a_structured_call_falls_down_the_chain():
     fake = ScriptedLLM(
         rate_limited(), server_error(), ['{"title": "T", "bullets": []}']

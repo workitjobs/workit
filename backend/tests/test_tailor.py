@@ -14,6 +14,7 @@ import httpx
 import pytest
 from openai import APIStatusError, RateLimitError
 from sqlalchemy import text
+from workit_scout.llm import Spent
 from workit_scout.testing import ScriptedLLM
 
 from app.config import get_settings
@@ -70,9 +71,9 @@ class QueuedLLM(ScriptedLLM):
         super().__init__(["unused"])
         self._replies = list(replies)
 
-    async def _complete_json(self, client, endpoint, messages, schema, max_tokens=None) -> str:
+    async def _complete_json(self, client, endpoint, messages, schema, max_tokens=None) -> tuple[str, Spent]:
         self.prompts.append(list(messages))
-        return self._replies.pop(0)
+        return self._replies.pop(0), Spent()
 
 
 async def _seed_applicant(session) -> uuid.UUID:

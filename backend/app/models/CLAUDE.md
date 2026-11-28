@@ -417,9 +417,19 @@ change here must keep:
   how many of the model's fields the check against the text dropped
   (`fields_dropped`, null when no reply came back to check). It shows how
   often production falls back to the parser (KAN-806).
+- **The model that replied and its tokens** (KAN-955): `model` (the
+  chain's name for it), `input_tokens` (the prompt) and `output_tokens`
+  (the reply, reasoning included). Null when no model replied: the parser
+  read alone, every endpoint failed or stalled, and every row from before
+  KAN-955. **Set for a reply that was not saved** (the wrong shape,
+  nothing backed), since it was paid for. Tokens an endpoint spent before
+  it failed or stalled are not known, so a row counts the replying model's
+  alone. The name comes from the `SCOUT_*` settings, so the writer clips
+  it to the column (`MODEL_NAME_LENGTH`): a long name must not fail an
+  upload. Migration `4c07869c8bf9`.
 - **Never the resume's text, a name or a field's value.** Its text
   columns hold only the code's own words, `ROUTES` and `PARSER_REASONS`
-  in the model file; a new column is checked by
+  in the model file, and a model's name; a new column is checked by
   `tests/test_resume_readings.py`, which lists every column.
 - **No CHECK on its text columns, on purpose**: the row commits with the
   student's upload, so a value the database refused would fail the
