@@ -7,6 +7,7 @@ starts here (`app`, which `uv run apply app` runs) and calls `rehearsal.rehearse
 """
 
 import os
+import sys
 import time
 from collections.abc import Callable
 from contextlib import AbstractContextManager
@@ -131,7 +132,8 @@ def adapters(profile: ApplicantProfile, bank: AnswerBank) -> Adapters:
         tracker=WorkItTracker(KeychainTracker(keychain) if student else FileTracker(),
                               WaitingWrites(delivered=forget_sent if student else None),
                               lambda application: "" if student else sent_resume(application, resume),
-                              ref_of=resume_ref, sent_of=lambda application: rehearsal.SENT_ANSWERS.pop(application, [])),
+                              ref_of=lambda application, answers: resume_ref(application, answers, resume),
+                              sent_of=lambda application: rehearsal.SENT_ANSWERS.pop(application, [])),
         site=site,
         claude=asks,
         mailbox=NoMailbox(),
@@ -203,6 +205,7 @@ class Runs:
             raise SetupError("Your Answer bank hasn't come from WorkIt yet: WorkIt Auto Apply keeps trying. "
                              "Press Start again in a moment.")
         self._refresh()
+        send_waiting()
         try:
             with self._awake():  # the Mac never sleeps mid-run (KAN-885)
                 self._rehearse_shown(links, show, jobs or {})
@@ -247,10 +250,24 @@ FILES = local_data.FILES
 RESUME_REF: dict = {}
 
 
-def resume_ref(application_id: str) -> dict:
-    """The Sent resume of an Application the student submitted, by its id on WorkIt: the tailored resume its form was
-    given (apply.tailored.GIVEN), else the profile's."""
-    return tailored.GIVEN.pop(application_id, None) or dict(RESUME_REF)
+def resume_ref(application_id: str, answers: list[dict], resume: str) -> dict:
+    """The Sent resume of an Application the student submitted, by its id on WorkIt, when what its form sent
+    (`answers`, rehearsal.sent_answers: a file by its name) holds the profile's resume, named `resume` (a tailored
+    one keeps its name, apply.tailored.resume_for): the tailored resume its form was given (apply.tailored.GIVEN),
+    else the profile's. {} for a form that took no resume."""
+    given = tailored.GIVEN.pop(application_id, None)
+    sent = {name for a in answers for name in (a["answer"] if isinstance(a["answer"], list) else [a["answer"]])}
+    return (given or dict(RESUME_REF)) if resume and resume in sent else {}
+
+
+def send_waiting() -> None:
+    """At each Start, the writes WorkIt couldn't take before: an applied one goes before the run's already-applied
+    check reads WorkIt, and nothing else would send it if the student sends no form again. Never stops a Start."""
+    try:
+        for problem in WaitingWrites(delivered=forget_sent if build.STUDENT else None).flush():
+            print(problem, file=sys.stderr)
+    except Exception as error:
+        print(f"Waiting writes not sent ({type(error).__name__}: {error})", file=sys.stderr)
 
 
 def forget_sent(write: Write) -> None:
@@ -328,7 +345,10 @@ def app() -> None:
     (W11): the bank is read in the background, so the window opens at once while it reads, and the profile at each
     Start."""
     if build.STUDENT:  # what an older version or a crash left: only open forms' files and the sign-ins stay (W11)
-        local_data.sweep(SystemKeychain())
+        try:
+            local_data.sweep(SystemKeychain())
+        except Exception as error:  # a keychain the student denied: the window opens, and the next launch tries again
+            print(f"Data folder not cleaned ({type(error).__name__}: {error})", file=sys.stderr)
     profile = ApplicantProfile({}, HOME, load_policies(), saver=to_workit)
     # The Story bank and voice are WorkIt's too, read with the profile at each Start: never the data folder's files,
     # which a Developer checkout's `apply app` would read.

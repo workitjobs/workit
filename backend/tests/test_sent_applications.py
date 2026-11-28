@@ -23,8 +23,8 @@ SENT = {"answers": [
 
 
 async def test_an_application_keeps_what_it_sent_and_loses_it_with_the_application(student, database):  # noqa: F811
-    """Fault: a sent application was kept for a job not applied to, read back changed, kept another student's way,
-    or outlived its application."""
+    """Fault: a sent application was kept for a job not applied to, read back changed, replaced by a second send (a
+    loop's way to fill form_questions), or outlived its application."""
     client, me = student
     queued = await _seed_posting(database)
     async with database() as session:
@@ -37,6 +37,7 @@ async def test_an_application_keeps_what_it_sent_and_loses_it_with_the_applicati
     not_sent = await client.put(f"/applicants/{me}/applications/{queued}/sent", json=SENT)
     none = await client.get(url)
     saved = await client.put(url, json=SENT)
+    again = await client.put(url, json={"answers": [{"question": "Anything else?", "answer": "No"}]})
     got = (await client.get(url)).json()
     async with database() as session:
         await session.execute(text("DELETE FROM job_applications WHERE job_id = :job"), {"job": job})
@@ -44,6 +45,7 @@ async def test_an_application_keeps_what_it_sent_and_loses_it_with_the_applicati
 
     assert not_sent.status_code == 409 and none.status_code == 404
     assert saved.status_code == 204, saved.text
+    assert again.status_code == 409
     assert got["answers"] == [{**a, "ai": a.get("ai", False)} for a in SENT["answers"]]
     assert (await client.get(url)).status_code == 404  # deleted with its application
 

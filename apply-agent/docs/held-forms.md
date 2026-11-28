@@ -765,6 +765,9 @@ else the Record's; an AI answer the student rewrote is no longer marked AI.
 - **It only reads.** It never prevents, delays or changes a press, so it is no guard code and needs no Worker
   extension release. A read that fails sends nothing, and the Record's value stands.
 - **A page could call its binding with values of its own:** that changes only the student's record of what was sent,
-  never what is submitted.
+  never what is submitted. Only this form's questions are kept, and a call past `MOST` characters is dropped, so a
+  page's calls can't grow Apply's memory.
+- **A secret's field is never read** (`records.SECRET`: a password, a PIN), so it never comes into Apply's memory.
+- **A text box read empty at the press sent nothing**: an AI answer the student cleared is not recorded as sent.
 - **Not read:** Workday's Review page has no fields, so its answers are those each step showed as it was left.
 - Tests: `tests/test_sent_capture.py` (Chromium, run by hand) and `tests/test_local_data.py`.

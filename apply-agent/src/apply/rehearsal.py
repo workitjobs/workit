@@ -1408,6 +1408,8 @@ def sent_answers(record: Record, shown: dict[str, str] | None = None) -> list[di
         ai_text = written.get(label) or (planned if label in drafted else None)
         if q.kind == "file":  # the press reads a file box as its path: a letter's words, else the file's name
             answer = written.get(label) or record.filled.readback.get(q.name) or planned
+        elif q.kind in ("text", "textarea") and q.name in shown:  # a box read at the press: empty is what it sent
+            answer = shown[q.name]
         else:
             answer = shown.get(q.name) or written.get(label) or record.filled.readback.get(q.name) or planned
         if isinstance(answer, (list, tuple)):

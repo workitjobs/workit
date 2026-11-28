@@ -201,7 +201,11 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   no `sent/` copy, and carries what the form sent (`Write.answers`, from
   `rehearsal.sent_answers` at the Submit, with what each field showed at
   the press, `apply.sent_capture`; `PUT .../applications/{job}/sent`).
-  Once WorkIt has it, `WaitingWrites(delivered=)` deletes the
+  The answers go even to a job already applied: a write WorkIt took the
+  stage of, its answers lost on the way, is sent again and finds it
+  applied, and WorkIt's 409 for answers it has already counts as kept.
+  The Sent resume is named only when the form took the resume
+  (`student.resume_ref`). Once WorkIt has it, `WaitingWrites(delivered=)` deletes the
   application's files from the Mac (`apply.local_data`); a write that
   waits keeps its answers in `workit-queue.json` until it is sent. Its
   Tracker is `tracker.KeychainTracker`: no `tracker.json`, its rows in
@@ -434,7 +438,15 @@ WorkIt one time per run or rehearsal, through `WorkIt.applications`.
     (`job_key`, so another Greenhouse host matches too);
   - Apply's Tracker (`tracker.json`) has a submitted row with the same
     Application ID or job;
-  - a Record of the same Application has `after-submit.png`.
+  - a Record of the same Application has `after-submit.png`;
+  - an applied write for the same job still waits for WorkIt
+    (`workit-queue.json`). WorkIt Auto Apply keeps no `tracker.json` and no
+    Record past a submit (W11), so this is what knows a submit made while
+    WorkIt was down; each Start sends the waiting writes first.
+- In the Student build the applications it reads also become the
+  Tracker's rows for the run (`tracker.ON_WORKIT`, read through
+  `tracker.saved`), so `past_applications` and `other_roles.others` see
+  what Lisul applied to with no Tracker file.
 - A rehearsal of such a link ends as "already applied". Its terminal line
   and its tile say "Already applied on <date> (<source>)". No browser
   opens. A run makes it a Handoff and opens no form.

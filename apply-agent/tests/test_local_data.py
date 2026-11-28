@@ -1,12 +1,25 @@
 """W11: WorkIt Auto Apply keeps nothing of an application on the Mac once it is done. What the form sent goes to
 WorkIt with the applied write, the Sent resume is named by its id, and the Record, trace, files and Tracker go."""
 
+import json
 from datetime import date
 from pathlib import Path
 
 import pytest
 
-from apply import batch, build, local_data, tailored, trace, verify
+from apply import (
+    already_applied,
+    batch,
+    build,
+    local_data,
+    other_roles,
+    sent_capture,
+    student,
+    tailored,
+    trace,
+    tracker,
+    verify,
+)
 from apply.keychain import InMemoryKeychain
 from apply.model import Posting, Question
 from apply.records import Filled, Record
@@ -18,7 +31,7 @@ from apply.tracker import (
     KeychainTracker,
     accounts_in,
 )
-from apply.workit import Stage, WaitingWrites, Write
+from apply.workit import Stage, Unreachable, WaitingWrites, WorkIt, WorkItError, Write
 
 POSTING = Posting("app-7", "Acme", "Intern", "https://job-boards.greenhouse.io/acme/jobs/7")
 
@@ -159,16 +172,19 @@ def test_the_tailored_resume_is_deleted_once_the_form_has_it_and_named_by_its_id
 
 def test_what_the_form_showed_at_the_press_wins_and_an_edited_ai_answer_is_no_longer_marked_ai():
     """Fault: an edit the student made on the held form was lost (the Record's fill-time answer went instead), an
-    essay they rewrote stayed marked as AI's, or a cover letter upload went as its file's path."""
+    essay they rewrote stayed marked as AI's, an AI answer they cleared went as sent, or a cover letter upload went as
+    its file's path."""
     questions = [Question("why", "Why Acme?", "textarea"), Question("heard", "How did you hear about us?", "text"),
-                 Question("year", "Graduation year", "select"), Question("cl", "Cover Letter", "file")]
+                 Question("year", "Graduation year", "select"), Question("cl", "Cover Letter", "file"),
+                 Question("extra", "Anything else?", "textarea")]
     record = Record(POSTING, None, "", Filled(
-        questions, answers={"heard": "WorkIt", "year": "2027", "cl": Path("/Users/sam/Sam_Cover_Letter.pdf")},
-        readback={"year": "2027"}, screenshot=b""), date(2026, 11, 27),
+        questions, answers={"heard": "WorkIt", "year": "2027", "cl": Path("/Users/sam/Sam_Cover_Letter.pdf"),
+                            "extra": "Happy to relocate."},
+        readback={"year": "2027", "extra": "Happy to relocate."}, screenshot=b""), date(2026, 11, 27),
         essays="## Why Acme?\nI rode their trains.\n\n## Cover Letter\nDear Acme, ...",
-        drafted=(("How did you hear about us?", "WorkIt"),))
+        drafted=(("How did you hear about us?", "WorkIt"), ("Anything else?", "Happy to relocate.")))
     shown = {"why": "I rode their trains every day for four years.", "heard": "WorkIt", "year": "2028",
-             "cl": "C:\\fakepath\\Sam_Cover_Letter.pdf"}
+             "cl": "C:\\fakepath\\Sam_Cover_Letter.pdf", "extra": ""}
 
     assert sent_answers(record, shown) == [
         {"question": "Why Acme?", "answer": "I rode their trains every day for four years.", "ai": False},
@@ -176,3 +192,136 @@ def test_what_the_form_showed_at_the_press_wins_and_an_edited_ai_answer_is_no_lo
         {"question": "Graduation year", "answer": "2028", "ai": False},
         {"question": "Cover Letter", "answer": "Dear Acme, ...", "ai": True},
     ]
+
+
+class Calls(WorkIt):
+    """WorkIt's own record_applied over calls kept in `seen`: the job already at `before`, and the PUT of what the
+    form sent answered with `status`."""
+
+    def __init__(self, before, status=204):
+        self._before, self._status, self.seen = before, status, []
+
+    def add_by_link(self, url, company, title):
+        return "job-8", self._before
+
+    def applicant_id(self):
+        return "me"
+
+    def call(self, method, path, body=None, timeout=0):
+        self.seen.append((method, path))
+        if self._status != 204:
+            raise WorkItError("refused", self._status)
+
+
+def test_a_retried_applied_write_still_keeps_what_the_form_sent():
+    """Fault: WorkIt took a write's stage, the connection dropped before its answers, and the write sent again stopped
+    at "already applied" with the answers lost; or WorkIt's 409 for answers it has already failed the write."""
+    answers = [{"question": "Why Acme?", "answer": "Trains.", "ai": True}]
+    retried = Calls(Stage.APPLIED)
+
+    assert retried.record_applied(POSTING.url, "Acme", "Intern", answers=answers) == Stage.APPLIED
+    assert retried.seen == [("PUT", "/applicants/me/applications/job-8/sent")]
+    assert Calls(Stage.APPLIED, 409).record_applied(POSTING.url, "Acme", "Intern", answers=answers) == Stage.APPLIED
+    with pytest.raises(WorkItError):
+        Calls(Stage.APPLIED, 422).record_applied(POSTING.url, "Acme", "Intern", answers=answers)
+
+
+def test_a_cleanup_that_fails_never_makes_a_delivered_write_look_lost(tmp_path):
+    """Fault: deleting the Mac's files after WorkIt took the write raised, so the write stayed queued to go again and
+    the run said it was not in the Applications Tracker."""
+    def busy(write):
+        raise OSError("a file is busy")
+
+    writes = WaitingWrites(Client(), tmp_path / "queue.json", delivered=busy)
+
+    assert writes.send(Write("app-7", POSTING.url, "Acme", "Intern", Stage.APPLIED)) == \
+        "in your Applications Tracker as Applied"
+    assert writes.waiting() == []
+
+
+class Down:
+    """WorkIt that doesn't answer."""
+
+    def applicant_id(self):
+        raise Unreachable("api.workitjobs.ai: 503")
+
+    def record_applied(self, *args, **kwargs):
+        raise Unreachable("api.workitjobs.ai: 503")
+
+
+def test_a_submit_still_on_its_way_to_workit_counts_as_applied(tmp_path):
+    """Fault: with no Tracker file and no Record past a submit (W11), a submit WorkIt had not taken yet looked unsent,
+    and the next run filled its form again for the student to send twice (Astranis, KAN-621)."""
+    queue = tmp_path / "queue.json"
+    WaitingWrites(Down(), queue).send(Write("app-7", POSTING.url, "Acme", "Intern", Stage.APPLIED))
+
+    check = already_applied.Check(Down(), tmp_path / "tracker.json", (), queue)
+
+    assert check.of(POSTING) is not None and check.problem()
+    assert already_applied.Check(Down(), tmp_path / "tracker.json", (), tmp_path / "none.json").of(POSTING) is None
+
+
+def test_the_apps_past_applications_come_from_its_applications_tracker_on_workit(tmp_path, monkeypatch):
+    """Fault: with no Tracker file (W11), "Have you applied to Acme before?" lost the Yes WorkIt's Applications Tracker
+    holds, and the student's other role at Acme went unseen."""
+    monkeypatch.setattr(build, "STUDENT", True)
+    monkeypatch.setattr(tracker, "ON_WORKIT", [])
+
+    class Listed:
+        def applicant_id(self):
+            return "me"
+
+        def applications(self, me):
+            return [{"stage": "interviewing", "applied_at": "2026-11-02T15:00:00+00:00", "job": {
+                "apply_url": "https://job-boards.greenhouse.io/acme/jobs/5", "company": "Acme", "title": "Data Intern"}}]
+
+    assert already_applied.Check(Listed(), tmp_path / "tracker.json", (), tmp_path / "queue.json").problem() == ""
+
+    assert tracker.past_applications(POSTING.url, tmp_path / "tracker.json") == (["Acme"], ["Acme"])
+    assert [(o.title, o.applied) for o in other_roles.others(POSTING, [], tmp_path / "tracker.json")] == \
+        [("Data Intern", True)]
+
+
+def test_the_sent_resume_is_named_only_when_the_form_took_the_resume(monkeypatch):
+    """Fault: a form with no resume field showed a resume under What You Sent, or a form that took the tailored
+    resume named the profile's."""
+    monkeypatch.setattr(student, "RESUME_REF", {"uploaded_resume_id": "u1"})
+    took = [{"question": "Resume", "answer": "Sam_Resume.pdf", "ai": False}]
+    tailored.GIVEN["app-7"] = {"built_resume_id": "b1"}
+
+    assert student.resume_ref("app-7", [{"question": "Why Acme?", "answer": "Trains.", "ai": True}],
+                              "Sam_Resume.pdf") == {}
+    assert "app-7" not in tailored.GIVEN
+    tailored.GIVEN["app-7"] = {"built_resume_id": "b1"}
+    assert student.resume_ref("app-7", took, "Sam_Resume.pdf") == {"built_resume_id": "b1"}
+    assert student.resume_ref("app-8", took, "Sam_Resume.pdf") == {"uploaded_resume_id": "u1"}
+
+
+def test_a_page_can_hand_the_capture_only_this_forms_questions_and_never_a_password():
+    """Fault: a page's own script called the capture's binding with names of its own and grew Apply's memory without
+    end, or the capture read a password field into Apply's memory."""
+    class Page:
+        frames = []
+
+        def expose_binding(self, name, take):
+            self.take = take
+
+    page, capture = Page(), sent_capture.Capture()
+    capture.watch(page, [Question("why", "Why Acme?", "textarea"), Question("pw", "Create a password", "text")])
+
+    page.take(None, json.dumps([["why", "Trains."], ["pw", "hunter2"], ["made-up", "x"]]))
+    page.take(None, json.dumps([["why", "x"]] * 200_000))  # past MOST: dropped whole
+
+    assert capture.values == {"why": "Trains."}
+
+
+def test_an_application_with_no_company_loses_its_files_too(mac):
+    """Fault: a Write with no company names tracker.UNKNOWN_COMPANY, whose folder names aren't its files', so a sent
+    application's Record stayed on the Mac."""
+    record = mac / "rehearsals/2026-11-27/company-app-5/form.png"
+    record.parent.mkdir(parents=True)
+    record.write_text("x")
+
+    local_data.forget(tracker.UNKNOWN_COMPANY, "app-5")
+
+    assert not record.exists()

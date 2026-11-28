@@ -235,13 +235,22 @@ student's Submit, what the form sent goes to WorkIt with the applied write
 (`rehearsal.sent_answers`, `PUT .../sent`), as the form showed it at the
 press: `apply.sent_capture` reads every question's field on each press of a
 button on the held form, the student's own edits included, and Approve and
-submit reads it just before Apply presses. The Sent resume goes by its id;
+submit reads it just before Apply presses. The Sent resume goes by its id,
+only when the form took the resume (a file of its name among what it sent);
 once WorkIt has it, the application's files go (`local_data.forget`), and
 at once when the student lets a form go. `local_data.sweep` runs as the app
 opens: every application's files but an open form's, the profile's file
 copies, and an older version's `tracker.json`, its accounts moved into the
-keychain first. Only `build.STUDENT`: a Developer checkout keeps all of
-these, which are its own.
+keychain first; a sweep that fails (a keychain the student denied) never
+stops the window. **With no Tracker file and no Record past a submit, two
+things read elsewhere:** the already-applied check counts an applied write
+still waiting for WorkIt, so a submit made while WorkIt was down is never
+filled again, and each Start sends the waiting writes first
+(`student.send_waiting`); and what Lisul applied to before (the screener
+facts, other roles at the company) comes from WorkIt's Applications
+Tracker, which the check reads once a run into `tracker.ON_WORKIT`. Only
+`build.STUDENT`: a Developer checkout keeps all of these, which are its
+own.
 
 The repo holds only generic inputs: `policies.default.yaml` (with
 `live_runs` off) and the profile template. The Question types come from

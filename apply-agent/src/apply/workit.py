@@ -285,10 +285,11 @@ class WorkIt:
         ({"uploaded_resume_id"} or {"built_resume_id"}: WorkIt Auto Apply's, which keeps no copy): add by link,
         keep the Sent resume, set the stage and the applied date (`applied_on`, else today), name the Sent resume,
         then keep what the form sent (`answers`, W11, `PUT .../sent`). Apply's submit writes and the Tracker
-        Sheet import both use it. An application already applied or later stays as it is: answers its stage
-        then, else None."""
+        Sheet import both use it. An application already applied or later stays as it is, but for what it sent
+        (a retried write WorkIt took the stage of before its answers): answers its stage then, else None."""
         job, before = self.add_by_link(link, company, title)
         if before in APPLIED_STAGES:
+            self._keep_sent(job, answers)
             return before
         me = self.applicant_id()
         sent = self.send_resume(me, job, resume) if resume else self.name_resume(me, job, resume_ref) \
@@ -296,9 +297,19 @@ class WorkIt:
         self.set_stage(me, job, stage, applied_on)
         if sent:
             self.link_resume(job, sent)
-        if answers:
-            self.call("PUT", f"/applicants/{me}/applications/{job}/sent", {"answers": answers})
+        self._keep_sent(job, answers)
         return None
+
+    def _keep_sent(self, job_id: str, answers: list[dict] | None) -> None:
+        """What an applied application's form sent, on WorkIt (W11). WorkIt keeps one per application, so its 409
+        says it has this one already: a write sent again after WorkIt took it, its answer lost on the way."""
+        if not answers:
+            return
+        try:
+            self.call("PUT", f"/applicants/{self.applicant_id()}/applications/{job_id}/sent", {"answers": answers})
+        except WorkItError as error:
+            if error.status != 409:
+                raise
 
     def name_resume(self, applicant_id: str, job_id: str, ref: dict) -> str:
         """Keep the resume WorkIt holds that `ref` names as a Sent resume to the job (WorkIt keeps its file or a
@@ -485,6 +496,16 @@ class Write:
     answers: list = field(default_factory=list)
 
 
+def waiting_writes(path: Path = QUEUE) -> list[Write]:
+    """The Waiting writes in the queue file at `path`, oldest first; none when there is no file."""
+    try:
+        # A Hold an older Apply kept as queued goes as needs_you (KAN-544).
+        return [Write(**{**w, "stage": Stage.NEEDS_YOU if w["stage"] == Stage.QUEUED else w["stage"]})
+                for w in json.loads(path.read_text())]
+    except FileNotFoundError:
+        return []
+
+
 def cap_wait(write: Write) -> str:
     """'waits for WorkIt's daily cap ... until <local time>' for a write the cap holds back now, else ''."""
     if write.not_before <= time.time():
@@ -537,7 +558,11 @@ class WaitingWrites:
             try:
                 said[write.application_id] = self._deliver(write)
                 if self._delivered and write.stage == Stage.APPLIED:
-                    self._delivered(write)
+                    try:
+                        self._delivered(write)
+                    except Exception as error:  # WorkIt has it all the same; the next launch's sweep cleans up
+                        print(f"{write.company}: what the Mac kept stays till the next launch "
+                              f"({type(error).__name__}: {error})", file=sys.stderr)
             except (NotLoggedIn, LoginExpired) as error:
                 for w in waiting[at:]:
                     said[w.application_id] = f"kept to send to your Applications Tracker later ({error}): " \
@@ -574,12 +599,7 @@ class WaitingWrites:
         return f"in your Applications Tracker as {SHOWN[write.stage]}"
 
     def _read(self) -> list[Write]:
-        try:
-            # A Hold an older Apply kept as queued goes as needs_you (KAN-544).
-            return [Write(**{**w, "stage": Stage.NEEDS_YOU if w["stage"] == Stage.QUEUED else w["stage"]})
-                    for w in json.loads(self.path.read_text())]
-        except FileNotFoundError:
-            return []
+        return waiting_writes(self.path)
 
     def _keep(self, waiting: list[Write]) -> None:
         if not waiting:

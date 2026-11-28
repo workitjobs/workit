@@ -162,6 +162,12 @@ class InMemoryTracker:
 
 # The Tracker file in the data folder: a Developer checkout's. WorkIt Auto Apply keeps none (KeychainTracker).
 TRACKER = HOME / "tracker.json"
+# WorkIt Auto Apply's applications on the student's Applications Tracker on WorkIt, as the Tracker file's rows (W11):
+# with no Tracker file, what Lisul applied to before (the screener facts, other roles at the company) is WorkIt's,
+# read once a run by the already-applied check (apply.already_applied.Check). Empty in a Developer checkout.
+ON_WORKIT: list[dict] = []
+# The company a Write names when the row has none: WorkIt's add by link needs one.
+UNKNOWN_COMPANY = "Unknown company"
 
 # The keychain item, under the Employer accounts' service, that lists the accounts WorkIt Auto Apply made (W11): no
 # site is named this (a site is a host), so it never reads as an account. Their passwords are the service's other items.
@@ -249,15 +255,21 @@ def past_applications(posting_url: str = "", path: Path | None = None) -> tuple[
     """The companies the Tracker shows an Application submitted to, and those of them where Lisul's Outcome
     is an interview or an offer, but for `posting_url`'s own row (the Application being filled). Read
     without the lock: the file is saved whole (os.replace), and a plan may run while a write holds it."""
-    try:
-        saved = json.loads((path or TRACKER).read_text())
-    except (OSError, ValueError):
-        return [], []
-    rows = [row for row in saved.get("applications", []) if row.get("company") and row.get("posting_url") != posting_url
+    rows = [row for row in saved(path)["applications"] if row.get("company") and row.get("posting_url") != posting_url
             and row.get("status") == Status.SUBMITTED]
     interviewed = (Outcome.INTERVIEW, Outcome.OFFER)
     return (sorted({row["company"] for row in rows}),
             sorted({row["company"] for row in rows if row.get("outcome") in interviewed}))
+
+
+def saved(path: Path | None = None) -> dict:
+    """The Tracker file at `path` as saved (its applications and Requests; none when it is missing or won't read),
+    with WorkIt Auto Apply's rows from WorkIt (ON_WORKIT) among its applications."""
+    try:
+        kept = json.loads((path or TRACKER).read_text())
+    except (OSError, ValueError):
+        kept = {}
+    return {**kept, "applications": [*kept.get("applications", []), *ON_WORKIT]}
 
 
 def _plain(value):
@@ -305,10 +317,10 @@ class WorkItTracker:
     resume. A write that fails is said and never stops the run."""
 
     def __init__(self, inner, writes, resume_of: Callable[[str], str],
-                 ref_of: Callable[[str], dict] = lambda application_id: {},
+                 ref_of: Callable[[str, list], dict] = lambda application_id, answers: {},
                  sent_of: Callable[[str], list] = lambda application_id: []):
-        """WorkIt Auto Apply's applied write (W11) names its Sent resume by its id on WorkIt (`ref_of`, with no file)
-        and carries what the form sent (`sent_of`)."""
+        """WorkIt Auto Apply's applied write (W11) carries what the form sent (`sent_of`) and names its Sent resume
+        by its id on WorkIt (`ref_of`, from those answers: with no file)."""
         self.inner = inner
         self._writes = writes
         self._resume_of = resume_of
@@ -334,11 +346,11 @@ class WorkItTracker:
             return
         applied = stage == Stage.APPLIED
         try:
+            answers = self._sent_of(row.application_id) if applied else []
             said = self._writes.send(Write(
-                row.application_id, row.posting_url, row.company or "Unknown company", row.role or "Job", stage,
+                row.application_id, row.posting_url, row.company or UNKNOWN_COMPANY, row.role or "Job", stage,
                 self._resume_of(row.application_id) if applied else "",
-                resume_ref=self._ref_of(row.application_id) if applied else {},
-                answers=self._sent_of(row.application_id) if applied else []))
+                resume_ref=self._ref_of(row.application_id, answers) if applied else {}, answers=answers))
         except Exception as error:  # the run goes on: the row is in Apply's own Tracker
             said = f"not in your Applications Tracker ({type(error).__name__}: {error})"
         print(f"{row.company}, {row.role}: {said}", file=sys.stderr)

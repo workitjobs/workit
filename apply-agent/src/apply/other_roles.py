@@ -32,11 +32,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from apply import fill_engine
+from apply import fill_engine, tracker
 from apply.adapters import JobSite
 from apply.model import Posting, Question, Status, is_company, one_line, plain_text
 from apply.profile import ApplicantProfile
-from apply.tracker import TRACKER
 from apply.workit import job_key
 
 # Words that name a role, an internship or a posting.
@@ -125,10 +124,7 @@ def others(posting: Posting, board: Sequence[Opening], path: Path | None = None)
     Request on the same board (`board`). Read without the lock, as tracker.past_applications reads it."""
     if not posting.company.strip():
         return []
-    try:
-        saved = json.loads((path or TRACKER).read_text())
-    except (OSError, ValueError):
-        return []
+    saved = tracker.saved(path)  # WorkIt Auto Apply's applications on WorkIt are among its rows (W11)
     own, found, seen = _job(posting.url), [], set()
     for row in saved.get("applications", []):
         company, url = str(row.get("company") or ""), str(row.get("posting_url") or "")

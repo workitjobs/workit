@@ -902,8 +902,13 @@ Find files with a directory listing; these are the rules for where code goes.
   never a password, PIN or SSN answer), so no Record of it stays on the
   student's Mac, and the application's page shows it under What You Sent.
   `PUT .../applications/{job_id}/sent` only for an application applied or
-  later (409), `GET` the same; deleted with the application (its foreign
-  key cascades). A table of its own, not a column, so a Tracker list never
+  later (409), **once per application** (409 again, which the app reads as
+  kept: a write it sent again after WorkIt took it) and at most
+  `sent_application_daily_cap` a day (100, 429), since `form_questions`
+  keeps every new question's words for good and a loop of new questions
+  would grow it without end; `GET` the same; deleted with the application
+  (its foreign key cascades). The words go in sorted, so two sends adding
+  the same new words never deadlock. A table of its own, not a column, so a Tracker list never
   reads the answers. **Kept small:** each question's words once for every
   application (`form_questions`, unique by md5, so "Email" and every question
   of a posting many students apply to are one row), and each answer as

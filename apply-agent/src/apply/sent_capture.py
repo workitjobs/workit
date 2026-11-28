@@ -16,34 +16,12 @@ import json
 
 from apply.model import Question
 from apply.on_page import FIELD
+from apply.records import SECRET
 
 BINDING = "__applySentFields"
+MOST = 1_000_000  # characters a press may hand over: far past 300 answers of a page; a page's own call past it is dropped
 
-# Put into each frame on each turn: the listener is made once a window and added again each time (the same function
-# twice is one listener), so one a document.open() erased comes back, and the questions are renewed.
-LISTEN = """(questions) => {
-  window.__applySentQuestions = questions;
-  if (!window.__applySentListener) {
-    const field = @FIELD@;
-    window.__applySentListener = (event) => {
-      try {
-        const at = event.target && event.target.closest
-          && event.target.closest('button, input[type=submit], input[type=button], [role=button], a');
-        const tell = window.@BINDING@;
-        if (!at || typeof tell !== 'function') return;
-        const seen = [];
-        for (const [name, label] of window.__applySentQuestions || []) {
-          try { const got = field([name, label, 'read', 0]); if (got && got.found) seen.push([name, got.value || '']); }
-          catch (e) {}
-        }
-        if (seen.length) tell(JSON.stringify(seen));
-      } catch (e) {}
-    };
-  }
-  addEventListener('click', window.__applySentListener, true);
-}""".replace("@FIELD@", FIELD).replace("@BINDING@", BINDING)
-
-# The same read, now, for Approve and submit.
+# Each question's field as it shows now, [[name, value]]: Approve and submit's read, and the listener's.
 READ = """(questions) => {
   const field = @FIELD@;
   const seen = [];
@@ -53,6 +31,26 @@ READ = """(questions) => {
   }
   return seen;
 }""".replace("@FIELD@", FIELD)
+
+# Put into each frame on each turn: the listener is made once a window and added again each time (the same function
+# twice is one listener), so one a document.open() erased comes back, and the questions are renewed.
+LISTEN = """(questions) => {
+  window.__applySentQuestions = questions;
+  if (!window.__applySentListener) {
+    const read = @READ@;
+    window.__applySentListener = (event) => {
+      try {
+        const at = event.target && event.target.closest
+          && event.target.closest('button, input[type=submit], input[type=button], [role=button], a');
+        const tell = window.@BINDING@;
+        if (!at || typeof tell !== 'function') return;
+        const seen = read(window.__applySentQuestions || []);
+        if (seen.length) tell(JSON.stringify(seen));
+      } catch (e) {}
+    };
+  }
+  addEventListener('click', window.__applySentListener, true);
+}""".replace("@READ@", READ).replace("@BINDING@", BINDING)
 
 
 class Capture:
@@ -65,8 +63,9 @@ class Capture:
 
     def watch(self, page, questions: list[Question]) -> None:
         """Put the listener into each frame of `page` that lacks it: on each turn of the held page, so a document the
-        form loads (its next step) gets one too."""
-        self._questions = [[q.name, q.label] for q in questions]
+        form loads (its next step) gets one too. A secret's field (a password, a PIN) is never read: it never goes
+        to WorkIt (rehearsal.sent_answers), so it never comes into Apply's memory either."""
+        self._questions = [[q.name, q.label] for q in questions if not (SECRET.search(q.label) or SECRET.search(q.name))]
         if id(page) not in self._bound:
             try:
                 page.expose_binding(BINDING, lambda source, said: self._take(said))
@@ -92,14 +91,18 @@ class Capture:
         self.values.clear()
 
     def _take(self, said: str) -> None:
+        if not isinstance(said, str) or len(said) > MOST:
+            return  # not the listener's own words: any script on the page may call the binding
         try:
             self._keep(json.loads(said))
         except (TypeError, ValueError):
-            pass  # not the listener's own words
+            pass
 
     def _keep(self, seen) -> None:
+        """Only this form's questions are kept, so a page's own calls can't grow Apply's memory past them."""
+        asked = {name for name, _ in self._questions}
         for pair in seen if isinstance(seen, list) else []:
-            if isinstance(pair, list) and len(pair) == 2 and isinstance(pair[0], str) and isinstance(pair[1], str):
+            if isinstance(pair, list) and len(pair) == 2 and pair[0] in asked and isinstance(pair[1], str):
                 self.values[pair[0]] = pair[1][:20000]
 
 

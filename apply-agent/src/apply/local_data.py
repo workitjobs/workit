@@ -28,8 +28,8 @@ OLDER = ("tracker.json", "tracker.lock", "tracker.part")
 
 def forget(company: str, application_id: str) -> None:
     """Delete what this Mac kept of one Application: its Record, its files under SENT, its tailored resume, its
-    trace and its dismissed flags."""
-    names = _names(company, application_id)
+    trace and its dismissed flags. A Write with no company names tracker.UNKNOWN_COMPANY; its files have none."""
+    names = _names("" if company == tracker.UNKNOWN_COMPANY else company, application_id)
     for root, name in ((RECORDS, names[0]), (SENT, names[1])):
         for path in root.glob(f"*/{_escape(name)}"):
             _remove(path)
