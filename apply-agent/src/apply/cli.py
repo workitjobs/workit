@@ -100,6 +100,40 @@ def main(argv: list[str] | None = None, adapters: Adapters | None = None) -> Non
         return _main(argv, adapters)
 
 
+def _vault(action: str, host: str, email: str | None, store=None,
+           ask: Callable[[str], str] = input, secret: Callable[[str], str] | None = None,
+           terminal: Callable[[], bool] = lambda: sys.stdin.isatty()) -> None:
+    """`apply vault add|list|remove`. The password is asked for with getpass in Lisul's own terminal: never an
+    argument, an environment variable or piped input, so no agent or script hands one in or reads it back."""
+    import getpass
+
+    from apply import vault
+
+    store = store if store is not None else vault.store()
+    secret = secret or getpass.getpass
+    try:
+        if action == "list":
+            found = store.hosts()
+            print("\n".join(f"{name}\t{login}" for name, login in found) if found else "The vault is empty.")
+            return
+        name = vault.host(host)
+        if action == "remove":
+            print(f"Removed {name} from the vault." if store.remove(name) else f"The vault has no login for {name}.")
+            return
+        if not terminal():
+            raise SystemExit("apply vault add asks for the password in a terminal: run it in your own terminal.")
+        email = (email or ask(f"Email for {name}: ")).strip()
+        if "@" not in email:
+            raise SystemExit("Give the account's email.")
+        password = secret(f"Password for {email} at {name} (not shown): ")
+        if not password or password != secret("Again: "):
+            raise SystemExit("The passwords were empty or not the same: nothing saved.")
+        store.put(vault.Login(name, email, password))
+        print(f"Saved {email} for {name} in the vault. Apply signs in there by itself, on https://{name} only.")
+    except (ValueError, RuntimeError) as error:
+        raise SystemExit(str(error)) from None
+
+
 def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     parser = argparse.ArgumentParser(prog="apply")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -202,6 +236,17 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                                  "Apply made, from Keychain, so Chrome offers to save its password: installs the "
                                  "Apply accounts host and lists Keychain's accounts in the Tracker")
     commands.add_parser("push-test", help="send one test push to your phone (ntfy), or say how to set it up")
+    vaulted = commands.add_parser(
+        "vault", help="the sign-in vault: job portal logins in Keychain that Apply types into a sign-in page by itself "
+                      "(docs/sign-in.md, \"Sign-in vault\")",
+    ).add_subparsers(dest="action", required=True)
+    vault_add = vaulted.add_parser("add", help="save the login for a portal host; asks for the password in this "
+                                               "terminal, never as an argument")
+    vault_add.add_argument("host", help="the sign-in page's host alone, like amazon.jobs")
+    vault_add.add_argument("--email", help="the account's email (asked for when not given)")
+    vaulted.add_parser("list", help="each saved host and its email, never a password")
+    vault_remove = vaulted.add_parser("remove", help="remove a host's login from Keychain")
+    vault_remove.add_argument("host")
     scheduled = commands.add_parser(
         "schedule", help="launchd jobs for the Daily sweep (`apply run` at policies.yaml's schedule.daily_sweep_at) "
                          "and the Requests check (`apply run --requests-only` every 5 minutes)",
@@ -511,6 +556,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
         _sign_in(args.url, adapters.site if adapters else WorkerBrowsers(headless=False))
     elif args.command == "chrome-passwords":
         _chrome_passwords(ApplicantProfile.load(args.profile).get("identity.email"))
+    elif args.command == "vault":
+        _vault(args.action, getattr(args, "host", ""), getattr(args, "email", None))
     elif args.command == "push-test":
         _push_test(adapters.phone if adapters else live_phone())
     elif args.command == "schedule":
