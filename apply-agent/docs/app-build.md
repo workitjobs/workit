@@ -14,6 +14,11 @@ and uv:
 | `python3 scripts/build_app.py` | A test build from the working tree, uncommitted changes too | About 1.5 minutes with a warm compile cache, 6 to 7 from cold |
 | `python3 scripts/build_app.py --release` | A build for students, from the current commit's files only, with complete notices and no ccache. It refuses to start while `scripts/build_app.py` has uncommitted changes | 6 to 7 minutes, as a cold test build (it compiles every C file) |
 
+Each build signs every program in the app with the hardened runtime, with
+no flag: with the Developer ID when the Mac's keychains hold one (only
+`publish-app.yml`'s run does), else ad hoc, and then the app opens on that
+Mac only.
+
 Both write `build/out/WorkIt Auto Apply.app` (about 223 MB) and
 `build/out/WorkIt Auto Apply.dmg` (about 80 MB), and replace the last ones.
 `build/` is git-ignored. Each app names its commit in `Info.plist`
@@ -103,13 +108,23 @@ A GitHub-hosted Mac builds, signs and publishes every release (D32), and
 every installed app installs it, with no question.
 
 1. Test `main`: pull it, `python3 scripts/build_app.py`, launch the app and
-   run it (above). The workflow builds the same commit.
+   run it (above). The workflow builds the same commit, with the same
+   hardened runtime: only the signer differs.
 2. `gh workflow run publish-app.yml --ref main`. Its rules, and what to do
    when a run fails: `../../.github/CLAUDE.md`, Publish WorkIt Auto Apply.
 
-A test build signs nothing, so a developer needs no key. The update key
-lives in Infisical and the `auto-apply-desktop` environment only
-(`../../docs/secrets.md`).
+A test build signs ad hoc, so a developer needs no key. The Developer ID
+certificate, the notarization key and the update key live in Infisical and
+the `auto-apply-desktop` environment only (`../../docs/secrets.md`).
+
+**When Apple refuses a build**, the notarize step prints each refused file
+and Apple's reason. `sign_app` signs every program and library it finds,
+but it signs Sparkle's framework part by part, so a new part of a new
+Sparkle needs its own line there; and an exception notarization forbids
+(`get-task-allow`) must stay out of `ENTITLEMENTS` (`../CLAUDE.md`, "Every
+program in the app runs with the hardened runtime"). On your own Mac,
+`codesign -dv <file>` shows `runtime` in its `flags` once a file has the
+hardened runtime.
 
 ## Test an update
 
@@ -144,17 +159,19 @@ it out of git, and delete the test build afterwards: it allows plain HTTP.
 
 ## Still open
 
-- Step 2: Developer ID signing with the hardened runtime and the
-  entitlements for Node (JIT) and Apple events, then notarizing the app
-  and the DMG, in `publish-app.yml`, with their secrets in the
-  `auto-apply-desktop` environment.
+- Step 2 is built (KAN-950) and has never run: the hardened runtime is in
+  every build, and `publish-app.yml` signs with the Developer ID and
+  notarizes. It waits on the Apple enrollment and the five `APPLE_*`
+  secrets (`../../docs/secrets.md`, Load the Apple keys).
+  The first notarized build must be opened on a Mac that never built the
+  app, from the website's link, for W8's "Done when".
 - Step 3: a beta channel for testers is not built. Sparkle and the update
   key are in every build (2026-11-26).
-- Step 4: publishing (above) is built, and nothing is published yet: the
-  workflow's first run on a GitHub Mac waits on KAN-941's merge. The
-  website's `DOWNLOAD_URL`
+- Step 4: publishing (above) is built, and nothing is published yet: a
+  run now refuses a DMG with no notarization ticket, so the first publish
+  waits on step 2's secrets. The website's `DOWNLOAD_URL`
   (`frontend/src/app/(seeker)/auto-apply/desktop/page.tsx`) stays null
-  until step 2, since until then the DMG opens on no other Mac; then it is
+  until then, and until W0 and W6 (the design doc's W8 step 4); then it is
   `https://downloads.workitjobs.ai/WorkIt-Auto-Apply.dmg`.
 - `worker-extension/` leaves `INPUTS` with W6.
 - W11: `student.app` still copies the Test Person sample, which the app no
