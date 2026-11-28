@@ -227,6 +227,16 @@ def test_a_todo_whose_mail_has_no_link_takes_the_link_of_the_same_companys_same_
         ("Ramp", "assessment", "https://app.codesignal.com/pre-screens")]
 
 
+def test_a_thank_you_for_applying_is_a_todo_only_when_it_asks_for_a_step_with_a_link():
+    # Fault: the confirmation rule off, so a thank-you that says "taking the time to complete your application" is a
+    # Form, and one that says the next step "is a HackerRank assessment" is an Online assessment.
+    assert rules(read(sample("greenhouse-thanks-only")), []).kind is None
+    assert rules(read(sample("greenhouse-thanks-mentions-assessment")), []).kind is None
+    asks = rules(read(sample("greenhouse-thanks-asks-assessment")), [])
+    assert (asks.kind, asks.due) == ("assessment", date(2026, 11, 30))
+    assert asks.link == "https://www.hackerrank.com/test/c0nt0s0/start"
+
+
 def test_mail_about_no_job_application_makes_no_todo_whoever_reads_it(tmp_path):
     # Fault: the job rule off, so a student-aid office's "complete your aid form" is a Form, by the rules or the model.
     assert rules(read(sample("student-aid-form")), []).kind is None

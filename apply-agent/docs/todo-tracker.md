@@ -64,10 +64,14 @@ Off (no flag, or the Student build), nothing scans, `Bridge.todos`, `scan_todos`
 - **A mail with no link** (`TodoStore.lend_links`, after each scan): its to-do takes the link of the newest to-do of
   the same company and kind that has one. Ramp's "Confirmation on your Application + CodeSignal" says the
   assessment comes in a later mail and holds no link; it opens that mail's CodeSignal link.
-- **A gate on either reader's answer** (`todo_scan.kept`). Mail must be about a job application: a Tracker row
+- **Two gates on either reader's answer** (`todo_scan.kept`). Mail must be about a job application: a Tracker row
   matches it, its sender is a job system or assessment platform (`RECRUITING`), or it or its sender has a job word
-  (`JOB`: job, role, intern, candidate, recruiter, interview...) and no school or student-aid words (`SCHOOL`). "Application"
-  is no job word: the FAFSA is the Free Application for Federal Student Aid.
+  (`JOB`: job, role, intern, candidate, recruiter, interview...) and no school or student-aid words (`SCHOOL`).
+  "Application" is no job word: the FAFSA is the Free Application for Federal Student Aid. And a thank-you or
+  receipt (`employer_mail.CONFIRMATION`) is a to-do only when a sentence that says no "if" asks for a step now
+  (`ASKS`: "Please complete the assessment", "click the link to schedule") and a link to it is found. So "we
+  appreciate you taking the time to complete your application" and "the first step is a HackerRank assessment"
+  make none. A mail that says the application isn't sent yet (`UNFINISHED`) is no confirmation.
 - **Schedule:** the window scans when it opens and every `todo_scan.EVERY` (30 minutes), one scan at a time
   (`Bridge._todo_scanning`). Scan now and `apply window todo-scan` scan at once.
 

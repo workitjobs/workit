@@ -29,6 +29,7 @@ from apply import employer_mail
 from apply.employer_mail import (
     COMPLETED,
     CONDITIONAL,
+    CONFIRMATION,
     INCOMPLETE,
     INTERVIEW,
     INTERVIEW_SUBJECT,
@@ -75,6 +76,16 @@ SCHOOL = re.compile(r"\b(fafsa|financial aid|student aid|scholarships?|tuition|a
 # Senders that send only recruiting mail: the job systems and assessment platforms of SHARED_DOMAINS, not the plain
 # mail services.
 RECRUITING = employer_mail.SHARED_DOMAINS - {"sendgrid.net", "amazonses.com", "mailgun.org", "gmail.com", "outlook.com"}
+# A sentence that asks for a step now: the step's verb begins it or follows "please", "you must", "click ... to".
+# "We appreciate you taking the time to complete your application" thanks for a step already taken.
+ASKS = re.compile(r"(^|\bplease\s+|\bkindly\s+|\bto (begin|start|get started),?\s+|\byou (must|need to|are (required|asked|"
+                  r"invited) to|have been invited to)\s+|\bwe (ask|invite) you to\s+|\b(click|use|follow|visit) [^.!?]{0,40}?"
+                  r"\bto\s+)(complete|take|start|begin|fill (out|in)|finish|submit|sign|schedule|book|select|choose|pick|"
+                  r"upload|send|provide|answer|verify|activate|confirm|accept|review)\b", re.IGNORECASE)
+# An application not yet sent: a thank-you for it is no confirmation. INCOMPLETE without its "complete your
+# application", which a confirmation says too ("thank you for taking the time to complete your application").
+UNFINISHED = re.compile(r"finish your application|(application|profile) (is )?(still )?incomplete|not yet (been )?"
+                        r"submitted|started an application|yet to submit", re.IGNORECASE)
 # Words a to-do's own link has, in its label or address, by kind.
 LINK_WORDS = {
     "assessment": r"assessment|hackerrank|codesignal|codility|hirevue|karat|test|challenge|begin|start",
@@ -248,14 +259,19 @@ def rules(mail: Mail, rows: list) -> Read:
 
 
 def kept(mail: Mail, reading: Read, rows: list) -> Read:
-    """`reading`, or no to-do when the mail is about no job application: no Tracker row, no recruiting sender, and no
-    job word in it or its sender ("Acme Recruiting <jobs@acme.com>"), or a school's words."""
+    """`reading`, or no to-do when the mail is about no job application (no Tracker row, no recruiting sender, and no
+    job word in it or its sender, "Acme Recruiting <jobs@acme.com>", or a school's words), or is a confirmation or
+    receipt that doesn't ask for a step now with a link to it."""
     if reading.kind is None:
         return reading
-    _, full, _ = _texts(mail)
+    _, full, definite = _texts(mail)
     domain = _address(mail.sender).rpartition("@")[2]
     if not (".".join(domain.split(".")[-2:]) in RECRUITING or employer_mail.match(mail, rows)
             or (JOB.search(f"{mail.sender}\n{full}") and not SCHOOL.search(full))):
+        return Read(None, by=reading.by)
+    sentences = re.split(r"(?<=[.!?\n])\s+", definite)
+    asks = reading.link and any(ASKS.search(s.strip()) for s in sentences)
+    if CONFIRMATION.search(full) and not UNFINISHED.search(definite) and not asks:
         return Read(None, by=reading.by)
     return reading
 
