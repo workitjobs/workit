@@ -10,7 +10,7 @@ only while under the cap, so two requests at once can't both slip past it.
 It flushes, never commits: the route's own commit keeps the count and the
 row together. At the cap it raises `OverDailyCap`, which app/main.py answers
 as a 429 for every route. WorkIt's admins (WORKIT_ADMINS, by account id or
-sign-in email) are never capped: they are its developers, whose own runs
+profile email) are never capped: they are its developers, whose own runs
 write far more than a student's.
 """
 
@@ -18,12 +18,13 @@ import datetime
 import uuid
 from enum import StrEnum
 
-from sqlalchemy import text
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.models.daily_counts import Daily_Count
+from app.models.profiles import Applicant_Profile, Company_Membership
 
 
 class Capped(StrEnum):
@@ -95,5 +96,9 @@ async def _is_admin(db: AsyncSession, account_id: uuid.UUID) -> bool:
         return False
     if str(account_id).lower() in admins:
         return True
-    email = await db.scalar(text("SELECT email FROM auth.users WHERE id = :id"), {"id": account_id})
-    return bool(email) and str(email).lower() in admins
+    # The profile row's sign-in email, which get_current_account keeps equal to the token's (as deps.is_admin reads).
+    for profile in (Applicant_Profile, Company_Membership):
+        email = await db.scalar(select(profile.email).where(profile.id == account_id))
+        if email:
+            return str(email).lower() in admins
+    return False
