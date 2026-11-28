@@ -1963,12 +1963,19 @@ CAPTCHA_TRY = "a click or key in a captcha"
 # worker stays refused. As a Handoff it stopped every SmartRecruiters form (live, 2026-11-13: "Apply blocked a
 # worker while the page is guarded while Claude filled the form"), whose page makes one as it opens.
 PAGE_WORKER = re.compile(r"^a (?:worker|shared worker|service worker|worklet) while the page is guarded$")
+# An ad or analytics pixel's own form post, made by the page's script with no click (Meta's Pixel posts its event
+# to facebook.com/tr into a hidden frame): refused, and nothing of the application in it. As a Handoff it held
+# Tesla's form (live, 2026-11-27: "Apply blocked a form submission (POST https://www.facebook.com/tr/, ...").
+PAGE_TRACKER = re.compile(
+    r"^a form submission \((?:POST|GET) https://(?:[\w-]+\.)*(?:facebook\.com/tr|google-analytics\.com|doubleclick\.net"
+    r"|bat\.bing\.com|analytics\.tiktok\.com|px\.ads\.linkedin\.com)\b[^)]*, by a script\)$")
 
 
 def drive_blocks(blocked: list[str]) -> list[str]:
     """What in `blocked` (DriveGuard.blocked) stops a model's drive: all but a click or key it tried in a
-    captcha (refused there, untouched) and a worker the page itself made (refused, PAGE_WORKER)."""
-    return [b for b in blocked if b != CAPTCHA_TRY and not PAGE_WORKER.match(b)]
+    captcha (refused there, untouched), a worker the page itself made (refused, PAGE_WORKER) and an ad or
+    analytics pixel's own post (refused, PAGE_TRACKER)."""
+    return [b for b in blocked if b != CAPTCHA_TRY and not PAGE_WORKER.match(b) and not PAGE_TRACKER.match(b)]
 _IN_CAPTCHA = r"""
     const eventType = get(EvP, 'type');
     const refuse = (event) => {

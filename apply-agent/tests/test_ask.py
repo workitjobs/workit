@@ -332,6 +332,16 @@ def test_a_drive_goes_on_past_a_worker_the_page_made_but_never_past_a_click():
     assert drive_blocks(["a worker while the page is guarded, and the Submit click"]) != []  # only the whole note
 
 
+def test_a_drive_goes_on_past_an_ad_pixels_own_post_but_not_past_a_buttons():
+    from apply.submit_guard import drive_blocks
+
+    pixel = "a form submission (POST https://www.facebook.com/tr/, into frame fb07221252438055217, by a script)"
+    assert drive_blocks([pixel]) == []  # Tesla's, live
+    assert drive_blocks(["a form submission (POST https://www.facebook.com/tr/, by the \"Submit\" button)"]) != []
+    assert drive_blocks(["a form submission (POST https://www.facebook.com.evil.example/tr, by a script)"]) != []
+    assert drive_blocks(["a form submission (POST https://boards.greenhouse.io/apply, by a script)"]) != []
+
+
 def test_a_worker_the_page_made_while_claude_fixed_it_is_not_said_as_its_block():
     page = Page([dict(f) for f in FORM])
     reply = ask.ask(Claude(lambda p: None, said()), page, "fix it", [], ask.Form(POSTING), "",
