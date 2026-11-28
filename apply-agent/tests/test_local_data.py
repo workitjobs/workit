@@ -172,25 +172,26 @@ def test_the_tailored_resume_is_deleted_once_the_form_has_it_and_named_by_its_id
 
 def test_what_the_form_showed_at_the_press_wins_and_an_edited_ai_answer_is_no_longer_marked_ai():
     """Fault: an edit the student made on the held form was lost (the Record's fill-time answer went instead), an
-    essay they rewrote stayed marked as AI's, an AI answer they cleared went as sent, or a cover letter upload went as
-    its file's path."""
+    essay they rewrote stayed marked as AI's, an AI answer they cleared went as sent, a resume they swapped for their
+    own went as WorkIt's, or a cover letter upload went as its file's path."""
     questions = [Question("why", "Why Acme?", "textarea"), Question("heard", "How did you hear about us?", "text"),
                  Question("year", "Graduation year", "select"), Question("cl", "Cover Letter", "file"),
-                 Question("extra", "Anything else?", "textarea")]
+                 Question("extra", "Anything else?", "textarea"), Question("resume", "Resume", "file")]
     record = Record(POSTING, None, "", Filled(
         questions, answers={"heard": "WorkIt", "year": "2027", "cl": Path("/Users/sam/Sam_Cover_Letter.pdf"),
-                            "extra": "Happy to relocate."},
+                            "extra": "Happy to relocate.", "resume": Path("/Users/sam/Sam_Resume.pdf")},
         readback={"year": "2027", "extra": "Happy to relocate."}, screenshot=b""), date(2026, 11, 27),
         essays="## Why Acme?\nI rode their trains.\n\n## Cover Letter\nDear Acme, ...",
         drafted=(("How did you hear about us?", "WorkIt"), ("Anything else?", "Happy to relocate.")))
     shown = {"why": "I rode their trains every day for four years.", "heard": "WorkIt", "year": "2028",
-             "cl": "C:\\fakepath\\Sam_Cover_Letter.pdf", "extra": ""}
+             "cl": "C:\\fakepath\\Sam_Cover_Letter.pdf", "extra": "", "resume": "C:\\fakepath\\Sam_Own_Resume.pdf"}
 
     assert sent_answers(record, shown) == [
         {"question": "Why Acme?", "answer": "I rode their trains every day for four years.", "ai": False},
         {"question": "How did you hear about us?", "answer": "WorkIt", "ai": True},
         {"question": "Graduation year", "answer": "2028", "ai": False},
         {"question": "Cover Letter", "answer": "Dear Acme, ...", "ai": True},
+        {"question": "Resume", "answer": "Sam_Own_Resume.pdf", "ai": False},
     ]
 
 

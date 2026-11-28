@@ -1387,13 +1387,16 @@ def _record_asked(done: Rehearsed, changed: list[dict], adapters: Adapters) -> N
 # What each form sent, by Application, from the student's Submit until its applied write takes it (W11): WorkIt keeps
 # it (PUT .../sent), so no Record of it stays on the Mac. In memory only, as TOLD.
 SENT_ANSWERS: dict[str, list[dict]] = {}
+# A file box's value as the press reads it: Chrome gives every chosen file this path, with its name.
+FAKEPATH = re.compile(r"C:\\fakepath\\(.+)")
 
 
 def sent_answers(record: Record, shown: dict[str, str] | None = None) -> list[dict]:
     """What the form sent, for WorkIt: each question it asked and the answer its field showed at the press
     (`shown`, apply.sent_capture: the student's edits on the held form are in it), else what the fill read back or
     planned; an essay's whole text where the press read none, and a cover letter's when the form took it as a file;
-    a file by its name alone; in the form's order. A secret's answer (a password, a PIN, an SSN) and an empty one never
+    a file by its name alone, the one the box held at the press when the student swapped in their own; in the form's
+    order. A secret's answer (a password, a PIN, an SSN) and an empty one never
     go. `ai` marks an essay or an answer AI drafted, as long as the form sent it as AI wrote it."""
     shown = shown or {}
     written = {one_line(e.question.label): e.text for e in from_cell(record.essays, headings(record.essays))
@@ -1406,7 +1409,10 @@ def sent_answers(record: Record, shown: dict[str, str] | None = None) -> list[di
             continue
         planned = record.filled.answers.get(q.name)
         ai_text = written.get(label) or (planned if label in drafted else None)
-        if q.kind == "file":  # the press reads a file box as its path: a letter's words, else the file's name
+        picked = FAKEPATH.match(shown.get(q.name) or "") if q.kind == "file" else None
+        if picked and picked[1] != _file_name(planned):  # the student put a file of their own in its place
+            answer, ai_text = picked[1], None
+        elif q.kind == "file":  # a letter's words, else the file's name
             answer = written.get(label) or record.filled.readback.get(q.name) or planned
         elif q.kind in ("text", "textarea") and q.name in shown:  # a box read at the press: empty is what it sent
             answer = shown[q.name]
@@ -1421,6 +1427,10 @@ def sent_answers(record: Record, shown: dict[str, str] | None = None) -> list[di
             sent.append({"question": label[:2000], "answer": answer if isinstance(answer, list) else answer[:20000],
                          "ai": ai_text is not None and _same_text(answer, ai_text)})
     return sent[:300]
+
+
+def _file_name(given) -> str:
+    return Path(str(given)).name if given and not isinstance(given, (list, tuple)) else ""
 
 
 def _same_text(sent, written) -> bool:

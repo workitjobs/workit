@@ -1,6 +1,12 @@
 """What a held form shows on each press (apply.sent_capture, W11): the values WorkIt keeps as what the application
 sent, the student's edits on the form included. Chromium: run by hand with the Filler tests (CI runs no such file)."""
 
+import http.server
+import tempfile
+import threading
+import time
+from pathlib import Path
+
 import pytest
 from playwright.sync_api import sync_playwright
 
@@ -68,3 +74,66 @@ def test_approve_and_submit_reads_the_form_as_it_is_before_apply_presses(page):
     captured.read_now(page)
 
     assert captured.values["first_name"] == "Samuel" and "email" not in captured.values
+
+
+# --- on a plain Worker (WorkIt Auto Apply's): its own bridge, page and bindings (apply.plain.page)
+
+def _pages():
+    class Pages(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(f"<!doctype html>{STEP_TWO if self.path.startswith('/two') else STEP_ONE}".encode())
+
+        def log_message(self, *_):
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Pages)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+@pytest.fixture
+def plain_page():
+    from apply.plain.bridge import Bridge
+    from apply.plain.launcher import PlainWorkers, chrome_for_testing
+    from apply.plain.page import PortPage
+
+    try:
+        chrome_for_testing()
+    except FileNotFoundError:
+        pytest.skip("needs Chrome for Testing")
+    server, folder = _pages(), Path(tempfile.mkdtemp(prefix="apw-sent-", dir="/tmp"))
+    workers = PlainWorkers(folder, kind="testing", bridge=Bridge(folder / "w.sock"))
+    try:
+        worker = workers.launch(0).connection
+        page = PortPage(worker, worker.call("tabs.create", url="about:blank", active=False)["tab"])
+        page.base = f"http://127.0.0.1:{server.server_address[1]}"
+        yield page
+    finally:
+        workers.stop_all()
+        server.shutdown()
+
+
+@pytest.mark.xdist_group("plain")
+def test_a_plain_workers_held_form_keeps_each_press_too(plain_page):
+    """Fault: WorkIt Auto Apply's Workers (plain, through the worker extension) never heard the press or never got the
+    binding, so every edit on the held form was lost and the Record's answers went as sent."""
+    page, captured = plain_page, Capture()
+    page.goto(f"{page.base}/one")
+    captured.watch(page, QUESTIONS)
+    page.fill("#first_name", "Samuel")
+    page.fill("#why", "I rode their trains every day.")
+    page.click("#next")
+    page.goto(f"{page.base}/two")  # the next step: a new document, so the next turn puts a listener in it
+    captured.watch(page, QUESTIONS)
+    page.fill("#email", "sam@example.com")
+    page.click("#submit")
+    for _ in range(40):  # the binding's call comes on a thread of its own
+        if "email" in captured.values:
+            break
+        time.sleep(0.05)
+
+    assert {k: captured.values.get(k) for k in ("first_name", "why", "email")} == {
+        "first_name": "Samuel", "why": "I rode their trains every day.", "email": "sam@example.com"}

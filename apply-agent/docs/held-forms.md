@@ -770,4 +770,9 @@ else the Record's; an AI answer the student rewrote is no longer marked AI.
 - **A secret's field is never read** (`records.SECRET`: a password, a PIN), so it never comes into Apply's memory.
 - **A text box read empty at the press sent nothing**: an AI answer the student cleared is not recorded as sent.
 - **Not read:** Workday's Review page has no fields, so its answers are those each step showed as it was left.
-- Tests: `tests/test_sent_capture.py` (Chromium, run by hand) and `tests/test_local_data.py`.
+- **A file the student swapped in** goes by its own name, never as AI's: Chrome reads every chosen file as
+  `C:\fakepath\<name>`, and a name other than the fill's is theirs. The Sent resume is then named only when that name
+  is the resume's (`student.resume_ref`).
+- **Cost** (2026-11-27, a 60-question form, Chromium and a plain Worker alike): about 2 ms a turn to put the listener
+  in, and 7 ms of a press to read every field.
+- Tests: `tests/test_sent_capture.py` (Chromium and a plain Worker, run by hand) and `tests/test_local_data.py`.
