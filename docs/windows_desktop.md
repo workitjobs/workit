@@ -462,8 +462,9 @@ says so.
    `uv run apply rehearse https://job-boards.greenhouse.io/formlabsinternships/jobs/8223362`.
    The Apply window opens behind your work (P12), the form fills and is
    held, and the window closes when you end the run. Then the same
-   command through cmd, `cmd /c "uv run apply rehearse <link> > run.log
-   2>&1"`: it ends as before, and `run.log` holds the "→" (P13). Windows
+   command through cmd, `cmd /c "uv run apply rehearse
+   https://job-boards.greenhouse.io/formlabsinternships/jobs/8223362 >
+   run.log 2>&1"`: it ends as before, and `run.log` holds the "→" (P13). Windows
    PowerShell 5.1 would save the output again in its own encoding.
 6. **M2, plain Workers.** `worker_mode: plain` and `plain_chrome: testing`,
    then the same rehearsal. The Worker says hello (P4, P5). If it never
