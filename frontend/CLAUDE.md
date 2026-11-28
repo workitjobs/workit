@@ -3843,6 +3843,63 @@ No Failed Field share dropping. `lib/fill-health.ts` is its pure half (the
 query, the percent; `node --test`); its read is `getFillHealth` in
 `fill-report-queries.ts`.
 
+`/admin/resume-reading` (who read each uploaded resume, KAN-953) is the
+same kind of page, from `GET /admin/resume-reading` under the same
+`WORKIT_ADMINS` gate (403 → the 404): the model or the rule-based parser,
+from the API's reading log. `lib/resume-reading.ts` is its pure half (the
+shapes, each reason's name and whether it is a model's failure, the
+status rule `statusOf`, the sums; `node --test`), its read is
+`getResumeReading` in `fill-report-queries.ts`, and `resume-reading/`
+holds the page (the read), `view.tsx` (the page drawn from one answer),
+`parts.tsx` and the client table. It shows counts and an account id only,
+never resume text. Each period is one read of the API (a median cannot be
+cut from a longer period's answer, as Scrape Health cuts its days).
+
+**Resume Reading is the admin pages' newer look, from a design review
+(2026-11-27, the user's call), and the rules it left hold for any new admin
+card.** The first build stood seven equal white cards 16px apart, and the
+user found it dense and "AI-ish". What was wrong, measured, and what to do:
+
+- **One number leads the first screen.** Every card had the same weight
+  and the largest number was the size of the page title. The page's
+  answer and its four numbers now stand on the ground with no box, and
+  the lead number is `text-hero` (40px) beside three at `text-heading`
+  (26px): at 40px beside 36px the four read as equal. Two sizes side by
+  side sit on one baseline, which a subgrid row gives them (`Figure` in
+  `resume-reading/parts.tsx`).
+- **One format for one kind of value.** A day is "Nov 27" everywhere on
+  the page (`dayLabel`), and a time "Nov 27 19:42": the chart, the
+  accuracy card and the table each wrote a date their own way.
+- **The space between groups is larger than the space inside one.** A
+  card had 20px of padding and 16px to its neighbour, so the page read as
+  one slab. Groups are 32px apart (`gap-8`), and cards in a group 16px.
+- **One fact, one place.** About a third of the first screen's 45 values
+  were repeats (the AI share in a sentence and again as two counts, a
+  reason's count again as a fact under the status).
+- **No pill for a count.** Six tinted pills in one list read as a
+  generated page. A reason is a glyph, its name, a plain count and a thin
+  bar for its share, which a pill never showed.
+- **A glyph only where it carries meaning**: one per reason and one per
+  reader, so a list scans by shape. Never beside every number or title.
+- **Red is a model's failure; grey is by design** (the daily limit, a file
+  with no text), and the grey is the light one (`ink-subtle`): a dark
+  grey bar on the longest reason took the eye from the red failures under
+  it. The rule-based parser's series in the chart is amber: a weaker
+  reading, not a failure.
+- **A chart that is not the page's main thing passes `DayColumns` a
+  shorter `plotClassName`.** Beside a list, the list's rows still set the
+  row's height (six reasons are 376px), so the chart cannot be shorter
+  than the card beside it.
+- **Numbers that are compared share a baseline**: two side by side, one
+  under a label that wrapped, did not line up, so they are rows.
+- **A table's rows are one line, and it fits its card at a 1440px
+  window**: who read a resume and why share a cell, with no pill.
+- **Vary the split**: two thirds beside one third three times down the
+  page reads as a template, so the second row is mirrored.
+
+Scrape Health and Fill Health keep the earlier look (a status card beside
+a numbers card) until they are redone the same way, with Brian.
+
 **The admin pages share one shell** (KAN-879, `app/admin/layout.tsx`): a
 sidebar that links every admin page, beside the page; below lg it is a bar
 above the page. From lg up its button collapses it to a rail of icons,
@@ -3947,23 +4004,28 @@ link goes to its section (the user's request, 2026-11-19):
   `admin/format.ts` (`count`, `when`: seven files had their own
   `count`), `admin/sort-heads.tsx` (`SortHeads` and `bySort`, the
   sortable header both tables draw, so their `aria-sort` cannot drift),
-  and `Key` from `reads-chart.tsx`. A third admin table takes
-  `SortHeads`; it never copies the header.
+  and `admin/day-columns.tsx` (`DayColumns`, the stacked columns per day
+  that Scrape Health's reads and Resume Reading's readings both draw, and
+  `Key`, a chart key's swatch). A new admin table takes `SortHeads` and a
+  new chart per day takes `DayColumns`; neither is copied.
 - **A table's pick can outlive its option** (`fills-table.tsx`, `held`):
   the Job System and Errors options come from the window's rows, and the
   window moves under the table. A pick the rows no longer hold counts as
   no pick, or the table says nothing matches while rows exist. Board
   Reads lists every hiring system whatever the window, so it needs none.
-- **A time arrow is one `Link` in both states** (`window-arrow.tsx`): off, it is
-  `aria-disabled`, points at the window in view and stops its own click.
-  It was a plain `<a>` when off and a `Link` otherwise, so React removed
-  the node as an arrow reached its limit and a keyboard lost its focus
-  (WCAG 2.4.3). A control that can switch off keeps one element type.
+- **A control that can switch off keeps one element type.** The time
+  arrows (removed 2026-11-27, below) were a plain `<a>` when off and a
+  `Link` otherwise, so React removed the node as an arrow reached its
+  limit and a keyboard lost its focus (WCAG 2.4.3).
+- **A grid of cards gives each card `min-w-0`** (`*:min-w-0` on the grid,
+  KAN-953): a grid item is at least as wide as its content, so a table
+  whose headers do not wrap pushed its card past a phone's edge, and the
+  card beside it in the row went with it.
 - **The sidebar's section arrow is `IconButton`** (`place="row"`, no
   tooltip, `[--hit-grow:0px]` so a mouse press beside it still reaches the
   page's link): it gets the 44px touch target from the part. It was a
   hand-built 28px button.
-- **A chart column has a 2px floor** (`min-h-0.5`, `reads-chart.tsx`): 3
+- **A chart column has a 2px floor** (`min-h-0.5`, `day-columns.tsx`): 3
   failed reads on a 5,000 axis drew 0.13px, so a day with failures showed
   no red.
 
@@ -3977,24 +4039,26 @@ one scroll, read from `GET /admin/scrape-health` under the same
 `WORKIT_ADMINS` gate (403 → the 404). Top to bottom, each part its own
 file in `admin/scrape-health/`:
 
-- **The title row and the one time control** (`window-controls.tsx`): the
-  period (7, 14, 30 or 90 days), and two arrows around the days in view
-  ("Nov 9 to Nov 22") that move those days one period earlier or later.
-  All are links, so **the address holds the window** (`?days=&back=`, read
-  by `lib/scrape-status.ts`'s `windowOf`): a reload, Back and a shared
-  link keep it, and the numbers, the chart and the table all show the same
-  days. **One vocabulary, days, and the period is the arrows' step**
-  (2026-11-22). The arrows had a switch of their own, Move By (Week or
-  Month), beside the periods: two rows of lengths of time in two sets of
-  words, and the user could not tell what each did. So 7 Days moves week
-  by week and 30 Days month by month. `moved` cuts the last step back to
-  the days the 90 still hold, and a step forward first returns to a whole
-  number of periods; `resized` keeps the window's last day when the period
-  changes. An arrow is named by the days it shows ("Show Oct 26 to Nov
-  8"), and has no tooltip: a Previous or Next arrow is read on sight
-  (`ui/tip.tsx`). Before all this the chart had its own zoom and arrows
-  beside the page's day pills, which a review found was two time controls
-  on one page.
+- **The title row and the one time control** (`window-controls.tsx`, on
+  every admin page): the period (7, 14, 30 or 90 days), ending today
+  (UTC). Each period is a link, so **the address holds the window**
+  (`?days=`, read by `lib/scrape-status.ts`'s `windowOf`): a reload, Back
+  and a shared link keep it, and the numbers, the chart and the table all
+  show the same days. **One setting, one control: the period, and no
+  arrows** (KAN-953, 2026-11-27, the user's call). Two arrows around the
+  days in view ("Nov 9 to Nov 22") moved those days one period earlier or
+  later (`?back=`). They reached no new day, since the 90-day period
+  already shows every day the pages read; the forward arrow was off on
+  every first visit and both at 90 Days; and with them the control was a
+  fixed 520px that left the title row below a 1223px window and broke
+  into two unequal rows on a phone. Without them it is 288px, stays on
+  the title row down to 768px, and takes the page's width below sm. The
+  days in view are written once, in the chart's header; a day's own
+  numbers are its column's tooltip. An old address's `back` is ignored.
+  Never bring a second time control back: before the arrows went, their
+  own switch, Move By (Week or Month), went for the same reason
+  (2026-11-22), and before that the chart's own zoom beside the page's
+  day pills.
 - **The status card** (`status-line.tsx`): Not Running, Needs Attention or
   Healthy, with a glyph, the reason in a sentence, and the counts now
   (stale, failing and resting boards, tasks pending and claimed), three a

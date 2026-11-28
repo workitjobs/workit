@@ -55,7 +55,7 @@ export default async function ScrapeHealthPage({
             Read at {when(all.read_at)} UTC. The numbers are kept for 10 minutes.
           </p>
         </div>
-        <WindowControls window={window} today={today} />
+        <WindowControls window={window} />
       </div>
 
       <div className="mt-6 flex flex-col gap-4">

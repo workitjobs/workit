@@ -1,0 +1,13 @@
+{
+  "runs": [
+    {
+      "ran": "2026-11-17",
+      "set": "made_up",
+      "resumes": 19,
+      "model": "gemini-3.5-flash-lite",
+      "parser": 71.5,
+      "ai": 93.0,
+      "combined": 96.8
+    }
+  ]
+}

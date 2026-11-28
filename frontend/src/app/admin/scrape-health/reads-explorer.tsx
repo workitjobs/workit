@@ -12,7 +12,7 @@ import { count } from "../format";
 import { SCRAPE_SECTIONS } from "../pages";
 import { Panel, TD } from "../panel";
 import { bySort, type Sort, SortHeads } from "../sort-heads";
-import { Key } from "./reads-chart";
+import { Key } from "../day-columns";
 
 /** The systems the first card shows before its arrow opens the rest. */
 const FIRST = 5;

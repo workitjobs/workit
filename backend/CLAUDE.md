@@ -653,6 +653,35 @@ Find files with a directory listing; these are the rules for where code goes.
   choice) and the top 3 error names, plus the
   period's engine versions for the filter. A job system that breaks shows
   as its `clean_share` dropping that day. Tests: `tests/test_fill_events.py`.
+- **Resume reading for admins** (KAN-953, `routers/resume_reading.py` over
+  `queries/resume_readings.py`'s `reading_health`): `GET
+  /admin/resume-reading?days=` behind `get_admin`, as `/admin/fill-health`.
+  For the last `days` days (UTC), today included, it answers the reading
+  log's rows as counts: per day by reader, why the parser's reading was
+  saved (most first), the model readings' median time, each model that
+  replied with its readings, median time and tokens, today's AI readings
+  against the day's limit (the pool row of `ai_usage_counters` for
+  `parsing`, and `ai_daily_pool * ai_parsing_share`), and the newest 50
+  readings. **Nothing of a student but the account id leaves it**: the log
+  holds no resume text, and the test checks the answer for the student's
+  name and email. **It keeps no answer in memory** (the scraper's route
+  does): the log is small and every period is its own read, since a median
+  cannot be cut from a longer period's answer. **A model's cost is its
+  tokens at `MODEL_PRICES`** (`Settings.prices`: JSON, a model's name to
+  its input and output dollars a million tokens; `docs/secrets.md`), null
+  for a model with no price: WorkIt's free tiers charge nothing, so the
+  page shows what the same readings would cost on a paid plan. A value
+  that is not that JSON is no prices, never an error. A new API setting
+  also joins `FORWARDED` in `cloudflare/src/index.ts`, or the container
+  never sees it. **`accuracy` is the newest run in
+  `data/reading_scores.json`** (`services/reading_scores.py`): a committed
+  record of the scoring runs the team keeps (KAN-900's
+  `app.scripts.reading_score`), totals only, so a run on real resumes is
+  safe to commit. A file, not a table, because a score belongs to the code
+  it scored: a new one reaches the page when its change deploys. The first
+  run was copied in by hand from KAN-900's notes; the scoring command does
+  not write the file yet (KAN-954). Tests:
+  `tests/test_resume_reading_health.py`.
 - **The scraper's health for admins** (KAN-879, `routers/scrape_health.py`
   over `queries/scrape_health.py`): `GET /admin/scrape-health?days=`
   behind `get_admin`, as `/admin/fill-health`. It answers the enabled

@@ -50,6 +50,9 @@ const FORWARDED = [
   "JOB_SYSTEM_REQUEST_DAILY_CAP",
   "FILL_EVENT_DAILY_CAP",
   "MIN_EXTENSION_VERSION",
+  // What a model's tokens cost on a paid plan (app/config.py), for the
+  // admins' Resume Reading page; unset, the page shows no cost
+  "MODEL_PRICES",
   // The connector (KAN-377): unforwarded, its OAuth issuer and MCP address
   // were http://localhost:8000, so no student's Claude could sign in.
   "CONNECTOR_API_URL",

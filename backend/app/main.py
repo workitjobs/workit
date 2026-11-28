@@ -45,6 +45,7 @@ from app.routers.notifications import router as notifications_router
 from app.routers.pasted_answers import router as pasted_answers_router
 from app.routers.preferences import router as preferences_router
 from app.routers.profiles import router as profile_router
+from app.routers.resume_reading import router as resume_reading_router
 from app.routers.resumes import router as resume_router
 from app.routers.rules_anomalies import router as rules_anomalies_router
 from app.routers.scout import router as scout_router
@@ -132,6 +133,7 @@ app.include_router(pasted_answers_router)
 app.include_router(fill_reports_router)
 app.include_router(fill_events_router)
 app.include_router(scrape_health_router)
+app.include_router(resume_reading_router)
 app.include_router(job_system_requests_router)
 app.include_router(extension_config_router)
 app.include_router(extension_rules_router)
