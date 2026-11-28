@@ -256,6 +256,9 @@ Bridge sends no challenge, so a new host waits 5 s and gives up.
   wizard says what to close, and waits.
 - **Still open (Windows):** Chrome saves on that close, and a Worker with
   no window (P6) has nothing to close, so it waits 10 s and is killed.
+  And a close, as a click on X, runs a page's "Leave site?" check
+  (`beforeunload`): a job site's form that Apply typed into can keep its
+  Worker open, and then the kill after 10 s loses its sign-ins.
 - **Done when.** On Windows, a setting changed in the seed's Chrome is on
   disk after that Chrome stops.
 
@@ -342,6 +345,8 @@ decisions beside D17 and D18.
 - **Still open.** Off the Mac nothing raises the window: `raise_window`
   says False. The button still says "Show in Finder". **Windows:** the
   window opens behind the student's work, and closes when its run ends.
+  With an answer draft not saved, its page asks "Leave site?" first
+  (`dashboard_page.py`), so it stays open until the student answers.
 
 ### P13. Text in the OS's encoding: built from the Mac
 
@@ -452,7 +457,8 @@ says so.
 5. **M1, CDP Workers.** `worker_mode: cdp` in
    `$HOME\.config\apply\policies.yaml`, edited in Notepad or VS Code:
    `>` in Windows PowerShell 5.1 writes UTF-16, which Apply can't read.
-   Then
+   Only a rehearsal or the window makes that folder, so first
+   `mkdir -Force $HOME\.config\apply`. Then
    `uv run apply rehearse https://job-boards.greenhouse.io/formlabsinternships/jobs/8223362`.
    The Apply window opens behind your work (P12), the form fills and is
    held, and the window closes when you end the run. Then the same
@@ -464,7 +470,10 @@ says so.
    (P6). Then `uv run pytest -q tests/test_plain_workers.py
    tests/test_plain_guards.py tests/test_plain_routing.py`.
 7. **P7, a clean stop.** In a plain Worker, sign in to a job site, end the
-   run, and rehearse that site again: you are still signed in.
+   run, and rehearse that site again: you are still signed in. Do it once
+   more on a form that asks "Leave site?" once it has text in it, such as
+   a Workday application that Apply typed into: say what Chrome shows when
+   Apply asks it to close, and whether the sign-in is still there.
 8. **P8, the seed.** `plain_chrome: chrome`, then `uv run apply plain
    seed`. Do each step as it says (Ctrl+L, Ctrl+V and Enter in the folder
    picker; a drag from File Explorer). It ends with "Setup is done", which
