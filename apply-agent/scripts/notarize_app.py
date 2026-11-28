@@ -54,20 +54,20 @@ def main() -> None:
     if not build.DMG.is_file():
         sys.exit(f"Build a release first: python3 scripts/build_app.py --release (there is no {build.DMG}).")
     signer = subprocess.run(["/usr/bin/codesign", "--display", "--verbose=2", build.DMG], capture_output=True,
-                            text=True, check=False).stderr
+                            text=True, encoding="utf-8", check=False).stderr
     if "Authority=Developer ID Application:" not in signer:
         sys.exit("The DMG has no Developer ID signature, and Apple notarizes nothing without one: the build signs with "
                  "the Developer ID in the Mac's keychains, which only publish-app.yml's run holds.")
     # notarytool reads the key from a file only. The folder is this user's alone (0700) and goes when the block ends.
     with tempfile.TemporaryDirectory() as folder:
         p8 = Path(folder, "notary.p8")
-        p8.write_text(key + "\n")
+        p8.write_text(key + "\n", encoding="utf-8")
         auth = ["--key", str(p8), "--key-id", key_id, *(["--issuer", issuer] if issuer else [])]
         # Apple's check takes a few minutes, rarely more; the workflow's step bounds the wait. The status decides,
         # never the exit code alone. A try again after a dropped connection may send the DMG twice, which is harmless.
         for attempt in range(1, TRIES + 1):
             done = subprocess.run(["/usr/bin/xcrun", "notarytool", "submit", build.DMG, *auth, "--wait",
-                                   "--output-format", "json"], capture_output=True, text=True, check=False)
+                                   "--output-format", "json"], capture_output=True, text=True, encoding="utf-8", check=False)
             try:
                 answer = json.loads(done.stdout)
                 break
@@ -83,7 +83,7 @@ def main() -> None:
             issues = []
             if answer.get("id"):  # Apple's log names each file it refused, and why
                 log = subprocess.run(["/usr/bin/xcrun", "notarytool", "log", answer["id"], *auth],
-                                     capture_output=True, text=True, check=False).stdout
+                                     capture_output=True, text=True, encoding="utf-8", check=False).stdout
                 try:
                     issues = json.loads(log).get("issues") or []
                 except json.JSONDecodeError:
@@ -94,7 +94,7 @@ def main() -> None:
     # "Error 65".
     for attempt in range(1, TRIES + 1):
         done = subprocess.run(["/usr/bin/xcrun", "stapler", "staple", build.DMG], capture_output=True, text=True,
-                              check=False)
+                              encoding="utf-8", check=False)
         if done.returncode == 0 and stapled(build.DMG):
             break
         error = (done.stderr + done.stdout).strip() or "its ticket doesn't validate"

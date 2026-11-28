@@ -182,7 +182,7 @@ def codesign(*args: object) -> None:
     command = ["/usr/bin/codesign", "--force", *map(str, args)]
     print("+", " ".join(command), flush=True)
     for attempt in (1, 2, 3):
-        done = subprocess.run(command, capture_output=True, text=True, check=False)
+        done = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", check=False)
         if done.returncode == 0:
             return
         error = (done.stderr or done.stdout).strip()
@@ -461,7 +461,7 @@ def signer() -> str:
     """The Developer ID Application identity in this Mac's keychains, by its SHA-1, or "-" to sign ad hoc where there
     is none. publish-app.yml puts WorkIt's in a keychain of its run; no person's Mac holds it (docs/secrets.md)."""
     found = subprocess.run(["/usr/bin/security", "find-identity", "-v", "-p", "codesigning"], capture_output=True,
-                           text=True, check=False).stdout
+                           text=True, encoding="utf-8", check=False).stdout
     return next((line.split()[1] for line in found.splitlines() if '"Developer ID Application: ' in line), "-")
 
 
