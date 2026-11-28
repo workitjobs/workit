@@ -171,6 +171,10 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     app.add_argument("--max-plan", action="store_true",
                      help="developer checkout: answer with claude -p on your own Claude plan, not WorkIt's Model "
                           "route and its Usage cap. Only for a window this opens")
+    app.add_argument("--todos", action="store_true",
+                     help="developer checkout: turn on the application to-do tracker (APPLY_DEV_TODOS), which "
+                          "scans your Gmail for assessments, forms, interviews to schedule and other steps, and "
+                          "lists them in the window's To-dos. Only for a window this opens")
     claude_token = commands.add_parser(
         "claude-token", help="developer checkout: keep the token `claude setup-token` prints in Keychain, so every "
                              "claude -p call signs in with it before your claude login. Paste it when asked")
@@ -296,6 +300,12 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     answered.add_argument("--file", type=Path, help="a file the question asks for, in place of an answer")
     removed = window_commands.add_parser("remove", help="Remove a job waiting to start from the run")
     removed.add_argument("link", help="its `link` from the state's `waiting`")
+    window_commands.add_parser("todos", help="the application to-dos the window lists (developer flag: `apply app "
+                                             "--todos`), open first, with the last scan")
+    window_commands.add_parser("todo-scan", help="scan mail for application to-dos now, and list them")
+    for name, does in (("todo-done", "mark an application to-do done"), ("todo-dismiss", "dismiss an application "
+                       "to-do: it isn't one"), ("todo-open", "open a done or dismissed to-do again")):
+        window_commands.add_parser(name, help=does).add_argument("id", help="the to-do's `id` from `apply window todos`")
     added = window_commands.add_parser("add", help="add job links: a run of them, or into the run going")
     added.add_argument("links", nargs="+")
     stopped = window_commands.add_parser("stop", help="Stop applying: every held form closes, unsubmitted")
@@ -437,6 +447,8 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
 
         if args.max_plan:  # the Student build ignores it (student.asking)
             os.environ[student.MAX_PLAN] = "1"
+        if args.todos:  # the Student build ignores it (todos.enabled)
+            os.environ["APPLY_DEV_TODOS"] = "1"
         args.links, not_links = app_window.links_given(args.links)
         if not_links:
             sys.exit(f"Not a job link: {', '.join(not_links)}. Pass each posting's full https:// link.")
@@ -557,6 +569,12 @@ def _window(args) -> int:
         app_window.send_links(links)
         return said({"status": 202, "message": f"Sent {len(links)} link(s) to the window's inbox: it takes them once "
                                                "signed in and set up. `apply window state` shows them."})
+    if command in ("todos", "todo-scan"):
+        return said(app_control.ask(command, timeout=app_control.TODO_SCAN_WAIT if command == "todo-scan"
+                                    else app_control.ASK_WAIT))
+    if command.startswith("todo-"):
+        status = {"todo-done": "done", "todo-dismiss": "dismissed", "todo-open": "open"}[command]
+        return said(app_control.ask("todo-mark", {"id": args.id, "status": status}))
     body: dict = {}
     if command in ("submit", "cancel", "skip", "fill-again", "resume"):
         body = {"id": args.tile}

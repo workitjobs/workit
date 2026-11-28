@@ -26,6 +26,8 @@ DEVELOPER = frozenset({
     "apply.gmail",  # mail (D9: an emailed code is the student's to type)
     "apply.email_code",
     "apply.employer_mail",
+    "apply.todos",  # the application to-do tracker (developer only, behind todos.FLAG)
+    "apply.todo_scan",
     "apply.notify",  # the Mac's notifications and the ntfy phone push (D10)
     "apply.schedule",  # the Daily sweep
     "apply.dock_app",  # the Dock keeper (W5's window replaces it)

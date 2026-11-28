@@ -132,6 +132,10 @@ _Avoid_: confirmed, verified, receipt
 What the latest Employer mail about a submitted Application says came of it (rejected, OA or interview), written beside the Outcome for Lisul to accept. The Outcome stays Lisul's: Apply never writes it.
 _Avoid_: auto outcome, detected outcome, status
 
+**Application to-do**:
+A step that a mail asks the user to do for a job application. The kinds are an online assessment, a form, a questionnaire, an interview to schedule, an account step, a document request and an offer. Each to-do has its company, role, due date, link and source mail. One mail thread gives one to-do. The user marks it done or dismissed. Apply only lists it: Apply never opens its link and never sends anything. It is a developer feature, and it is off unless the developer flag is set.
+_Avoid_: task, action item, reminder
+
 **Handoff**:
 An Application the system cannot finish alone, for example a site that blocks the browser, or a Posting description that speaks to AI agents (handed off before its form opens, quoting the sentence). A captcha that Lisul did not do within the Captcha wait is also a Handoff. Lisul finishes it from the Tracker row.
 _Avoid_: manual, fallback, failed
