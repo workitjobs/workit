@@ -63,6 +63,7 @@ from apply import (
     on_page,
     regenerate,
     send_button,
+    sent_capture,
     stuck,
     submit_guard,
     tailored,
@@ -389,8 +390,8 @@ def rehearse(
         after = []  # how the hold of a pause ended, when Lisul didn't press Resume: AGAIN, or "" (closed)
 
         def submitted(page) -> None:  # Lisul sent the form from the held page
-            if done.saved is not None:  # what it sent, for the applied write to give WorkIt
-                SENT_ANSWERS[done.posting.id] = sent_answers(done.saved)
+            if done.saved is not None:  # what it sent, as the form showed it at the press, for the applied write
+                SENT_ANSWERS[done.posting.id] = sent_answers(done.saved, captured.values)
             with writing:
                 note = _keep_submission(submitted_to, done, adapters.clock.now().date())
             note += _keep_confirmation(page, done, adapters)
@@ -450,11 +451,15 @@ def rehearse(
         redo = _Redo(lambda: done, adapters, profile, n, site, out)
         # Ask Claude: Lisul's own words, from the tile or `apply ask`, and Claude fixes the held form (KAN-638).
         watching = {}  # the held page's Watch (apply.on_page), anew for each page held
+        # What the held form shows on each press of a button on it, for what it sent (apply.sent_capture, W11).
+        captured = sent_capture.Capture()
         # What Claude changed on the page is never Lisul's answer (KAN-693): the Watch starts again from it.
         asker = _Ask(lambda: done, adapters, profile, n, out, acted=watching.clear)
 
         def tend(page) -> None:
-            """Needs you on the held page: each Go to question pressed, and each answer Lisul typed there."""
+            """Needs you on the held page: each Go to question pressed, and each answer Lisul typed there. The listener
+            that keeps what the form shows on each press goes into each new document of it too."""
+            captured.watch(page, list(done.questions))
             watch = watching.get(id(page))
             if watch is None:
                 watching.clear()
@@ -586,6 +591,7 @@ def rehearse(
             try:
                 how = site.hold(release, done.posting.job_system, submitted, done.warning(), done.wrong(),
                                 answers, fill, resume=wants, sent=sent, challenged=challenged, refused=turned_down, redo=redo, tend=tend,
+                                before_press=captured.read_now,
                                 ask=asker, **holds())
             finally:
                 asker.close()
@@ -653,6 +659,7 @@ def rehearse(
                                     _email_code(adapters, done.posting.job_system, told),
                                     resume=(lambda page: adapters.board.resumed(n)) if offered else None,
                                     challenged=challenged, refused=turned_down, redo=redo, tend=tend,
+                                    before_press=captured.read_now,
                                     ask=asker, **holds())
                     asker.close()
                     unheld()
@@ -671,6 +678,7 @@ def rehearse(
                     if how != AGAIN:  # Fill again, or Fill it anyway
                         break
                     adapters.board.resumed(n)  # a Resume pressed for the fill before: the new fill never takes it
+                    captured.clear()  # the new fill's form: what the last one showed is not what this one sends
                     adapters.board.update(n, resume=None)  # nor its offer: each pause offers its own
                     with gate:
                         done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, pause=paused,
@@ -1381,11 +1389,13 @@ def _record_asked(done: Rehearsed, changed: list[dict], adapters: Adapters) -> N
 SENT_ANSWERS: dict[str, list[dict]] = {}
 
 
-def sent_answers(record: Record) -> list[dict]:
-    """What the form sent, for WorkIt: each question it asked and the answer the page showed (else the one planned),
-    an essay's whole text (a cover letter's too, when the form took it as a file), a file by its name alone, in the
-    form's order. A secret's answer (a password, a PIN, an SSN) and an empty one never go. `ai` marks an essay and an
-    answer AI drafted."""
+def sent_answers(record: Record, shown: dict[str, str] | None = None) -> list[dict]:
+    """What the form sent, for WorkIt: each question it asked and the answer its field showed at the press
+    (`shown`, apply.sent_capture: the student's edits on the held form are in it), else what the fill read back or
+    planned; an essay's whole text where the press read none, and a cover letter's when the form took it as a file;
+    a file by its name alone; in the form's order. A secret's answer (a password, a PIN, an SSN) and an empty one never
+    go. `ai` marks an essay or an answer AI drafted, as long as the form sent it as AI wrote it."""
+    shown = shown or {}
     written = {one_line(e.question.label): e.text for e in from_cell(record.essays, headings(record.essays))
                if e.text} if record.essays else {}
     drafted = {one_line(question) for question, _ in record.drafted}
@@ -1394,7 +1404,12 @@ def sent_answers(record: Record) -> list[dict]:
         label = one_line(q.label)
         if not label or SECRET.search(q.label) or SECRET.search(q.name):
             continue
-        answer = written.get(label) or record.filled.readback.get(q.name) or record.filled.answers.get(q.name)
+        planned = record.filled.answers.get(q.name)
+        ai_text = written.get(label) or (planned if label in drafted else None)
+        if q.kind == "file":  # the press reads a file box as its path: a letter's words, else the file's name
+            answer = written.get(label) or record.filled.readback.get(q.name) or planned
+        else:
+            answer = shown.get(q.name) or written.get(label) or record.filled.readback.get(q.name) or planned
         if isinstance(answer, (list, tuple)):
             answer = [str(a.name if isinstance(a, Path) else a).strip() for a in answer]
             answer = [a for a in answer if a]
@@ -1402,8 +1417,16 @@ def sent_answers(record: Record) -> list[dict]:
             answer = str(answer.name if isinstance(answer, Path) else answer).strip()
         if answer:
             sent.append({"question": label[:2000], "answer": answer if isinstance(answer, list) else answer[:20000],
-                         "ai": label in written or label in drafted})
+                         "ai": ai_text is not None and _same_text(answer, ai_text)})
     return sent[:300]
+
+
+def _same_text(sent, written) -> bool:
+    """Whether the form sent what AI wrote: the same words, whatever the spaces (a text box may fold its lines)."""
+    def fold(value) -> str:
+        value = value.name if isinstance(value, Path) else value
+        return " ".join(("; ".join(map(str, value)) if isinstance(value, (list, tuple)) else str(value)).split()).casefold()
+    return fold(sent) == fold(written)
 
 
 def _keep_submission(tracker: Tracker | None, rehearsed: Rehearsed, today) -> str:
@@ -1678,6 +1701,7 @@ class _Kept:
              challenged: Callable[[], None] = lambda: None, refused: Callable[[str], None] = lambda why: None,
              redo: "_Redo | None" = None,
              tend: Callable[[object], None] = lambda page: None, ask: "_Ask | None" = None,
+             before_press: Callable[[object], None] = lambda page: None,
              fill_again: Callable[[], bool] = lambda: False, held: Callable[[], str] = lambda: "", dismiss: Callable[[], None] = lambda: None,
              let_go: Callable[[], bool] = lambda: False,
              note: "Callable[[], tuple[str, bool]] | None" = None, sent: Callable[[], None] = lambda: None,
@@ -1816,6 +1840,7 @@ class _Kept:
                     why = APPLIED_FIRST if blocked else HELD_FIRST if holding else PRESSED_ALREADY if pressed or kept else ""
                     if not why:
                         try:
+                            before_press(self._page)  # what the form shows as Apply sends it (apply.sent_capture)
                             heard(send_button.press(self._page))  # theirs, as if they had pressed it
                             pressing = time.monotonic()
                         except send_button.Unsure as unsure:  # pressed, its reply lost to the page it sent away

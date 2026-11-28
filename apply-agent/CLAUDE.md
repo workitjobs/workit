@@ -232,7 +232,10 @@ writes that wait for WorkIt. It writes no `tracker.json` (`KeychainTracker`:
 rows in memory for the run), no `sent/` copies, and deletes a tailored
 resume once the form has it (Fill again reads it from WorkIt again). At the
 student's Submit, what the form sent goes to WorkIt with the applied write
-(`rehearsal.sent_answers`, `PUT .../sent`), and the Sent resume by its id;
+(`rehearsal.sent_answers`, `PUT .../sent`), as the form showed it at the
+press: `apply.sent_capture` reads every question's field on each press of a
+button on the held form, the student's own edits included, and Approve and
+submit reads it just before Apply presses. The Sent resume goes by its id;
 once WorkIt has it, the application's files go (`local_data.forget`), and
 at once when the student lets a form go. `local_data.sweep` runs as the app
 opens: every application's files but an open form's, the profile's file

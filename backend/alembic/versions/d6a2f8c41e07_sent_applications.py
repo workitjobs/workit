@@ -2,7 +2,8 @@
 
 W11: what each application WorkIt Auto Apply filled sent, kept on WorkIt so
 nothing of it stays on the student's Mac (models/applications.py,
-Sent_Application). Only a new table, which the code before it never reads,
+Sent_Application), with each question's words once in form_questions
+(Form_Question). Only new tables, which the code before it never reads,
 so it goes on with b7e4c2a9d816 before the deploy: step 1 of KAN-834's
 order is `upgrade d6a2f8c41e07` (backend/CLAUDE.md, Deployment). Apply it
 only once it is on main, never from its branch (backend/alembic/CLAUDE.md).
@@ -29,6 +30,14 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     """Upgrade schema."""
     op.create_table(
+        'form_questions',
+        sa.Column('id', sa.BigInteger(), sa.Identity(always=True), nullable=False),
+        sa.Column('text', sa.Text(), nullable=False),
+        sa.PrimaryKeyConstraint('id'),
+    )
+    op.create_index('form_questions_text_key', 'form_questions', [sa.text('md5(text)')], unique=True)
+    op.execute('ALTER TABLE public.form_questions ENABLE ROW LEVEL SECURITY')
+    op.create_table(
         'sent_applications',
         sa.Column('applicant_id', sa.Uuid(), nullable=False),
         sa.Column('job_id', sa.Uuid(), nullable=False),
@@ -46,3 +55,5 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     op.drop_table('sent_applications')
+    op.drop_index('form_questions_text_key', table_name='form_questions')
+    op.drop_table('form_questions')

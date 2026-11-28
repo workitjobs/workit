@@ -2067,8 +2067,10 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
     - **What each application sent is WorkIt's, and the Mac keeps only
       what can't leave it** (decided and built 2026-11-27). At the
       student's Submit, the applied write carries each question and the
-      answer the app filled and read back (never a password, PIN or SSN
-      answer; `ai` on one AI wrote) to `sent_applications`, which the
+      answer the form showed at the press, the student's own edits included
+      (`apply.sent_capture`; never a password, PIN or SSN answer; `ai` on
+      one AI wrote and the student left as it was) to `sent_applications`,
+      each question's words once in `form_questions`, which the
       application's page shows under What You Sent, and names the Sent
       resume by its id on WorkIt. Once WorkIt has it, the app deletes that
       application's Record, trace and dismissed flags; the tailored resume
@@ -2079,8 +2081,9 @@ app reads it as the Fill engine's code and `apply/workit.py` do now.
       Worker Chrome profiles, the keychain, open forms' working files, and
       caches with no personal data. Remove All My Data's button is red and
       asks first, listing what goes. Measured on the Fill engine's 25
-      saved forms, a sent application is 4 KB at the median and 17 KB at
-      most; option lists are not kept (up to 110 KB).
+      saved forms, a sent application is 2.4 KB at the median (4.1 KB with
+      each question's words and key names); option lists are not kept (up
+      to 110 KB).
     - **A Needs you fact goes into the website's own field when one holds
       it** (decided and built 2026-11-27): an Application answer, My
       Profile's phone or a link, saved with the website's own checks and

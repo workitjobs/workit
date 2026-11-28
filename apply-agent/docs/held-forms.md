@@ -750,3 +750,21 @@ sent the application as it loaded sent it then. The test fakes don't call
 `on_open`: they are guarded after the load and reloaded, as before. A live
 run's page is not opened inside `guarding_on_open`, so nothing changes there.
 `tests/test_submit_guard_hostile.py` has the case.
+
+## What a held form sent (W11, `apply.sent_capture`)
+
+WorkIt keeps what each application sent (`PUT .../applications/{job}/sent`), and the student may change a field on
+the held form after the fill. So on each turn of the held page (`tend`) a click listener goes into each frame's
+document, and on a press of any button there (Submit, Next, Save and Continue), before the page's own handlers run, it
+reads every question's field with `on_page.FIELD` (a custom list's picked option too) and hands the values to Apply
+through a binding. Each press keeps what that page shows, so a form of many steps keeps each step as it was left.
+Approve and submit reads the form the same way just before Apply presses (`before_press`): a plain Worker's press is
+the worker extension's. At the confirmed submit, `rehearsal.sent_answers` takes each field's value from the press,
+else the Record's; an AI answer the student rewrote is no longer marked AI.
+
+- **It only reads.** It never prevents, delays or changes a press, so it is no guard code and needs no Worker
+  extension release. A read that fails sends nothing, and the Record's value stands.
+- **A page could call its binding with values of its own:** that changes only the student's record of what was sent,
+  never what is submitted.
+- **Not read:** Workday's Review page has no fields, so its answers are those each step showed as it was left.
+- Tests: `tests/test_sent_capture.py` (Chromium, run by hand) and `tests/test_local_data.py`.

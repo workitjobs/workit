@@ -155,3 +155,24 @@ def test_the_tailored_resume_is_deleted_once_the_form_has_it_and_named_by_its_id
     assert path.read_bytes() == b"%PDF tailored" and tailored.GIVEN.pop("app-7") == {"built_resume_id": "built-3"}
     tailored.forget(given)
     assert not path.exists()
+
+
+def test_what_the_form_showed_at_the_press_wins_and_an_edited_ai_answer_is_no_longer_marked_ai():
+    """Fault: an edit the student made on the held form was lost (the Record's fill-time answer went instead), an
+    essay they rewrote stayed marked as AI's, or a cover letter upload went as its file's path."""
+    questions = [Question("why", "Why Acme?", "textarea"), Question("heard", "How did you hear about us?", "text"),
+                 Question("year", "Graduation year", "select"), Question("cl", "Cover Letter", "file")]
+    record = Record(POSTING, None, "", Filled(
+        questions, answers={"heard": "WorkIt", "year": "2027", "cl": Path("/Users/sam/Sam_Cover_Letter.pdf")},
+        readback={"year": "2027"}, screenshot=b""), date(2026, 11, 27),
+        essays="## Why Acme?\nI rode their trains.\n\n## Cover Letter\nDear Acme, ...",
+        drafted=(("How did you hear about us?", "WorkIt"),))
+    shown = {"why": "I rode their trains every day for four years.", "heard": "WorkIt", "year": "2028",
+             "cl": "C:\\fakepath\\Sam_Cover_Letter.pdf"}
+
+    assert sent_answers(record, shown) == [
+        {"question": "Why Acme?", "answer": "I rode their trains every day for four years.", "ai": False},
+        {"question": "How did you hear about us?", "answer": "WorkIt", "ai": True},
+        {"question": "Graduation year", "answer": "2028", "ai": False},
+        {"question": "Cover Letter", "answer": "Dear Acme, ...", "ai": True},
+    ]

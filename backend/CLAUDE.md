@@ -904,9 +904,14 @@ Find files with a directory listing; these are the rules for where code goes.
   `PUT .../applications/{job_id}/sent` only for an application applied or
   later (409), `GET` the same; deleted with the application (its foreign
   key cascades). A table of its own, not a column, so a Tracker list never
-  reads the answers. Measured on the Fill engine's 25 saved forms: 4 KB a
-  form at the median, 17 KB at most; option lists, 7 KB and 110 KB, are not
-  kept. Tests: `tests/test_sent_applications.py`.
+  reads the answers. **Kept small:** each question's words once for every
+  application (`form_questions`, unique by md5, so "Email" and every question
+  of a posting many students apply to are one row), and each answer as
+  `[question id, answer, 1 when AI wrote it]`, never key names. On the Fill
+  engine's 25 saved forms that is 2.4 KB an application at the median, from
+  4.1 KB; option lists (up to 110 KB a form) are never kept. Words no
+  application names any more stay (shortcut: a clean-up job if the table
+  ever matters). Tests: `tests/test_sent_applications.py`.
 - **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
   add, replace, remove, and their own words for the card or its delete,
@@ -2114,8 +2119,8 @@ go then. A change needs to work on Cloudflare only.
 - **KAN-834's migrations go on around one deploy, in two commands.**
   Its `b7e4c2a9d816` adds `answer_banks`, which the new code reads for
   every Answer bank read and save, and `d6a2f8c41e07` adds
-  `sent_applications` (what each application WorkIt Auto Apply filled
-  sent); its `c3f9a1d27b6e` drops
+  `sent_applications` and `form_questions` (what each application WorkIt
+  Auto Apply filled sent); its `c3f9a1d27b6e` drops
   `applicant_profiles.fill_answers`, which the old code selects with every
   profile read. So no one `upgrade head` is safe: before the deploy it
   drops a column the running code reads (every signed-in request 500), and

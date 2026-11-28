@@ -46,3 +46,21 @@ async def test_an_application_keeps_what_it_sent_and_loses_it_with_the_applicati
     assert saved.status_code == 204, saved.text
     assert got["answers"] == [{**a, "ai": a.get("ai", False)} for a in SENT["answers"]]
     assert (await client.get(url)).status_code == 404  # deleted with its application
+
+
+async def test_each_questions_words_are_kept_once_for_every_application(student, database):  # noqa: F811
+    """Fault: a question's words were stored again with each application that answered it, or an answer kept its key
+    names, which made each sent application about twice its size."""
+    client, me = student
+    first, second = await _applied(client, database), await _applied(client, database)
+
+    for job in (first, second):
+        assert (await client.put(f"/applicants/{me}/applications/{job}/sent", json=SENT)).status_code == 204
+    async with database() as session:
+        kept = (await session.execute(text("SELECT count(*) FROM form_questions"))).scalar()
+        stored = (await session.execute(text("SELECT answers FROM sent_applications WHERE job_id = :job"),
+                                        {"job": first})).scalar()
+
+    assert kept == 3
+    assert [len(item) for item in stored] == [2, 2, 3] and all(isinstance(item[0], int) for item in stored)
+    assert (await client.get(f"/applicants/{me}/applications/{second}/sent")).json()["answers"][2]["ai"] is True

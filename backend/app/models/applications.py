@@ -7,14 +7,17 @@ import datetime
 import uuid
 
 from sqlalchemy import (
+    BigInteger,
     CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
+    Identity,
     Index,
     Text,
     func,
+    literal_column,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -91,20 +94,36 @@ class Job_Application(Base):
     )
 
 
+class Form_Question(Base):
+    '''
+    one question a form asked, its words once for every application that sent
+    an answer to it (W11, routers/sent_applications.py): "Email" and "First
+    Name" on every form, and every question of a posting many students apply
+    to, are one row each. Unique by md5 of the words (an index on the words
+    themselves would refuse one over a btree entry's 2.7 KB)
+    '''
+    __tablename__ = "form_questions"
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    text: Mapped[str] = mapped_column(Text)
+
+    __table_args__ = (Index("form_questions_text_key", func.md5(literal_column("text")), unique=True),)
+
+
 class Sent_Application(Base):
     '''
     what one application sent (W11, routers/sent_applications.py): each
-    question the form asked and the answer WorkIt Auto Apply filled and read
-    back, at the student's own Submit, so nothing of it stays on their Mac.
-    One per application, deleted with it. Its own table, not a column of
+    question the form asked and the answer WorkIt Auto Apply read from it at
+    the student's own Submit, so nothing of it stays on their Mac. One per
+    application, deleted with it. Its own table, not a column of
     job_applications: every Tracker list selects that table's columns, and a
-    form's answers (17 KB at most on the engine's 25 saved forms) would ride
-    along on each read
+    form's answers would ride along on each read. Kept small: each answer is
+    [question id (form_questions), answer] with a third 1 when AI wrote it,
+    never the words of the question or a key name
     '''
     __tablename__ = "sent_applications"
     applicant_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
     job_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
-    # [{"question", "answer" (text, or the options picked), "ai" (an answer AI wrote)}], in the form's order
+    # [[question id, the answer (text, or the options picked), 1 when AI wrote it]], in the form's order
     answers: Mapped[list] = mapped_column(JSONB)
     sent_at: Mapped[datetime.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

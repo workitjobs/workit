@@ -199,7 +199,8 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   the tailored resume the form was given, `tailored.GIVEN`, else the
   profile's, `student.RESUME_REF`; `POST .../sent-resumes`), since it keeps
   no `sent/` copy, and carries what the form sent (`Write.answers`, from
-  `rehearsal.sent_answers` at the Submit; `PUT .../applications/{job}/sent`).
+  `rehearsal.sent_answers` at the Submit, with what each field showed at
+  the press, `apply.sent_capture`; `PUT .../applications/{job}/sent`).
   Once WorkIt has it, `WaitingWrites(delivered=)` deletes the
   application's files from the Mac (`apply.local_data`); a write that
   waits keeps its answers in `workit-queue.json` until it is sent. Its
