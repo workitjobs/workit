@@ -146,3 +146,33 @@ def test_amazons_sign_in_is_lisuls():
         with pytest.raises(Handoff, match="Sign in to amazon.jobs"):
             AmazonFiller(None).question_set(FORM, Site(page))
         assert page.input_value("#ap_email") == ""
+
+
+# Contact information as amazon.jobs drew it on 2026-11-27: required Legal name boxes (no <label>, a role=alert
+# message) above the Preferred ones. Left empty, Continue stuck "with no message".
+CONTACT = {"id": "CONTACT_DETAILS", "title": "Contact information", "contact": True, "fields": [
+    {"key": "LEGAL_FIRST", "label": "Legal first name", "kind": "text", "required": True, "placeholder": "Enter first name", "plain": True},
+    {"key": "LEGAL_LAST", "label": "Legal last name", "kind": "text", "required": True, "placeholder": "Enter last name", "plain": True},
+    {"key": "PREFERRED_FIRST", "label": "Preferred first name", "kind": "text"},
+    {"key": "PREFERRED_LAST", "label": "Preferred last name", "kind": "text"}]}
+LEGAL = {"Legal first name": "Patience", "Legal last name": "Leeward", "Preferred first name": "Pat"}
+
+
+def test_contact_information_fills_the_legal_name_and_keeps_the_preferred_one(monkeypatch):
+    monkeypatch.setitem(ANSWERS, "Legal first name", LEGAL["Legal first name"])
+    monkeypatch.setitem(ANSWERS, "Legal last name", LEGAL["Legal last name"])
+    monkeypatch.setitem(ANSWERS, "Preferred first name", LEGAL["Preferred first name"])
+    with amazon([CONTACT, *STEPS]) as (page, _):
+        filler = AmazonFiller(None)
+        with pytest.raises(Handoff, match="yourself on this page"):
+            run(filler, page)
+        saved = page.evaluate("window.__fakeAmazonSaved")
+        assert (saved["LEGAL_FIRST"], saved["LEGAL_LAST"], saved["PREFERRED_FIRST"]) == ("Patience", "Leeward", "Pat")
+        assert filler.shown_so_far["Contact information / Legal last name"] == "Leeward"
+
+
+def test_a_contact_step_amazon_keeps_open_names_the_fields_it_refuses():
+    with amazon([CONTACT, *STEPS]) as (page, _):
+        with pytest.raises(Handoff, match="Legal first name: This field is required; Legal last name: This field is required"):
+            run(AmazonFiller(None), page)
+        assert "LEGAL_FIRST" not in page.evaluate("window.__fakeAmazonSaved")
