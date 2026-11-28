@@ -550,7 +550,7 @@ def test_off_the_mac_the_apply_window_is_chrome_itself_found_by_its_profile(tmp_
 
     def start(arguments, profile, log, system, front=False):  # a stand-in Chrome, as launcher's Windows start
         started.append((arguments, front))
-        chromes.append(subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)", *arguments[1:]]))
+        chromes.append(subprocess.Popen([fake_chrome.PYTHON, "-c", "import time; time.sleep(60)", *arguments[1:]]))
         return chromes[-1]
 
     monkeypatch.setattr(dashboard.subprocess, "run", run)
