@@ -34,9 +34,11 @@ the Worker extension, in Worker k's Chrome, on profile APPLY_PROFILES/plain-<k>
   (`PlainWorkers.launch`) and stops it by its PID. One to three Workers
   (D24).
 - **The host file** is the native messaging manifest that tells Chrome
-  which program is the host. Today `PlainWorkers.install_host` writes it,
-  with a `#!/bin/sh` wrapper, into each Worker profile's
-  `NativeMessagingHosts/`.
+  which program is the host. `PlainWorkers.install_host` writes it, with
+  a wrapper, where the Worker's Chrome looks (`chrome_host.folder`): on
+  macOS and Linux a `#!/bin/sh` wrapper in each Worker profile's
+  `NativeMessagingHosts/`, on Windows a `.bat` in
+  `APP_FOLDER/native-hosts`, which a registry key names (P5).
 - **CDP Workers** (`browsers.WorkerBrowsers`) need no extension, host or
   seed. Lever, SmartRecruiters and Workable block them, so
   `worker_mode: protected` sends those hosts to plain Workers.
