@@ -20,7 +20,7 @@ no flag: with the Developer ID when the Mac's keychains hold one (only
 Mac only.
 
 Both write `build/out/WorkIt Auto Apply.app` (about 223 MB) and
-`build/out/WorkIt Auto Apply.dmg` (about 80 MB), and replace the last ones.
+`build/out/WorkIt Auto Apply.dmg` (about 73 MB), and replace the last ones.
 `build/` is git-ignored. Each app names its commit in `Info.plist`
 (`WorkItCommit`; `+changes` on a test build of a changed working tree) and
 whether it is a release (`WorkItRelease`):
@@ -97,10 +97,13 @@ source instead, with `STUDENT = False` and the data folder `~/.config/apply`.
   stop it with `kill -TERM <pid>`, never `-KILL`, which loses its profile's
   last changes. Kill only processes you started.
 - **The DMG:** `open "build/out/WorkIt Auto Apply.dmg"` shows the app, an
-  Applications link, `License.txt` and `Third-Party Notices.txt`. Until
-  step 2 signs it with a Developer ID, another Mac blocks the downloaded
-  app: there, `xattr -dr com.apple.quarantine "/Applications/WorkIt Auto
-  Apply.app"` lets it open for a test.
+  arrow and the Applications link. A Mac set to show every file extension,
+  the path bar or the status bar shows those in this window too; a Mac
+  with Apple's defaults shows "WorkIt Auto Apply" and no bars. Once the app
+  runs from anywhere else, it ejects the DMG. Until step 2 signs it with a
+  Developer ID, another Mac blocks the downloaded app: there,
+  `xattr -dr com.apple.quarantine "/Applications/WorkIt Auto Apply.app"`
+  lets it open for a test.
 
 ## Publish a release
 

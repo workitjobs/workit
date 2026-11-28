@@ -19,8 +19,9 @@ build/out/WorkIt Auto Apply.app. In order:
    swiftc builds the plain Workers' window capture helper into the app beside the program.
 5. Checks: no DEVELOPER module, no source or bytecode, no docstring, no page code comment and no home folder
    path left in the app, and a capture helper that runs.
-6. build/out/WorkIt Auto Apply.dmg, the download: the app, a link to Applications, and the license and notices
-   beside them. It checks that the DMG mounts and the app in it passes codesign's check.
+6. build/out/WorkIt Auto Apply.dmg, the download: the app and a link to Applications, with an arrow between them.
+   The app holds the license and the notices, and shows both. It checks that the DMG mounts and the app in it passes
+   codesign's check.
 
 `--release` is a build for students. It builds from the current commit's own files (`git archive` into
 build/source), never the working tree: Apply installs from its folder with every untracked file in it, Nuitka ships
@@ -49,7 +50,6 @@ import subprocess
 import sys
 import time
 import xml.etree.ElementTree as ET
-from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -96,6 +96,19 @@ BUNDLE_ID = "ai.workitjobs.autoapply"
 MIN_MACOS = "13.0"  # D18
 APP = OUT / f"{NAME}.app"
 DMG = OUT / f"{NAME}.dmg"
+# The download's window, as Finder opens it: the app on the left, an arrow to Applications on the right. dmgbuild
+# writes Finder's layout file itself, with no Finder running, which a GitHub Mac can't script. The picture, with its
+# @2x copy beside it, is drawn for these places (the window's size, the icons' centres) by scripts/dmg_background.py:
+# run it after a change here.
+# Never dmgbuild's hide_extensions: it writes Finder's data onto the app's folder, and codesign then refuses the app
+# ("Disallowed xattr com.apple.FinderInfo", 2026-11-27). Finder hides ".app" by itself.
+DMG_BACKGROUND = Path("assets", "dmg-background.png")
+DMG_LAYOUT = {"window_rect": ((200, 160), (640, 400)), "icon_size": 128,
+              "icon_locations": {APP.name: (160, 180), "Applications": (480, 180)}}
+DMGBUILD = r"""
+import json, sys, dmgbuild
+dmgbuild.build_dmg(sys.argv[1], sys.argv[2], settings=json.loads(sys.argv[3]))
+"""
 STUDENT_LINE = ("STUDENT = False\n", "STUDENT = True\n")
 
 # The checkout's inputs home.CODE names, staged as the app reads them. The Worker extension's vendor/ is what
@@ -452,37 +465,31 @@ def signer() -> str:
     return next((line.split()[1] for line in found.splitlines() if '"Developer ID Application: ' in line), "-")
 
 
-@contextmanager
-def mounted(dmg: Path):
-    """`dmg` mounted read-only, as a student's Mac opens it: yields the folder it is mounted on."""
-    mount = OUT / "dmg-check"
-    run(["/usr/bin/hdiutil", "attach", dmg, "-readonly", "-nobrowse", "-mountpoint", mount])
+def make_dmg(source: Path, identity: str) -> None:
+    """The download: the app and a link to Applications to drag it onto, laid out as DMG_LAYOUT, with the app's icon
+    on the disk. The license and the notices are in the app, which shows both (W10): the first run shows the license,
+    and Settings links both. A Developer ID signs the DMG too: Apple notarizes a DMG only with one."""
+    settings = {"format": "UDZO", "filesystem": "HFS+", "files": [str(APP)], "symlinks": {"Applications": "/Applications"},
+                "background": str(source / DMG_BACKGROUND), **DMG_LAYOUT}
+    # dmgbuild gives the disk the app's icon with Apple's SetFile, one of Xcode's tools, which no GitHub Mac's list
+    # names (2026-11-27). The icon is only a look: without SetFile, the DMG keeps the plain disk icon, and says so.
+    if subprocess.run(["/usr/bin/xcrun", "--find", "SetFile"], capture_output=True, check=False).returncode == 0:
+        settings["icon"] = str(BUILD / "AppIcon.icns")
+    else:
+        print("No SetFile on this Mac: the DMG keeps the plain disk icon.", flush=True)
     try:
-        yield mount
-    finally:
-        run(["/usr/bin/hdiutil", "detach", mount])
-
-
-def make_dmg(identity: str) -> None:
-    """The download: the app, a link to Applications to drag it onto, and the license and notices beside them (W10).
-    A Developer ID signs it too: Apple notarizes a DMG only with one."""
-    stage = OUT / "dmg"
-    shutil.rmtree(stage, ignore_errors=True)
-    stage.mkdir()
-    run(["/usr/bin/ditto", APP, stage / APP.name])  # ditto keeps the app's signatures, links and attributes
-    (stage / "Applications").symlink_to("/Applications")
-    shutil.copy2(DATA / "legal" / "EULA.txt", stage / "License.txt")
-    shutil.copy2(DATA / NOTICES, stage / "Third-Party Notices.txt")
-    try:
-        run(["/usr/bin/hdiutil", "create", "-volname", NAME, "-srcfolder", stage, "-fs", "HFS+", "-format", "UDZO",
-             "-ov", DMG])
-        shutil.rmtree(stage)
+        # dmgbuild copies the app with ditto, which keeps its signatures and links.
+        run([PYTHON, "-I", "-c", DMGBUILD, DMG, NAME, json.dumps(settings)])
         if identity != "-":
             codesign("--sign", identity, "--timestamp", DMG)
-        with mounted(DMG) as mount:  # its app checked as it is there
+        mount = OUT / "dmg-check"  # mounted read-only, as a student's Mac opens it, and its app checked as it is there
+        run(["/usr/bin/hdiutil", "attach", DMG, "-readonly", "-nobrowse", "-mountpoint", mount])
+        try:
             signed = subprocess.run(["/usr/bin/codesign", "--verify", "--deep", "--strict", mount / APP.name],
                                     capture_output=True, check=False).returncode == 0
             linked = (mount / "Applications").is_symlink()
+        finally:
+            run(["/usr/bin/hdiutil", "detach", mount])
         if not (signed and linked):
             sys.exit(f"The DMG's app fails codesign's check or it has no Applications link: {DMG}")
     except BaseException:  # a failed or refused DMG is no download: none stays in build/out
@@ -522,7 +529,7 @@ def main() -> None:
     compile_app(source, developer, version, scheme, capture, release=args.release, commit=commit)
     sign_app(APP, identity)
     check(developer, capture, probes)
-    make_dmg(identity)
+    make_dmg(source, identity)
     size = sum(p.stat().st_size for p in APP.rglob("*") if p.is_file()) / 1e6
     signed = "ad hoc, so it opens on this Mac only" if identity == "-" else "with the Developer ID"
     print(f"Built {APP} ({size:.0f} MB) and {DMG.name} ({DMG.stat().st_size / 1e6:.0f} MB), signed {signed}. "
