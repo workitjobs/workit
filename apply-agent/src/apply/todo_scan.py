@@ -74,6 +74,16 @@ LINK_WORDS = {
     "offer": r"offer|accept|review|portal|docusign",
 }
 ROLE_WORD = r"(?:intern(?:ship)?|engineer(?:ing)?|developer|analyst|scientist|associate|co-?op|fellow(?:ship)?|designer)"
+# A link a to-do never takes: one that undoes or leaves the step ("delete the data you entered by clicking here"),
+# or a footer's help or support page. Read in the link's label, or for a bare link the words of its sentence before it.
+NOT_ACTION = re.compile(r"\b(delete|withdraw|no longer|decline|remove|opt.?out|unsubscribe|support|help|faq|"
+                        r"privacy|terms|learn more|mobile app|download (our|the))\b", re.IGNORECASE)
+# A tracking pixel, an image or a stylesheet: never a link to open.
+TRACKING = re.compile(r"/(pixel|beacon)\b|/(wf|track|e)/open\b|/open\.(gif|png|aspx)\b|list-manage\.com/track|"
+                      r"\.(png|jpe?g|gif|svg|css|ico)([?#]|$)", re.IGNORECASE)
+# A generic action label: a link that says so starts the step when no kind's own words fit.
+ACTION = re.compile(r"\b(click here|get started|continue|apply|view|open|go to|respond|reply|next step|here)\b",
+                    re.IGNORECASE)
 # Hiring systems and assessment sites that send mail for employers: never the company a to-do names (CLAUDE.md, Job
 # terms). Matched against a name with only its letters and digits, lowercased: the whole name, or its start.
 SENDERS = ("codesignal", "hackerrank", "codility", "hirevue", "karat", "greenhouse", "lever", "workday", "myworkday",
@@ -283,14 +293,25 @@ def _compact(text: str) -> str:
 
 
 def best_link(text: str, kind: str) -> str | None:
-    """The https link that best fits `kind` by its label and address, never an unsubscribe, legal or social link."""
+    """The https link that best starts the to-do: its label (for a bare link, the words of its sentence before it)
+    with `kind`'s words first, then its address with them, then a generic action label. Never an unsubscribe, legal,
+    social, help or undo link, a tracking pixel or image, or a footer's bare home page."""
     fits = re.compile(LINK_WORDS[kind], re.IGNORECASE)
     best, score = None, 0
     for m in LINK.finditer(text):
-        url, label = html.unescape(m[1] or m[3]), employer_mail._plain(m[2] or "")
-        if LINK_NOISE.search(url) or not url.startswith("https://"):
+        if m[3]:
+            if text[m.start() - 1:m.start()] in ("\"", "'", "=", "("):
+                continue  # an attribute's address: an image's src, a style's url(...)
+            url = html.unescape(m[3]).rstrip(".,;:!?)]")
+            before = re.sub(r"\s+", " ", employer_mail._plain(text[max(0, m.start() - 300):m.start()]))
+            label = re.split(r"(?<=[.!?])\s+|\n", before)[-1][-120:]
+        else:
+            url, label = html.unescape(m[1]), employer_mail._plain(m[2] or "")
+        parts = urlsplit(url)
+        if (not url.startswith("https://") or LINK_NOISE.search(url) or LINK_NOISE.search(label)
+                or NOT_ACTION.search(label) or TRACKING.search(url) or (parts.path in ("", "/") and not parts.query)):
             continue
-        fit = 2 * bool(fits.search(label)) + bool(fits.search(url))
+        fit = 4 * bool(fits.search(label)) + 2 * bool(fits.search(url)) + bool(ACTION.search(label))
         if fit > score:
             best, score = url, fit
     return best

@@ -194,3 +194,17 @@ def test_a_model_that_names_the_hiring_system_gets_the_employer_instead(tmp_path
 
     assert [t.company for t in store.all()] == ["Skydio"]
 
+
+def test_a_bare_link_is_read_by_its_sentence_and_footer_tracking_and_undo_links_are_skipped():
+    # Fault: a bare link in a sentence ("complete your application by clicking https://...") given no label, so the
+    # to-do has no link; or the delete-your-draft link, a tracking pixel or the footer's home page taken instead.
+    text = ("We invite you to complete and submit your job application by clicking "
+            "https://jobs.example.com/apply/s/Ab12Cd34. If you no longer wish to apply, delete the data you entered "
+            "by clicking here https://jobs.example.com/apply/s/Zz99Yy88 .\n"
+            '<img src="https://mail.example.com/open/Qq7?x=1"> <a href="https://www.example.com">www.example.com</a>')
+    links = ('<a href="https://www.acme.example/">Acme</a> <a href="https://acme.example/help/faq">Get help</a> '
+             '<a href="https://go.acme.example/c/Rr5">Click here</a> to finish your profile.')
+
+    assert best_link(text, "form") == "https://jobs.example.com/apply/s/Ab12Cd34"
+    assert best_link(links, "account") == "https://go.acme.example/c/Rr5"
+

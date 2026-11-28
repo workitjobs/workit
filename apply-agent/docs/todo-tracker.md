@@ -48,6 +48,12 @@ Off (no flag, or the Student build), nothing scans, `Bridge.todos`, `scan_todos`
   (`todo_scan.SENDERS`: CodeSignal, HackerRank, Greenhouse, Workday, Oracle...) or an address is never the company,
   from the patterns or the model: CodeSignal's mail for Ramp once showed "CodeSignal", and Greenhouse's
   "us.greenhouse-mail.io".
+- **Link** (`todo_scan.best_link`): the `https://` link, from the plain part or the HTML, whose label has the
+  kind's words, then whose address has them, then whose label is a generic action ("Click here", "Continue"). A
+  bare link's label is the words of its sentence before it ("complete and submit your job application by clicking
+  https://..."): Oracle's mail has no `<a>`, and its to-do had no link. Never an unsubscribe, legal, social, help
+  or undo link ("delete the data you entered"), a tracking pixel or image, an attribute's address, or a footer's bare
+  home page.
 - **Schedule:** the window scans when it opens and every `todo_scan.EVERY` (30 minutes), one scan at a time
   (`Bridge._todo_scanning`). Scan now and `apply window todo-scan` scan at once.
 
