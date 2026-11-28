@@ -31,7 +31,7 @@ import type { Application } from "../../tracker";
 import { getEmailsOnce, getNow, getTracker } from "../data";
 import { EmailsTab } from "./emails-tab";
 import { ApplicationTabs, TabPanes } from "./tab-panes";
-import { YourApplication } from "./your-application";
+import { YourApplication, type SentAnswer, type SentAnswers } from "./your-application";
 
 /**
  * The tab's title, "<role> at <company>", from the job posting's own read,
@@ -65,6 +65,24 @@ async function getClosedApplication(jobId: string): Promise<Stored | null> {
     return app.stage === "saved" || hasApplied(app.stage) ? app : null;
   } catch {
     return null;
+  }
+}
+
+/** What the application sent, as WorkIt Auto Apply kept it at the student's
+ *  Submit (W11, GET .../applications/{job_id}/sent); null when none was
+ *  kept (404: an application sent another way), "failed" when it can't be
+ *  read, which the card says: shown as none, a slow API read as lost answers. */
+async function getSentAnswers(jobId: string): Promise<SentAnswers> {
+  try {
+    const { id, token } = await getApplicantSession();
+    const res = await apiGet(
+      `/applicants/${id}/applications/${encodeURIComponent(jobId)}/sent`,
+      token,
+    );
+    if (res.status === 404) return null;
+    return res.ok ? ((await res.json()) as { answers: SentAnswer[] }).answers : "failed";
+  } catch {
+    return "failed";
   }
 }
 
@@ -124,12 +142,13 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
       appliedAt: row.appliedOn,
     };
   });
-  const [{ applications, error }, view, { emails }] = await Promise.all([
+  const [{ applications, error }, view, { emails }, answers] = await Promise.all([
     tracker,
     // About the Role alone on its tab, so no Key Requirements read.
     loadJobView(jobId, { descriptionOnly: true, application: known }),
     // No emails are read while the Inbox is archived (KAN-428).
     INBOX_LIVE ? getEmailsOnce() : { emails: null },
+    getSentAnswers(jobId),
   ]);
   const { job } = view;
 
@@ -193,6 +212,7 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
             app={app}
             job={job}
             sent={view.sent}
+            answers={answers}
             now={getNow()}
             matchAbove={job != null && view.match != null}
           />

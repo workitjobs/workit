@@ -79,6 +79,9 @@ your shell runs macOS's own `apply`, an unrelated command that prints only
 
    The window also takes you through first run (Chrome, what leaves your
    Mac, Screen Recording, the seed), then runs your Auto Apply queue (W5).
+   It fills with your WorkIt profile, as a student's app does. To send your
+   own profile, Story bank and voice there once, run
+   `uv run apply upload`.
    Apply keeps the login in your keychain (`apply-workit`), never in the
    repo. You sign in one time; Apply refreshes the login by itself.
    `uv run apply doctor` then says "WorkIt: logged in as" your email. If it
@@ -115,7 +118,7 @@ your shell runs macOS's own `apply`, an unrelated command that prints only
 6. Replace the Test Person files in `~/.config/apply/` with your own:
    `applicant-profile.yaml` (copy `applicant-profile.template.yaml` from
    this folder and fill it in),
-   `answer-bank.yaml`, `story-bank.md`, `voice.md`, your resume PDF and
+   `story-bank.md`, `voice.md`, your resume PDF and
    `company-briefs/`. A relative path under `files:` in the profile is read
    from the data folder. If you edit the sample profile instead, delete its
    `sample_data: true` line, or the window keeps saying "Sample data". Never

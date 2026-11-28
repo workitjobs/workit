@@ -403,7 +403,7 @@ def test_the_session_gets_the_request_the_rules_and_only_the_tools_it_needs(repo
         assert f"Edit(/{folder}/{path})" in denied
     # The applicant's own files live in the data folder: a Repair may read them, never change them.
     assert f"Edit(/{home.HOME}/**)" in denied
-    for name in ("applicant-profile.yaml", "story-bank.md", "answer-bank.yaml"):
+    for name in ("applicant-profile.yaml", "story-bank.md"):  # the Answer bank is on WorkIt, in no file
         assert f"Read(/{home.HOME / name})" in session["allowed"]
         assert str(home.HOME / name) in session["system"]
     assert "npm --prefix ../autofiller_extension/fill-engine test" in session["system"]

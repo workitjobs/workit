@@ -46,8 +46,8 @@ def test_a_workday_answer_with_a_bar_that_is_no_try_list_must_show_whole(tmp_pat
     # Only the how-heard plan is a try-list; any other answer that holds a "|" is meant as it is.
     posting = Posting("w", "Acme", "Intern", "https://acme.wd1.myworkdayjobs.com/en-US/careers/job/Intern_R1")
     shell = Question("q1", "Which shell do you use?", "text", True)
-    bank = AnswerBank(tmp_path / "answer-bank.yaml")
-    bank.add(shell, "zsh|bash", "Acme", date(2026, 11, 2))
+    bank = AnswerBank()
+    bank.add(shell, "zsh|bash", "Acme")
     planned = fill_engine.plan([shell], posting, PROFILE, bank)
 
     assert planned.answers["q1"] == "zsh|bash"
@@ -60,11 +60,11 @@ def test_his_own_bank_answer_beats_the_profiles_reading_of_a_yes_no(tmp_path):
     label = ("Are you open to starting full-time immediately after your internship? "
              "(either graduated or willing to take time off from school)")
     asked = Question("q1", label, "textarea", True)
-    path = tmp_path / "answer-bank.yaml"
-    path.write_text(json.dumps({label.lower(): {"question": label, "answer": "Yes", "source": "lisul", "reviewed": True}}))
+    bank = AnswerBank()  # W11: the bank in memory, as it comes from WorkIt
+    bank.answer(label, "Yes")
 
     assert fill_engine.plan([asked], POSTING, PROFILE).answers["q1"] in ("Yes", "No")  # never a date
-    assert fill_engine.plan([asked], POSTING, PROFILE, AnswerBank(path)).answers["q1"] == "Yes"
+    assert fill_engine.plan([asked], POSTING, PROFILE, bank).answers["q1"] == "Yes"
 
 
 def test_an_engine_error_comes_back_as_apply_own():
@@ -161,13 +161,13 @@ def test_a_pick_from_a_list_the_gpa_doesnt_fit_is_kept_for_that_list_never_as_th
     profile.set("education.gpa_cumulative", 3.86)
     steps = ("3.75", "3.80", "3.85", "3.90", "3.95")
     picks = Question("q1", "GPA (Undergraduate)", "select", True, steps)
-    bank = AnswerBank(tmp_path / "answer-bank.yaml")
+    bank = AnswerBank()  # W11: WorkIt keeps the list with the pick (tests/test_answer_bank.py)
 
-    fill_engine.remember(profile, POSTING, picks, "3.85", bank, date(2026, 11, 26))
+    fill_engine.remember(profile, POSTING, picks, "3.85", bank)
 
     assert "GPA (Undergraduate)" not in (profile.get("answered_questions") or {})
-    entry = AnswerBank(tmp_path / "answer-bank.yaml").get("GPA (Undergraduate)")
-    assert (entry.answer, entry.source, entry.options) == ("3.85", "lisul", steps)
+    entry = bank.get("GPA (Undergraduate)")
+    assert (entry.answer, entry.own, entry.options) == ("3.85", True, steps)
     assert fill_engine.plan([picks], POSTING, profile, bank).answers["q1"] == "3.85"
     typed = Question("q1", "GPA (Undergraduate)", "text", True)
     assert fill_engine.plan([typed], POSTING, profile, bank).answers["q1"] == "3.86"
@@ -309,7 +309,7 @@ def test_amds_icims_profile_dates_title_phone_type_and_graduation_are_planned_fr
                  Question("q30", "Start Date (Month / Day / Year): Day", "select", False, days),
                  Question("q31", "Start Date (Month / Day / Year): Year", "text")]
     bank = AnswerBank()
-    bank.answer("Title", "Mr.", date(2026, 11, 5))
+    bank.answer("Title", "Mr.")
     planned = fill_engine.plan(questions, POSTING, profile, bank, today=date(2026, 11, 6))
     assert [planned.answers.get(n) for n in ("q6", "q21", "q28", "q29", "q30", "q31")] == [
         "Mobile", "In Progress", "Software Engineer Intern", "Jun", None, "2026"]

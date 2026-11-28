@@ -59,7 +59,7 @@ import urllib.request
 import webbrowser
 from collections.abc import Callable
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from datetime import time as dtime
 from email.message import Message
@@ -210,9 +210,14 @@ class WorkIt:
         """One API call as the signed-in student; its JSON answer. A refused token is refreshed one time.
         Raises NotLoggedIn, LoginExpired, Unreachable, or WorkItError for another refusal. `timeout` is
         longer for a model call (apply.ask_model.WorkItAsk), which waits on WorkIt's whole model chain."""
+        return self._call(method, path, body, timeout)[0]
+
+    def _call(self, method: str, path: str, body: Any = None, timeout: float = TIMEOUT,
+              binary: bool = False) -> tuple[Any, Message]:
+        """`call`, with the answer's headers. With `binary`, a good answer is its bytes, not JSON."""
         for attempt in range(2):
             status, answer, headers = _send(method, self.site.api + path, body, self._bearer(refresh=attempt > 0),
-                                            timeout=timeout)
+                                            timeout=timeout, binary=binary)
             if status == 429:
                 raise CapReached(f"{method} {path}: 429 {_detail(answer)}", _retry_at(headers.get("Retry-After")))
             if status == 401 and attempt == 0:
@@ -221,7 +226,7 @@ class WorkIt:
                 raise LoginExpired("WorkIt refused the login")
             if status >= 400:
                 raise WorkItError(f"{method} {path}: {status} {_detail(answer)}", status)
-            return answer
+            return answer, headers
 
     # The Applications Tracker's reads and writes (KAN-545), as the signed-in student.
 
@@ -273,26 +278,58 @@ class WorkIt:
         self.call("DELETE", f"/applicants/{applicant_id}/applications/{job_id}")
 
     def record_applied(self, link: str, company: str, title: str, resume: Path | None = None,
-                       stage: Stage = Stage.APPLIED, applied_on: date | None = None) -> str | None:
+                       stage: Stage = Stage.APPLIED, applied_on: date | None = None, resume_ref: dict | None = None,
+                       answers: list[dict] | None = None) -> str | None:
         """Put the job at `link` on the student's Applications Tracker at `stage` (applied or later), with the
-        file at `resume` kept as its Sent resume: add by link, keep the Sent resume, set the stage and the
-        applied date (`applied_on`, else today), then name the Sent resume. Apply's submit writes and the Tracker
-        Sheet import both use it. An application already applied or later stays as it is: answers its stage
-        then, else None."""
+        file at `resume` kept as its Sent resume, or the resume WorkIt holds that `resume_ref` names
+        ({"uploaded_resume_id"} or {"built_resume_id"}: WorkIt Auto Apply's, which keeps no copy): add by link,
+        keep the Sent resume, set the stage and the applied date (`applied_on`, else today), name the Sent resume,
+        then keep what the form sent (`answers`, W11, `PUT .../sent`). Apply's submit writes and the Tracker
+        Sheet import both use it. An application already applied or later stays as it is, but for what it sent
+        (a retried write WorkIt took the stage of before its answers): answers its stage then, else None."""
         job, before = self.add_by_link(link, company, title)
         if before in APPLIED_STAGES:
+            self._keep_sent(job, answers)
             return before
         me = self.applicant_id()
-        sent = self.send_resume(me, job, resume) if resume else None
+        sent = self.send_resume(me, job, resume) if resume else self._named(me, job, resume_ref) if resume_ref else None
         self.set_stage(me, job, stage, applied_on)
         if sent:
             self.link_resume(job, sent)
+        self._keep_sent(job, answers)
         return None
 
-    def tailored_resume(self, url: str) -> bytes | None:
-        """The PDF of the student's tailored resume for the listed job at `url` (Tailor, KAN-217), rendered now;
-        None when WorkIt does not list the job or the student has no tailored resume for it (KAN-547). Writes
-        nothing."""
+    def _named(self, applicant_id: str, job_id: str, ref: dict) -> str | None:
+        """`name_resume`, or None when WorkIt no longer has that resume (404: deleted on the website while the form
+        was held): the Submit goes on the Tracker all the same, with no Sent resume."""
+        try:
+            return self.name_resume(applicant_id, job_id, ref)
+        except WorkItError as error:
+            if error.status != 404:
+                raise
+            print(f"No Sent resume named: WorkIt no longer has the resume the form was given ({error})", file=sys.stderr)
+            return None
+
+    def _keep_sent(self, job_id: str, answers: list[dict] | None) -> None:
+        """What an applied application's form sent, on WorkIt (W11). WorkIt keeps one per application, so its 409
+        says it has this one already: a write sent again after WorkIt took it, its answer lost on the way."""
+        if not answers:
+            return
+        try:
+            self.call("PUT", f"/applicants/{self.applicant_id()}/applications/{job_id}/sent", {"answers": answers})
+        except WorkItError as error:
+            if error.status != 409:
+                raise
+
+    def name_resume(self, applicant_id: str, job_id: str, ref: dict) -> str:
+        """Keep the resume WorkIt holds that `ref` names as a Sent resume to the job (WorkIt keeps its file or a
+        snapshot itself): its id."""
+        return str(self.call("POST", f"/applicants/{applicant_id}/sent-resumes", {"job_posting_id": job_id, **ref})["id"])
+
+    def tailored_resume(self, url: str) -> tuple[bytes, str] | None:
+        """The PDF of the student's tailored resume for the listed job at `url` (Tailor, KAN-217), rendered now,
+        and its built resume's id; None when WorkIt does not list the job or the student has no tailored resume
+        for it (KAN-547). Writes nothing."""
         listed = self.listed_by_link(url)
         if listed is None:
             return None
@@ -301,19 +338,57 @@ class WorkIt:
                        if r.get("job_posting_id") == listed[0]), None)
         if resume is None:
             return None
-        return base64.b64decode(self.call("GET", f"/applicants/{me}/built-resumes/{resume['id']}/render")["pdf"])
+        pdf = base64.b64decode(self.call("GET", f"/applicants/{me}/built-resumes/{resume['id']}/render")["pdf"])
+        return pdf, str(resume["id"])
 
     def send_report(self, report: dict) -> str:
         """Send report (D26, KAN-837): one Application's Record and masked Trace, as apply.report builds it, to
         WorkIt's `POST /apply-app/reports`, which keeps it until the team fixes its problem. Its id on WorkIt."""
         return str(self.call("POST", "/apply-app/reports", report, timeout=REPORT_TIMEOUT)["id"])
 
-    def sync_answers(self, answers: list[dict], deleted: list[dict]) -> dict:
-        """Merge Answer bank entries (and deletes) into the student's answers on WorkIt, which the extension
-        fills from (KAN-746, `PATCH .../fill-answers`): at most 200 of each. WorkIt decides which are the
-        student's own and keeps its own newer entries. Answers {saved, deleted, kept}."""
-        return self.call("PATCH", f"/applicants/{self.applicant_id()}/fill-answers",
-                         {"answers": answers, "deleted": deleted})
+    def answer_bank(self) -> tuple[dict[str, dict], int]:
+        """The student's whole Answer bank on WorkIt (W11, `GET .../answer-bank`), by each question's folded
+        wording: {key: {question, answer, own, none?}}, and its version, from the ETag."""
+        answer, headers = self._call("GET", f"/applicants/{self.applicant_id()}/answer-bank")
+        version = re.fullmatch(r'\s*(?:W/)?"(\d+)"\s*', headers.get("ETag") or "")
+        return answer, int(version.group(1)) if version else 0
+
+    def change_answer_bank(self, entries: list[dict], deleted: list[str]) -> tuple[int, dict[str, str]]:
+        """Save `entries` ({question, answer, review, choice, job_id | company}) to the student's Answer bank on
+        WorkIt and delete the questions `deleted` (W11, `PATCH .../answer-bank`): the bank's new version, and why
+        WorkIt's rule kept each entry it kept out, by question."""
+        answer = self.call("PATCH", f"/applicants/{self.applicant_id()}/answer-bank",
+                           {"set": entries, "delete": deleted})
+        return int(answer["version"]), {str(q): str(why) for q, why in (answer.get("kept_out") or {}).items()}
+
+    def applicant_profile(self) -> dict:
+        """The student's Fill engine profile and policies on WorkIt (W11, `GET /apply-app/profile`), built as the
+        extension builds them, and where each file it names is read (`files`)."""
+        return self.call("GET", "/apply-app/profile")
+
+    def save_answered(self, answered: dict, facts: dict, removed: list | tuple = ()) -> None:
+        """What the student answered in Needs you, into their profile on WorkIt (`PATCH /apply-app/profile`): answers
+        by question (never an Essay fact's, which stays in memory: essays.TOLD), facts the Fill engine read from an
+        answer by dotted key, and the questions whose answers they removed. `remove_answered` goes only when there
+        is one, so a save still reaches a server from before it."""
+        self.call("PATCH", "/apply-app/profile",
+                  {"answered": answered, "facts": facts} | ({"remove_answered": list(removed)} if removed else {}))
+
+    def upload_profile(self, profile: dict, story_bank: str, voice: str) -> dict:
+        """A Developer checkout's own files onto WorkIt, once (`apply upload`, `POST /apply-app/profile/upload`):
+        WorkIt keeps only what it lacks, and answers how much it took."""
+        return self.call("POST", "/apply-app/profile/upload",
+                         {"profile": profile, "story_bank": story_bank, "voice": voice})
+
+    def profile_file(self, where: dict) -> bytes:
+        """A file the profile names, by its `files` entry: the default resume (an upload's bytes, or a built resume's
+        PDF rendered now) or the transcript."""
+        me = self.applicant_id()
+        if "built_resume_id" in where:
+            return base64.b64decode(self.call("GET", f"/applicants/{me}/built-resumes/{where['built_resume_id']}/render")["pdf"])
+        path = (f"/applicants/{me}/resumes/{where['uploaded_resume_id']}/bytes" if "uploaded_resume_id" in where
+                else f"/applicants/{me}/documents/transcript/bytes")
+        return self._call("GET", path, binary=True)[0]
 
     def applicant_id(self) -> str:
         """The signed-in student's id, read once (`GET /auth/me`): the writes name it in their paths."""
@@ -425,6 +500,20 @@ class Write:
     stage: str
     resume: str = ""
     not_before: float = 0.0  # epoch seconds: past WorkIt's daily cap, the write waits until then
+    # WorkIt Auto Apply's applied write (W11): the Sent resume by its id on WorkIt, and what the form sent, which
+    # WorkIt keeps so no Record of it stays on the Mac. A queued one keeps them until it is delivered.
+    resume_ref: dict = field(default_factory=dict)
+    answers: list = field(default_factory=list)
+
+
+def waiting_writes(path: Path = QUEUE) -> list[Write]:
+    """The Waiting writes in the queue file at `path`, oldest first; none when there is no file."""
+    try:
+        # A Hold an older Apply kept as queued goes as needs_you (KAN-544).
+        return [Write(**{**w, "stage": Stage.NEEDS_YOU if w["stage"] == Stage.QUEUED else w["stage"]})
+                for w in json.loads(path.read_text(encoding="utf-8"))]
+    except FileNotFoundError:
+        return []
 
 
 def cap_wait(write: Write) -> str:
@@ -441,9 +530,13 @@ class WaitingWrites:
     process at a time sends (a lock file), so a write is never sent twice
     at once."""
 
-    def __init__(self, client: WorkIt | None = None, path: Path = QUEUE):
+    def __init__(self, client: WorkIt | None = None, path: Path = QUEUE,
+                 delivered: Callable[[Write], None] | None = None):
+        """`delivered(write)` runs once WorkIt has an applied write: WorkIt Auto Apply deletes what its Mac kept
+        of that application then (apply.local_data)."""
         self.client = client or WorkIt()
         self.path = path
+        self._delivered = delivered
 
     def send(self, write: Write) -> str:
         """Queue `write` (in place of a waiting one for the same Application), send every waiting write,
@@ -474,6 +567,12 @@ class WaitingWrites:
                 continue
             try:
                 said[write.application_id] = self._deliver(write)
+                if self._delivered and write.stage == Stage.APPLIED:
+                    try:
+                        self._delivered(write)
+                    except Exception as error:  # WorkIt has it all the same; the next launch's sweep cleans up
+                        print(f"{write.company}: what the Mac kept stays till the next launch "
+                              f"({type(error).__name__}: {error})", file=sys.stderr)
             except (NotLoggedIn, LoginExpired) as error:
                 for w in waiting[at:]:
                     said[w.application_id] = f"kept to send to your Applications Tracker later ({error}): " \
@@ -495,7 +594,8 @@ class WaitingWrites:
         if write.stage == Stage.APPLIED:
             resume = Path(write.resume) if write.resume else None
             before = self.client.record_applied(write.link, write.company, write.title,
-                                                resume if resume and resume.is_file() else None)
+                                                resume if resume and resume.is_file() else None,
+                                                resume_ref=write.resume_ref or None, answers=write.answers or None)
             if before:
                 return f"already {SHOWN.get(before, before)} in your Applications Tracker"
         else:
@@ -509,12 +609,7 @@ class WaitingWrites:
         return f"in your Applications Tracker as {SHOWN[write.stage]}"
 
     def _read(self) -> list[Write]:
-        try:
-            # A Hold an older Apply kept as queued goes as needs_you (KAN-544).
-            return [Write(**{**w, "stage": Stage.NEEDS_YOU if w["stage"] == Stage.QUEUED else w["stage"]})
-                    for w in json.loads(self.path.read_text(encoding="utf-8"))]
-        except FileNotFoundError:
-            return []
+        return waiting_writes(self.path)
 
     def _keep(self, waiting: list[Write]) -> None:
         if not waiting:
@@ -561,8 +656,9 @@ def login(client: WorkIt, browser: Callable[[str], str] = _paste) -> Account:
 
 
 def _send(method: str, url: str, body: Any, token: str | None, apikey: str | None = None,
-          timeout: float = TIMEOUT) -> tuple[int, Any, Message]:
-    """The status, JSON answer and headers. No answer, or a 5xx, is Unreachable."""
+          timeout: float = TIMEOUT, binary: bool = False) -> tuple[int, Any, Message]:
+    """The status, JSON answer (with `binary`, a good answer's bytes) and headers. No answer, or a 5xx, is
+    Unreachable."""
     headers = {"Accept": "application/json", "User-Agent": USER_AGENT}
     if body is not None:
         headers["Content-Type"] = "application/json"
@@ -581,6 +677,8 @@ def _send(method: str, url: str, body: Any, token: str | None, apikey: str | Non
         raise Unreachable(f"{urlsplit(url).netloc}: {getattr(error, 'reason', error)}") from None
     if status >= 500:
         raise Unreachable(f"{urlsplit(url).netloc}: {status}", status)
+    if binary and status < 400:
+        return status, raw, headers
     try:
         return status, json.loads(raw) if raw else None, headers
     except ValueError:

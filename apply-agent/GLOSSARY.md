@@ -45,11 +45,11 @@ The button on a Needs you question whose form is still open in its Worker's brow
 _Avoid_: jump, show field
 
 **Answer bank**:
-Every answer to a one-off question (a required question no Applicant profile fact or rule answers), kept by the question's wording so the same question gets the same answer on every form. The first time a form asks one, Claude drafts the answer from Lisul's facts and the Story bank in the Application's one Claude call, and it goes straight into the bank and the form; a draft never holds an Application by itself. Each later form a draft answers counts as a use, and every run lists the drafts Lisul hasn't reviewed that it used again, which the Answers tab also puts first. Only if Lisul opts in with the `max_unreviewed_uses` policy does an unreviewed draft used that many times hold the Application, until he reviews it. Lisul reviews, edits, deletes or adds answers in the Answers tab of the Apply window (`apply answers`), in the Tracker's Answers tab or in answer-bank.yaml, and his answer is used word for word from then on. A one-off question about the company itself ("how familiar are you with our products?") is never banked: Claude answers it from the Posting description each time, and only Lisul's own answer to one is used again.
+Every answer to a one-off question (a required question no Applicant profile fact or rule answers), kept by the question's wording so the same question gets the same answer on every form. It is the student's on WorkIt, which the WorkIt extension fills from too, and Apply reads it once into memory. The first time a form asks one, the model drafts the answer from the student's facts and the Story bank in the Application's one model call, and it fills the form and goes to WorkIt, which keeps it in the bank flagged as a draft until the student reviews it, and it fills every later form that asks it. By default a draft never holds an Application; only with the `unreviewed_answers: hold` policy does an Application that takes a draft no one has reviewed wait as a Hold, until it is reviewed. The student reviews, edits, deletes or adds answers in the Answers tab of the Apply window (`apply answers`), and their answer is used word for word from then on. WorkIt decides what may enter: never an essay, a follow-up of another question, or an answer about one company.
 _Avoid_: cache, saved answers, FAQ
 
 **Hold**:
-The state of a filled Application that waits for Lisul's approval before it is submitted. Every Target company Application, every Application with a High-stakes essay, every Application with an Essay that still fails its code gates after the editor's pass, every Application that fails its Pre-submit check, every Application in the Calibration run, and (once Lisul opts in with `max_unreviewed_uses`) every Application answered by an unreviewed draft used that many times is held.
+The state of a filled Application that waits for Lisul's approval before it is submitted. Every Target company Application, every Application with a High-stakes essay, every Application with an Essay that still fails its code gates after the editor's pass, every Application that fails its Pre-submit check, every Application in the Calibration run, and (with the `unreviewed_answers: hold` policy) every Application that takes an Answer bank draft no one has reviewed is held.
 _Avoid_: draft, pending, queue
 
 **Review card**:
@@ -93,7 +93,7 @@ The most Matches applied to (submitted or held) in one day, local time, kept in 
 _Avoid_: daily limit, quota, rate limit
 
 **Tracker**:
-Apply's own working state, one row per Application, in a file in the data folder (`tracker.json`). It keeps each Application's status, the Holds Lisul approves and the Missing facts he answers in the Apply window. It also keeps the Requests, the Employer accounts and the Answer bank list. It is not the record of what he applied to: WorkIt's Applications Tracker is the record. Each new status is also written there: submitted as Applied with the resume sent, handoff, missing fact and held as Needs you (never as Queued: on WorkIt, Queued is the batch apply queue that the extension fills). The Google Sheet that held it before, the **Tracker Sheet**, is retired. Apply only reads it, one time, to copy its rows in and to import its submitted rows into WorkIt.
+Apply's own working state, one row per Application, in a file in the data folder (`tracker.json`); WorkIt Auto Apply keeps its rows in memory for the run and its Employer accounts in the keychain, with no file. It keeps each Application's status, the Holds Lisul approves and the Missing facts he answers in the Apply window. It also keeps the Requests and the Employer accounts. It is not the record of what he applied to: WorkIt's Applications Tracker is the record. Each new status is also written there: submitted as Applied with the resume sent, handoff, missing fact and held as Needs you (never as Queued: on WorkIt, Queued is the batch apply queue that the extension fills). The Google Sheet that held it before, the **Tracker Sheet**, is retired. Apply only reads it, one time, to copy its rows in and to import its submitted rows into WorkIt.
 _Avoid_: ledger, log, dashboard
 
 **Waiting write**:
@@ -302,7 +302,7 @@ In a rehearsal, its tile has a Fill it anyway button. The button fills the form 
 _Avoid_: rejected, skipped, disqualified
 
 **Story bank**:
-A short set of facts distilled once from the master resume and defensible claims, which Claude reads to write essays instead of the whole resume repo. Lisul's answers to Essay facts are added under "Answered during applications". An answer that names the company it was asked for is read only on that company's forms.
+A short set of facts distilled once from the master resume and defensible claims, which Claude reads to write essays instead of the whole resume repo. In a Developer command, Lisul's answers to Essay facts from before 2026-11-26 sit under "Answered during applications", and one that names the company it was asked for is read only on that company's forms. Since then an answer is kept in memory for the essay that asked, until its form is submitted, and never saved. In WorkIt Auto Apply, WorkIt builds it from the student's writing samples and experience bank, and a fill adds nothing to it there.
 _Avoid_: context, notes, bio
 
 **Story map**:
@@ -314,11 +314,11 @@ What to say in a video or submission that Lisul makes himself for a link questio
 _Avoid_: video script, talking points
 
 **Record**:
-An Application's full answers and form screenshot, and once it is submitted a screenshot of the page the submit led to, kept outside the Tracker and linked from its row.
+An Application's full answers and form screenshot, and once it is submitted a screenshot of the page the submit led to, kept outside the Tracker and linked from its row. WorkIt Auto Apply keeps one only while its form is open: at the Submit, what the form sent goes to WorkIt, and the Record goes once WorkIt has it.
 _Avoid_: log, artifact, receipt
 
 **Trace**:
-What happened in one Application, step by step, kept on this Mac only: each page navigation, console line (the submit guard's blocks among them, naming the request they stopped), page error, non-GET request, failed request and error response, each step of a Claude fill session, and how it ended. Read with `apply trace [query]`; kept two weeks.
+What happened in one Application, step by step, kept on this Mac only: each page navigation, console line (the submit guard's blocks among them, naming the request they stopped), page error, non-GET request, failed request and error response, each step of a Claude fill session, and how it ended. Read with `apply trace [query]`; kept two weeks, and in WorkIt Auto Apply only while its form is open.
 _Avoid_: log, debug log, transcript
 
 **Request**:

@@ -20,10 +20,8 @@ import json
 import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
-from datetime import date
 from pathlib import Path
 
-from apply import answer_bank as answers
 from apply import (
     answering,
     asking,
@@ -122,7 +120,7 @@ class Essay:
     question: Question
     text: str
     unsupported: tuple[str, ...] = ()  # numbers it states that no source backs (apply.truth)
-    needs_lisul: bool = False  # Claude says the question asks for more than the sources hold
+    needs_applicant: bool = False  # Claude says the question asks for more than the sources hold
     giveaways: tuple[str, ...] = ()  # words that give away how it was written (GIVEAWAY)
     named: str = ""  # its Named fact: the Company brief line it ties to Lisul, as the brief writes it
     plan: "Plan | None" = None  # its Essay plan, as checked
@@ -137,7 +135,7 @@ class Draft:
 
     question: Question
     answer: str | list[str]  # an option of the question's, or several for a multi-select; "" when unusable
-    needs_lisul: bool = False  # Claude can't answer it from the sources, or its answer isn't one to use
+    needs_applicant: bool = False  # Claude can't answer it from the sources, or its answer isn't one to use
     facts: tuple[str, ...] = ()  # the profile keys and Story bank lines it drew on, as Claude named them
 
     @property
@@ -156,13 +154,10 @@ def write(claude: Claude, posting: Posting, questions: list[Question], profile: 
 BANK_EDITS = 2  # times one answer() starts again on a Story bank edit, so an edit made each minute can't loop it
 
 
-def bank_stamp() -> tuple[int, int] | None:
-    """When the Story bank last changed, as its mtime and size; None when there is none."""
-    try:
-        found = data_folder.STORY_BANK.stat()
-    except OSError:
-        return None
-    return found.st_mtime_ns, found.st_size
+def bank_stamp() -> int:
+    """The Story bank as it reads now (`data_folder.story_bank()`: WorkIt's in WorkIt Auto Apply, held in memory,
+    else the data folder's file), so an edit made while an answer runs shows in either."""
+    return hash(data_folder.story_bank())
 
 
 def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: list[Question], profile: ApplicantProfile,
@@ -171,7 +166,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
            answered: Mapping[Question, object] | None = None,
            planned: Mapping[Question, "Plan"] | None = None,
            redo: Mapping[Question, tuple[str, str]] | None = None,
-           sections: Mapping[str, str] | None = None) -> tuple[list[Essay], list[Draft]]:
+           sections: Mapping[str, str] | None = None, mine: Sequence[str] = ()) -> tuple[list[Essay], list[Draft]]:
     """`_answer`, from the Story bank as it is when it returns. Its plan, draft, claim check and
     editor read the bank once, at the start, and take minutes: an edit Lisul saves meanwhile
     would leave his removed facts in the answers. So when the bank changed while it ran, it
@@ -181,7 +176,7 @@ def answer(claude: Claude, posting: Posting, essays: list[Question], drafts: lis
     for tries in range(BANK_EDITS + 1):
         stamp = bank_stamp()
         result = _answer(claude, posting, essays, drafts, profile, company, posting_text, redraft, answered,
-                         planned, redo, sections)
+                         planned, redo, sections, mine)
         if bank_stamp() == stamp or tries == BANK_EDITS:
             return result
         planned = None  # its plans quote the old bank
@@ -193,7 +188,7 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
             answered: Mapping[Question, object] | None = None,
             planned: Mapping[Question, "Plan"] | None = None,
             redo: Mapping[Question, tuple[str, str]] | None = None,
-            sections: Mapping[str, str] | None = None) -> tuple[list[Essay], list[Draft]]:
+            sections: Mapping[str, str] | None = None, mine: Sequence[str] = ()) -> tuple[list[Essay], list[Draft]]:
     """One Claude call writing every essay in `essays` and drafting every
     one-off question in `drafts`, after one call planning the essays (plan),
     unless `planned` gives their Plans already. `company` is the Application's <company>
@@ -201,6 +196,8 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
     text (apply.description), which the call gets in its <posting> block.
     `answered` is the form's answers already planned, by Question: the
     essays see those form_answers lets through, in a <form_answers> block.
+    Lisul's answers to this form's Essay facts (TOLD) join that block, so
+    the plan quotes them however it words its ask this time.
     An essay that gives away how it was written is drafted again once, in a
     second call; `redraft` names, for that call, what each essay gave away.
     `redo` gives, by Question, the earlier answer and the context Lisul typed
@@ -224,15 +221,16 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
     if too_long := [q for q in drafts if len(q.options) > MAX_OPTIONS]:
         written, drafted = answer(claude, posting, essays, [q for q in drafts if q not in too_long], profile, company,
                                   posting_text, redraft, answered, planned, redo, sections)
-        return written, drafted + [Draft(q, "", needs_lisul=True) for q in too_long]
+        return written, drafted + [Draft(q, "", needs_applicant=True) for q in too_long]
     if lean(claude) and essays and drafts:  # a smaller model's request limit: the one-off questions go alone
         written, _ = _answer(claude, posting, essays, [], profile, company, posting_text, redraft, answered, planned,
-                             redo, sections)
+                             redo, sections, mine)
         return written, _answer(claude, posting, [], drafts, profile, company, posting_text, answered=answered,
-                                sections=sections)[1]
+                                sections=sections, mine=mine)[1]
     claude = as_applicant(claude, profile)  # every prompt says the profile's name and school
     keys = {f"q{i}": q for i, q in enumerate(essays, 1)}
-    shown = form_answers(answered or {}, private.self_id(profile))
+    told = {one_line(asked): one_line(said) for asked, said in TOLD.get(posting.url, {}).items() if said.strip()}
+    shown = form_answers(answered or {}, private.self_id(profile)) | told
     defaults = probe.typical(claude, posting, {key: _ask(q) for key, q in keys.items() if question_type(q) in probe.TYPES},
                              company, posting_text)
     if keys and planned is None:
@@ -287,14 +285,16 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
     if urls := {key: bare_url(texts[key]) for key, q in keys.items() if q.url and texts[key] != bare_url(texts[key])}:
         texts |= urls  # the editor's pass may have put words back around it
         failed = _gate(checked, texts)
-    own = own_facts(profile, types.values(), posting.company)
+    # His answers to this form's Essay facts are his own facts too: an essay that quotes one is never held as made up.
+    own = own_facts(profile, types.values(), [*mine, *(f"{asked}: {said}" for asked, said in told.items())],
+                    posting.company)
     # The posting, the Company material and the question may give a number or a name; a cover letter's
     # template gives its salutation ("Recruiting Team").
     given = (company, description.block(posting, posting_text, essays), cover_letter.TEMPLATE)
     found = {key: truth.unsupported(texts[key], own, (*given, q.label, q.description), plans[key].story if plans[key] else "")
              for key, q in keys.items()}
     result = [Essay(q, texts[key], tuple(c.text for c in found[key] if c.kind == "number"),
-                    (written.get(key) or {}).get("needs_lisul") is True
+                    (written.get(key) or {}).get("needs_applicant") is True
                     and not (texts[key] and (closest(q, profile) or plans[key].closest)),
                     giveaways(texts[key]),
                     _named(written.get(key) or {}, plans[key], texts[key], company), plans[key],
@@ -305,7 +305,7 @@ def _answer(claude: Claude, posting: Posting, essays: list[Question], drafts: li
     result.sort(key=lambda e: essays.index(e.question))
     if again := {e.question: e.giveaways for e in result if e.giveaways and redraft is None}:
         redone = {e.question: e for e in _answer(claude, posting, list(again), [], profile, company, posting_text, again,
-                                                 answered, planned, redo)[0]}
+                                                 answered, planned, redo, sections, mine)[0]}
         result = [redone.get(e.question, e) for e in result]
     return result, [_draft(q, drafted.get(key) or {}, prompt, profile, own, closest(q, profile)) for key, q in short.items()]
 
@@ -360,7 +360,7 @@ def plan(claude: Claude, posting: Posting, essays: list[Question], profile: Appl
     is dropped (a story or company fact to "", parts to the question itself,
     a quote no source holds) rather than hold the form. Only a required slot
     that no quote backs then waits: its question for Lisul goes in the Plan's
-    asks, and the essay is written once they answer it (remember_fact).
+    asks, and the essay is written once they answer it (TOLD).
     `redo` is the earlier answer and Lisul's added context of each essay he
     asked to have written again (apply.regenerate)."""
     claude = as_applicant(claude, profile)
@@ -646,23 +646,23 @@ CUT = ("rewrite it shorter, under the most the line above gives, counted over th
 SHORTER = f"{CUT} The form refuses a longer answer."
 
 
-# Heads the Story bank's section of Lisul's answers to the questions essays asked them (ASK).
+# Lisul's answers to the Essay facts a form asked (ASK), by its Posting's URL, then by what each asked: kept in memory
+# for that form alone, until he submits it (rehearsal's `submitted`) or the app quits, and never saved (2026-11-26),
+# so its essays are written with them when it is filled again. A later form that asks the same asks again: an ask's
+# words change from plan to plan, and one essay's fact seldom fits another's. Never a Story bank line, which every
+# essay's prompt carries.
+TOLD: dict[str, dict[str, str]] = {}
+
+
+def tell(url: str, asked: str, answer: str) -> None:
+    """Keep Lisul's answer to an Essay fact (`asked`, opened by ASK; several the window joined with "; ") for the
+    form at `url` (TOLD)."""
+    TOLD.setdefault(url, {})[one_line(asked.removeprefix(ASK))] = answer.strip()
+
+
+# The Story bank section where Apply once saved Lisul's Essay fact answers, before TOLD (2026-11-26): only a
+# Developer checkout's story-bank.md from before then has it; WorkIt's Story bank never does.
 ANSWERED = "## Answered during applications"
-
-
-def remember_fact(asked: str, answer: str, company: str, today: date) -> None:
-    """Lisul's answer to a question an essay asked them (`asked`, opened by
-    ASK), as a Story bank line under ANSWERED, so this essay and every one
-    after can quote it. An answer already there is not added again."""
-    fact = f"- {one_line(asked.removeprefix(ASK))} {one_line(answer)}"
-    bank = data_folder.STORY_BANK.read_text(encoding="utf-8")
-    if fact in bank:
-        return
-    if ANSWERED not in bank:
-        bank = f"{bank.rstrip()}\n\n{ANSWERED}\nThe applicant's own answers to what an essay asked during a fill, word for word.\n"
-    data_folder.STORY_BANK.write_text(f"{bank.rstrip()}\n{fact} (asked for {company}, {today.isoformat()})\n", encoding="utf-8")
-
-
 # One line under ANSWERED: the question and answer, then the company it was asked for and the day.
 ANSWERED_LINE = re.compile(r"^- (?P<said>.*) \(asked for (?P<company>.+), \d{4}-\d{2}-\d{2}\)$")
 # A question whether he applies to other roles there ("...other internships here?"): its answer is that company's
@@ -679,9 +679,10 @@ def story_bank(employer: str = "") -> str:
     the company it was asked for is true of that company only ("No, this is
     the only Strava internship I'm applying to"), as is one on other roles
     there that doesn't name it: it is kept for `employer`'s forms and left
-    out of every other's (Strava, 2026-11-26)."""
+    out of every other's (Strava, 2026-11-26). WorkIt Auto Apply's Story bank
+    (home.WORKIT) has no such line: a Developer checkout's older file may."""
     kept, under = [], False
-    for line in data_folder.STORY_BANK.read_text(encoding="utf-8").splitlines(keepends=True):
+    for line in data_folder.story_bank().splitlines(keepends=True):
         if line.startswith("## "):
             under = line.strip() == ANSWERED
         elif under and (m := ANSWERED_LINE.match(line.strip())) and (re.search(
@@ -759,17 +760,13 @@ def sources(profile: ApplicantProfile, company: str = "", facts: bool = False, t
     )
 
 
-def own_facts(profile: ApplicantProfile, types: Iterable[str] = (), employer: str = "") -> str:
-    """What Lisul gave, for the truth check (apply.truth): his Applicant profile
-    facts, the Story bank, his Stock answers and core answers of `types`, his
-    links and town (`sources` with `facts`), and the Answer bank's answers in
-    his own words (`source: lisul`, the rule WorkIt's sync keeps too). A
-    draft of Claude's is no fact of his, even once reviewed. The Story bank
-    is `employer`'s (story_bank)."""
-    bank = profile.folder / answers.FILE
-    mine = [entry for entry in answers.AnswerBank(bank).entries() if entry.source == answers.LISUL] if bank.exists() else []
-    return "\n".join([sources(profile, facts=True, types=types, employer=employer),
-                      *(f"{e.question}: {'; '.join(e.answer) if isinstance(e.answer, list) else e.answer}" for e in mine)])
+def own_facts(profile: ApplicantProfile, types: Iterable[str] = (), mine: Sequence[str] = (), employer: str = "") -> str:
+    """What the student gave, for the truth check (apply.truth): their Applicant
+    profile facts, the Story bank, their Stock answers and core answers of
+    `types`, their links and town (`sources` with `facts`), and `mine`, their
+    own answers in the Answer bank (AnswerBank.own_lines). A model's draft is
+    no fact of theirs. The Story bank is `employer`'s (story_bank)."""
+    return "\n".join([sources(profile, facts=True, types=types, employer=employer), *mine])
 
 
 def profile_block(profile: ApplicantProfile, posting: Posting | None = None) -> str:
@@ -954,7 +951,7 @@ def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile, own
     name nothing in the call (`prompt`) holds, or an outcome none of his
     facts (`own`) states about its project. Not a date: the profile keeps
     its dates as values ("2027-05-24"), not as "May 2027". A `nearest` question (closest) with a usable answer
-    is answered, whatever needs_lisul says."""
+    is answered, whatever needs_applicant says."""
     answer = given.get("answer")
     choices = q.options if q.options and not _unread(q) else None
     if q.kind == "multi_select" and choices:
@@ -965,8 +962,8 @@ def _draft(q: Question, given: dict, prompt: str, profile: ApplicantProfile, own
         answer = bare_url(str(answer or "")) if q.url else str(answer or "").strip()
         usable = bool(answer) and (answer in choices if choices else not [
             c for c in truth.unsupported(answer, own, prompt) if c.kind != "date"])
-    if given.get("needs_lisul") is True and not nearest or not usable:
-        return Draft(q, "", needs_lisul=True)
+    if given.get("needs_applicant") is True and not nearest or not usable:
+        return Draft(q, "", needs_applicant=True)
     return Draft(q, answer, facts=_facts(given.get("facts"), profile))
 
 
@@ -984,7 +981,7 @@ def bare_url(text: str) -> str:
 def _facts(named: object, profile: ApplicantProfile) -> tuple[str, ...]:
     """The facts Claude named that a source holds: a profile key it was sent,
     or a Story bank line word for word; any other is dropped, unchecked."""
-    story = data_folder.STORY_BANK.read_text(encoding="utf-8")
+    story = data_folder.story_bank()
     facts = profile_facts(profile)
     held = lambda f: (f.split(".")[0] in facts and profile.get(f) is not None) or (len(f) > 10 and f in story)
     return tuple(dict.fromkeys(f.strip() for f in named if isinstance(f, str) and held(f.strip()))) \

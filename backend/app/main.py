@@ -49,6 +49,7 @@ from app.routers.resumes import router as resume_router
 from app.routers.rules_anomalies import router as rules_anomalies_router
 from app.routers.scout import router as scout_router
 from app.routers.scrape_health import router as scrape_health_router
+from app.routers.sent_applications import router as sent_applications_router
 from app.routers.sent_resumes import router as sent_resumes_router
 from app.routers.tailor import router as tailor_router
 from app.routers.tracker import router as tracker_router
@@ -137,6 +138,7 @@ app.include_router(extension_config_router)
 app.include_router(extension_rules_router)
 app.include_router(rules_anomalies_router)
 app.include_router(tracker_router)
+app.include_router(sent_applications_router)
 app.include_router(uninstall_answers_router)
 app.include_router(apply_app_router)
 app.include_router(apply_reports_router)

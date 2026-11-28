@@ -20,15 +20,13 @@ PROFILE = {
     "education": {"gpa": 3.91, "graduated": False, "graduation": "2028-05"},
     "answered_questions": {"Who referred you?": "Marigold Thimblewick", "Are you 18?": "Yes"},
 }
-BANK = {"why us?": {"question": "Why us?", "answer": "Because your robots fold laundry."}}
 VALUES = ["Patience", "Leeward", "pat.lee", "mailhost", "555-0142", "631", "Birch", "patience-leeward", "3.91", "2028-05",
-          "Marigold", "laundry"]
+          "Marigold"]
 
 
 @pytest.fixture
 def folder(tmp_path) -> Path:
     (tmp_path / "applicant-profile.yaml").write_text(yaml.safe_dump(PROFILE))
-    (tmp_path / "answer-bank.yaml").write_text(yaml.safe_dump(BANK))
     (tmp_path / "tracker.json").write_text(json.dumps({"rows": [{"url": TOKEN_URL, "contact": EMAIL}]}))
     (tmp_path / "voice.md").write_text("Patience writes plainly.")
     (tmp_path / "profiles").mkdir()
@@ -50,7 +48,6 @@ def known(folder) -> Known:
     ("Hello Patience Leeward!", ["Patience", "Leeward"], "Hello <identity.legal_first_name> <identity.legal_last_name>!"),
     ("hello PATIENCE", ["PATIENCE"], "hello <identity.legal_first_name>"),
     ("from Marigold Thimblewick", ["Marigold"], "from <answer>"),
-    ("wrote: Because your robots fold laundry.", ["laundry"], "wrote: <answer>"),
     (TOKEN_URL, ["user-36", "xf-9a8b7c6d5e", "abc123"], "https://acme.tal.net/vx/lang-en-GB/<hidden>/<hidden>/candidate/<hidden>/pm/1/pl/3?token=<hidden>&page=2"),
     ("https://x.example/a?session=z&email=a%40b.example#frag", ["a%40b", "frag"], "https://x.example/a?session=<hidden>&email=<hidden>#<hidden>"),
     ("https://u:hunter2@x.example/a", ["hunter2"], "https://x.example/a"),
@@ -191,3 +188,21 @@ def test_the_hook_lets_the_rest_through(command):
 
 def test_the_hook_ignores_the_folder_it_runs_in():
     assert hook("cat README.md").returncode == 0  # the fixture's cwd is under .config/apply
+
+
+def test_apply_trace_masks_the_answer_banks_answers_or_says_it_cant(monkeypatch, capsys):
+    """No file holds the bank's answers (W11): `apply trace` reads the bank first, and says so when it can't."""
+    from apply import cli
+    from apply.answer_bank import WorkItSource
+    from apply.workit import Unreachable
+
+    served = {"who referred you?": {"question": "Who referred you?", "answer": "Rosalind Featherstonehaugh", "own": True}}
+    monkeypatch.setattr(WorkItSource, "read", lambda self: (served, 3))
+    cli._mask_the_bank()
+    assert masked.scrub("typed Rosalind Featherstonehaugh") == "typed <answer>"
+
+    def down(self):
+        raise Unreachable("WorkIt didn't answer")
+    monkeypatch.setattr(WorkItSource, "read", down)
+    cli._mask_the_bank()
+    assert "aren't masked" in capsys.readouterr().err

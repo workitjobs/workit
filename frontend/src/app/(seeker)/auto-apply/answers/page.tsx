@@ -1,4 +1,4 @@
-import { CheckCircleIcon } from "@phosphor-icons/react/ssr";
+import { CheckCircleIcon, PuzzlePieceIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
 
@@ -22,7 +22,8 @@ import { SeenNow } from "./seen-now";
 
 export const metadata: Metadata = {
   title: "Written Answers",
-  description: "Answer the written questions your applications ask, in your own words or pasted.",
+  description:
+    "Answer the written questions the forms the WorkIt Chrome extension fills ask, in your own words or pasted.",
 };
 
 /**
@@ -73,9 +74,14 @@ export const metadata: Metadata = {
  * has. It was a tab for a few hours that day, and a setup row's card
  * before (KAN-822); the user took the tab out, since the queue is where a
  * student manages each job, and a row's status and the questions notice
- * (../up-next.tsx) lead here while questions wait. **With none waiting, no
- * link reaches this page**, so Your Answers and their Remove are then out
- * of reach, the gap KAN-822 closed: reopen it on purpose only.
+ * (../up-next.tsx) lead here while questions wait. **With none waiting,
+ * Application Info's Written Answers card leads here** (2026-11-27,
+ * ../info/written-answers-link.tsx), so Your Answers and their Remove are
+ * never out of reach, the gap KAN-822 first closed.
+ *
+ * THE CHROME EXTENSION'S ANSWERS. The line under Back says so: WorkIt Auto
+ * Apply keeps its own answers on each application's page (What You Sent),
+ * and without the line a student with both read this as every answer.
  */
 export default async function WrittenAnswersPage() {
   const [{ data: postings, error }, { data: answered }, claude] = await Promise.all([
@@ -105,6 +111,13 @@ export default async function WrittenAnswersPage() {
             <WriteWithClaude className="shrink-0" />
           ))}
       </div>
+      {/* Whose answers these are (2026-11-27): the Chrome extension's forms'. WorkIt Auto Apply keeps its own on each
+          application's page (What You Sent), and a student with both read the two as one list. */}
+      <p className="text-note text-ink-meta mt-3 flex items-center gap-1.5">
+        <PuzzlePieceIcon aria-hidden className="size-4 shrink-0" />
+        For the forms the WorkIt Chrome extension fills. WorkIt Auto Apply keeps its answers on each
+        application&apos;s page.
+      </p>
 
       {error != null ? (
         <LoadFailed
@@ -150,8 +163,8 @@ export default async function WrittenAnswersPage() {
             Your Answers
           </h2>
           <p className="text-body text-ink-meta mt-1 max-w-[68ch]">
-            What your applications were given, with the company fact each answer uses. Read up on it
-            before an interview.
+            What the Chrome extension&apos;s forms were given, with the company fact each answer
+            uses. Read up on it before an interview.
           </p>
           <div className="mt-4 flex flex-col gap-4">
             {answered.map((posting) => (

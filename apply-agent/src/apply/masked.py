@@ -71,20 +71,24 @@ class Known:
             self._values.setdefault(value, label)
             self._pattern = None
 
-    def learn(self, profile: Path) -> None:
-        """Read the Applicant profile beside its Answer bank. A file that won't read adds nothing."""
+    def learn(self, profile: Path | dict) -> None:
+        """Read the Applicant profile: its file, or the profile itself (WorkIt Auto Apply's comes from WorkIt, W11).
+        A file that won't read adds nothing. The Answer bank, which is on WorkIt (W11), adds its own answers as it
+        reads and writes them (apply.answer_bank)."""
         self._values.clear()
         self._pattern = None
-        tree = _read(profile)
+        tree = profile if isinstance(profile, dict) else _read(profile)
         for section in PERSON:
             for key, value in _leaves(tree.get(section), section):
                 self.add(value, key)
         for _, value in _leaves(tree.get("answered_questions"), ""):
             self.add(value, "answer", SHORTEST_ANSWER)
-        for entry in _read(profile.parent / "answer-bank.yaml").values():
-            if isinstance(entry, dict):
-                for _, value in _leaves(entry.get("answer"), ""):
-                    self.add(value, "answer", SHORTEST_ANSWER)
+
+    def take(self, other: "Known") -> None:
+        """Every value `other` holds as well: the Answer bank's answers, which only a process that read the bank
+        knows (W11; apply.answer_bank adds them to KNOWN)."""
+        for value, label in other._values.items():
+            self.add(value, label, 1)
 
     def scrub(self, text: str) -> str:
         if self._values and self._pattern is None:

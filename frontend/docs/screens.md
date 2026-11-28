@@ -1427,10 +1427,18 @@ tracker row, and the tab title comes from the posting's own read:
   resume anywhere else. Resume and Answers sit in one elevated white card
   under the heading, as Interviews & Dates' events do (a flat card until
   KAN-824). With none sent, one quiet line with
-  its glyph says "No resume sent yet", a resume row's height. Answers is
-  that same line for now: neither Apply nor auto apply keeps the answers
-  typed into the employer's form yet, and the line holds their place so
-  the section keeps its shape when they arrive. Both were dashed boxes, the
+  its glyph says "No resume sent yet", a resume row's height. Answers lists
+  what an application WorkIt Auto Apply filled sent (W11, 2026-11-27,
+  `GET .../applications/{job_id}/sent`, read with the page's other reads):
+  each question over its answer, a multi-select's options joined by "; ",
+  and Written by AI under an answer AI wrote. The app keeps it on WorkIt at
+  the student's Submit, so its Mac keeps no Record. An application sent
+  another way (the extension, by hand) keeps the quiet line, which says
+  where the answers come from; only a 404 is "none kept". Any other failed
+  read is `LoadFailed compact` in its place: shown as the quiet line, a
+  slow API read as lost answers. An answer breaks a long word
+  (`break-words`), as a link answer would run past the card on a phone.
+  Both were dashed boxes, the
   upload dropzone's outline on the grey ground, until 2026-11-10, and read
   as places to drop a file.
 - **Overview**, the job page's name for the posting's tab, for an open
@@ -1618,7 +1626,11 @@ connector directory, `CLAUDE_CONNECTOR_LINK` points the button at the
 listing instead.
 
 **Written Answers** (`/auto-apply/answers`, KAN-385) is batch apply
-without Claude. The extension fills every factual field itself and leaves
+without Claude, for the forms the WorkIt Chrome extension fills: a quiet
+line under Back says so, with the extension's puzzle-piece glyph
+(2026-11-27), since WorkIt Auto Apply keeps its answers on each
+application's page instead. Application Info's Written Answers card (in
+the Answer Bank part) always links here. The extension fills every factual field itself and leaves
 the written questions (why this company, a project you're proud of) to the
 student's own Claude through the connector. A student without Claude
 answers them here: every question the batch's open tabs need written and
@@ -2425,8 +2437,10 @@ Info" and the setup row linked it.
 **It works as Settings does** (2026-11-24): a menu beside one part at a
 time, the shared side menu (`components/side-nav.tsx`), Settings' own, a
 glyph and a label per part at body size. The parts are Work Authorization,
-Self-Identification, Application Answers and Files & Sign-Up
-(`auto-apply/info/sections.ts`), each at `/auto-apply/info/<part>`. A
+Self-Identification, Application Answers, Answer Bank (W11, its own
+section below, with Answers From WorkIt Auto Apply under it) and Files &
+Sign-Up (`auto-apply/info/sections.ts`), each
+at `/auto-apply/info/<part>`. A
 click in the menu switches the part in place, with no read, and one
 history entry stands for the page.
 
@@ -2463,9 +2477,10 @@ card's glyph on the option row's grey tile (`GLYPH_TILE`,
 count, with the card's glyph buttons at the right. Everything under the
 head starts at the title's left edge, so a card has one edge of text. The
 cards were a title and grey text alone, which the user found boring and
-hard to tell apart. Transcript and Writing Samples keep the head while
-they hold nothing and show a bordered button in the body (Upload
-Transcript, Add Writing Sample), as Workday Sign-Up does; from 2026-11-11
+hard to tell apart. Transcript, Writing Samples and Answer Bank keep the
+head while they hold nothing and show a bordered button in the body
+(Upload Transcript, Add Writing Sample, Add Answer), as Workday Sign-Up
+does; from 2026-11-11
 a centred empty state stood in each card's place, a second look.
 
 **The structure changed three times in two weeks**, and the rule that
@@ -2582,12 +2597,78 @@ Voluntary Self-Identification also lists the EEO extras (sexual orientation,
 transgender, pronouns), each with a decline answer; onboarding skips them
 with the other self-identification, and the extension never asks them.
 
+**Answer Bank (W11, 2026-11-24)** (`answer-bank.tsx`,
+`lib/answer-bank-actions.ts`, `lib/answer-bank.ts`) is the student's
+Answer bank: one answer to each one-off question a form asks, which the
+extension and WorkIt Auto Apply fill into every later form that asks it.
+It is the one screen for it on the website, and WorkIt Auto Apply's window
+has the same design (`apply-agent/window/src/answers.tsx`): a change to one
+goes into the other.
+
+- **Its own part, between Application Answers and Files & Sign-Up**, drawn
+  with the others in the layout and kept mounted (`layout.tsx`), with the
+  one card head (`card-head.tsx`): with no answer yet it keeps the head and
+  shows Add Answer in the body, never an empty state in the card's place.
+- **Read once, changed in place.** The card reads the whole bank (`GET
+  .../answer-bank`) once, as Application Info loads, and each change is one `PATCH
+  .../answer-bank`; the list changes from its reply, never by reading the
+  bank again. A draft waiting for review shows Needs Review and comes
+  first.
+- **Edit, Add, Reviewed and Remove.** Edit opens the answer's box in its
+  row, and Add a Question and an Answer box above the list, each with
+  Cancel and Save; Escape cancels. A list answer (the options picked) is
+  edited as text, the options separated by semicolons, and an empty one is
+  "None of these". Reviewed takes a draft's flag off, its answer unchanged.
+  Remove deletes at once and its toast offers Undo, which saves the answer
+  back, as Writing Samples does.
+- **WorkIt's rule decides what enters.** A save it keeps out (a follow-up,
+  an answer about one company) says the rule's reason under the box and
+  keeps the text.
+- **An open box with a change counts as unsaved** (`useUnsavedChanges` and
+  `data-unsaved`), here and in Answers From WorkIt Auto Apply and the style
+  card, so leaving Application Info asks first, as the forms do.
+
+**Written Answers (2026-11-27)** (`written-answers-link.tsx`) is the
+Answer Bank part's last card: the door to Written Answers, the Chrome
+extension's essays, always there (Up Next's notice leads there only while
+a question waits). Its glyph is the extension's puzzle piece, as the
+page's line is. It says "Read or remove": the page's saved answers have
+Remove with Undo and no edit.
+
+**Answers From WorkIt Auto Apply (W11, 2026-11-27)** (`app-answers.tsx`,
+`lib/app-answers-actions.ts`, `lib/app-answers.ts`) is the second card of
+the Answer Bank part: what WorkIt Auto Apply's Needs You kept in the
+student's Fill engine profile on WorkIt (`fill_profile`), which the
+extension and the app fill into every later form. The rule it keeps: every
+answer WorkIt stores has a page where the student sees and edits it.
+
+- **Two kinds of row, one list.** A Needs You answer by the form's
+  question (an empty one, a Skip, reads Skipped), then each fact the Fill
+  engine read from an answer, by its key in words ("Willing to travel").
+  The API lists only what fills forms (`GET /apply-app/answered`): a fact
+  a WorkIt field holds is left out, since that field wins and is edited
+  where it shows. Since 2026-11-27 such a fact rarely lands here: a Needs
+  You answer that fits one of the website's fields (an Application
+  answer, the phone, a link) is saved in that field, so it shows there.
+- **Read once, changed in place**, as the Answer Bank: Edit keeps the
+  value's kind (a list one item a line, a number, Yes or No picked on
+  chips), and Remove takes it out at once with Undo, so the next form asks
+  again. Both go through the app's own `PATCH /apply-app/profile`.
+- **Shown only once it holds something**: a student who never ran the app
+  has nothing in it, and a card with nothing to show or do is noise. It
+  is the one card here with no empty state; a failed read still shows.
+  The app's window shows the same answers with the same Edit and Remove
+  (`apply-agent/window/src/profile.tsx`).
+
 **Writing Samples (KAN-384, KAN-387)** is the last card
 (`writing-samples.tsx`, at `#writing-samples`): up to three
-pieces of the student's own writing (a class essay, a cover letter), from
-which their own Claude builds a style card through the connector, so the
-answers it writes read the way they write. Optional; WorkIt's own AI never
-reads them.
+pieces of the student's own writing (a class essay, a cover letter), so the
+answers written for them read the way they write: WorkIt Auto Apply's essays
+read them through WorkIt's AI, and the student's own Claude builds a style
+card from them through the connector. Optional. The card promises only that
+the student's name and contact details are hidden before an AI reads them
+(2026-11-26, the team's call); it said only their Claude reads them until
+then. Student-facing copy names no Claude.
 
 - **Asked for once, after the first written batch.** The extension's panel
   asks, with Add Samples and Skip, once the first batch's answers from the
@@ -2603,6 +2684,14 @@ reads them.
   replaced by removing it and adding the new one: changing a sample drops
   the style card either way, and Claude builds a new one next time.
   Remove deletes at once; its toast's Undo adds the same text again, last.
+- **The style card is under the samples, while there are any**
+  (`style-card.tsx`, W11): the short description of how the student writes
+  that every answer their Claude writes and every essay WorkIt Auto Apply
+  writes follows. Their Claude builds it from the samples; here the
+  student reads it, writes it in their own words (`PUT
+  /applicants/{id}/style-card`) or deletes it with Undo. A change to the
+  samples clears it on the server and on the card. With no samples it is
+  not drawn: the API refuses a card that describes no writing.
 
 **The Transcript (KAN-369)** is a card: one file, PDF or DOCX, uploaded,
 replaced or removed there (a plain row in the card, not a box of its own,

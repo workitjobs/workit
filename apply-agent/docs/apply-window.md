@@ -185,8 +185,18 @@ docstring first.
   reason (`Bridge.status`).
 - Remove All My Data deletes the data folder only when `build.STUDENT`:
   in a Developer checkout it says the folder is the developer's. It
-  forgets each job-site password the Tracker's Employer accounts name
-  first: once the folder goes, nothing names them.
+  forgets each job-site password the keychain's account list names (and an
+  older version's `tracker.json`, still there), the list, and the password
+  chosen for new accounts first: once they go, nothing names them. Its
+  button is red, and one press only opens a confirmation that lists what
+  goes (the Worker windows and their sign-ins, the job-site passwords, the
+  WorkIt sign-in, any open form) with Remove Everything and Cancel.
+  It sends the writes still waiting for WorkIt first, while the student is
+  signed in, since their queue goes with the folder. A submit WorkIt still
+  can't take is named in the result (`first_run.UNSENT`), to mark applied
+  on WorkIt by hand, and the window stays open on it instead of closing:
+  with the queue gone, nothing else remembers it was sent, and the next
+  Start could fill it again.
 - Report a problem (Settings, and an Application's card with its id) is
   two calls: `review_report` builds the report and keeps it, the page
   shows its `parts`, and `send_report` sends that kept report, never the
@@ -279,6 +289,28 @@ for a student, not from `dashboard_page.py`.
   logo sources takes WorkIt's for the same job, so a link nothing named
   still shows its company's logo once WorkIt has one. Its button is on the
   start screen too.
+- **Answer Bank (W11, `src/answers.tsx`, `src/bank.ts`)** is the student's
+  Answer bank, with the website's design (Application Info's Answer Bank:
+  `../../frontend/docs/screens.md`): a change to one goes into the other.
+  It reads the Answers tab's view once (`Bridge.bank`, `GET /answers`) and
+  sends each change through its routes (`Bridge.changeBank`,
+  `POST /answers/bank/{save,add,review,delete}`), each of which waits for
+  WorkIt's reply and answers the new view. A save WorkIt's rule keeps out
+  says the rule's reason (`words.ts` keeps it, where every other "Not
+  saved" line reads "Your answer wasn't saved"). Remove has Undo for the
+  student's own answer only: a draft is drafted again by the next form.
+  The window has no danger colour, so its error lines use the warning ink.
+- **Under the Answer Bank, the rest a form may need (W11, `src/profile.tsx`):**
+  the header's Answers button opens the page. The student's Needs you
+  answers come next, with Edit and Remove (`Bridge.changeAnswered`, `POST
+  /answers/answered/{save,delete}`; Remove sends `remove_answered`, so the
+  next form asks again), the same rows the website's Application Info
+  shows (Answers From WorkIt Auto Apply). Then the profile WorkIt gave,
+  each section's facts with a file by its name alone, the Stock answers
+  and the style card, to read only: they change on the website, which the
+  next Start reads. The page reads the profile from WorkIt the first time
+  it opens before any Start (`AnswersTab(read=)`, `student.read_profile`),
+  and says why when WorkIt doesn't answer.
 - **Find jobs (KAN-882, `src/find.tsx`, `src/find-view.ts`).** When the
   window has `Bridge.matches`, the start screen is Find jobs: the
   student's best matches that Auto Apply fills and that they haven't
@@ -316,7 +348,14 @@ for a student, not from `dashboard_page.py`.
 - **The Submit card** (`checks`) lists only what Apply says it did:
   "Checked against your WorkIt profile" when `verified`, and "Resume
   attached" when a file the form was given answers its resume question
-  (`files`' label).
+  (`files`' label). **No AI answer goes on a form unsaid** (2026-11-26):
+  under the checks, with an info mark and never a green check, `aiReview`
+  says how many answers the AI wrote on it, above What we filled and that each has a mark beside
+  it on the form (the tile's `written`, `regenerate.form_of`: its essays,
+  its drafts and an Answer bank draft not reviewed yet). The mark is the
+  form's "↻ AI wrote this · Add context and regenerate" button
+  (`held-forms.md`). An Essay fact's card says its answer is for that
+  application's essay only (`reuse`).
 - **What we filled** (the Submit and Check cards, `filledIn`): every
   answer the form was filled with, from the tile's `answers`
   (`worker._Planned.listed`), each with where it came from (Your

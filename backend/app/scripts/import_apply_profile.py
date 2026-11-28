@@ -15,12 +15,14 @@ transaction:
    as WorkIt's own rows, step 5);
 2. `fill_policies`: only the policies the engine reads (ENGINE_POLICIES);
    Apply's run settings (caps, limits, schedules) stay Apply's;
-3. `fill_answers`: every Answer bank entry, with the company it was first
-   asked at (the answer bank keeps a company's answers to that company's
-   forms), by the rules Apply's sync uses too (services/apply_answers.py):
-   only an entry with `source: lisul`, and never one marked `reviewed:
-   false`, is the student's own words; Claude's drafts come as their
-   Claude's. A choice's entry (its options, or a list) is `choice`;
+3. the Answer bank (`answer_banks`, W11): every answered entry of
+   answer-bank.yaml, the student's own as theirs and Claude's drafts
+   flagged for review, each with the company it was first asked at and
+   through WorkIt's rule (app/auto_apply/answer_bank.py), which keeps out
+   what it would at any save. Only an entry with `source: lisul`, and
+   never one marked `reviewed: false`, is the student's own words
+   (services/apply_answers.py, `is_own`); a choice's entry (its options, or
+   a list) is `choice`;
 4. WorkIt's own fields from the profile's identity: name, contact email,
    phone, links, home location, and the education entry (the student's own,
    matched by school);
@@ -62,6 +64,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auto_apply import answer_bank
 from app.config import get_settings
 from app.db import get_sessionmaker
 from app.models.documents import Student_Document
@@ -292,10 +295,10 @@ async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir
 
     profile.fill_profile = _plain({k: v for k, v in facts.items() if k != "files"})
     profile.fill_policies = _plain({k: policies[k] for k in ENGINE_POLICIES if k in policies})
-    profile.fill_answers = _plain(apply_answers.from_bank(_read(apply_dir / ANSWERS)))
+    answers = _bank_entries(_read(apply_dir / ANSWERS))
     report.profile_sections = sorted(profile.fill_profile)
     report.policies = sorted(profile.fill_policies)
-    report.answers = len(profile.fill_answers)
+    report.answers = len(answers)
 
     await _set_fields(profile, facts, report)
     await _set_education(session, applicant_id, facts, report)
@@ -303,7 +306,25 @@ async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir
     await _set_transcript(session, profile, apply_dir, facts, report)
     await _set_writing(session, applicant_id, apply_dir, report)
     await session.flush()
+    # Into the student's Answer bank (W11), over any saved there, each through its company rule.
+    await answer_bank.keep(session, applicant_id, answers)
     return report
+
+
+def _bank_entries(entries: dict) -> list[answer_bank.Kept]:
+    """answer-bank.yaml's answered entries, as the Answer bank keeps them."""
+    kept = []
+    for filed, entry in entries.items():
+        if not isinstance(entry, dict) or entry.get("answer") in (None, "", []):
+            continue
+        answer = [str(a) for a in entry["answer"]] if isinstance(entry["answer"], list) else str(entry["answer"])
+        first = entry.get("first_seen") if isinstance(entry.get("first_seen"), dict) else {}
+        kept.append(answer_bank.Kept(
+            question=str(entry.get("question") or filed).strip(), answer=answer,
+            review=not apply_answers.is_own(entry.get("source"), entry.get("reviewed")),
+            choice=isinstance(answer, list) or bool(entry.get("options")),
+            company=str(first.get("company") or "").strip() or None))
+    return kept
 
 
 async def _set_writing(session: AsyncSession, applicant_id: uuid.UUID, apply_dir: Path, report: Report) -> None:
@@ -343,7 +364,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"{'DRY RUN, rolled back: ' if args.dry_run else ''}imported into applicant {args.applicant_id}")
     print(f"  fill profile sections: {', '.join(report.profile_sections)}")
     print(f"  fill policies: {', '.join(report.policies) or 'none'}")
-    print(f"  saved answers: {report.answers}")
+    print(f"  Answer bank entries: {report.answers}")
     print(f"  WorkIt fields set: {', '.join(report.fields) or 'none'}")
     print(f"  education entry: {report.education or 'none'}")
     print(f"  resume: {report.resume or 'left out'}")

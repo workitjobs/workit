@@ -850,7 +850,7 @@ What onboarding asks, kept so the Jobs page can apply it as filters:
   `027620538860` (KAN-233's expand). It must be on the database before the
   API that maps them deploys.
 
-## The answer bank — `autofill_answers.py` (KAN-283)
+## Application answers — `autofill_answers.py` (KAN-283)
 
 A student's answers to the questions hiring systems repeat on every
 application: work authorization, sponsorship, citizenship and visa status,
@@ -914,7 +914,8 @@ so WorkIt fills forms as completely as Apply does.
 - **The folder is Apply's data folder** (KAN-536). Without `<apply_dir>`, the
   import reads the folder that Apply reads: `$APPLY_HOME`, else
   `~/.config/apply` (`import_apply_writing.apply_home`). The profile, policies,
-  answer bank, story bank, voice and company briefs are directly in it.
+  story bank, voice and company briefs are directly in it, and a Developer
+  checkout's answer-bank.yaml from before W11 when it has one.
 - **The degree is Apply's `degree_type`** ("Bachelor of Science"), else its
   `degree` unless that names only its level ("Bachelor's degree", the
   form value Apply keeps there): then the degree stays empty and the
@@ -925,12 +926,13 @@ so WorkIt fills forms as completely as Apply does.
   rule is in `apply-agent`'s `profile.py` (`get`). If you change one, change
   the other.
 
-- **Three JSONB columns on `applicant_profiles`**, each `NOT NULL DEFAULT
+- **Two JSONB columns on `applicant_profiles`**, each `NOT NULL DEFAULT
   '{}'` with a CHECK that it is an object (migration `7f07adcaef4e`; the
   table already has RLS on): `fill_profile` (the engine's Profile shape,
-  nested sections: identity, education, screeners, voluntary_self_id...),
-  `fill_policies` (the engine's Policies, only the keys it reads) and
-  `fill_answers` (`{question: {answer, own, choice, company}}`, the Answer bank).
+  nested sections: identity, education, screeners, voluntary_self_id...)
+  and `fill_policies` (the engine's Policies, only the keys it reads). The
+  third, `fill_answers`, held what Apply's sync (KAN-746) brought; W11's
+  step 5 drops it (`c3f9a1d27b6e`), its answers now in the Answer bank.
 - **WorkIt's own fields win.** `GET .../fill-profile` serves the profile and
   policies; the extension lays what it builds from WorkIt's fields
   (`engineProfile`, `POLICIES`) over them, key by key, and a value WorkIt
@@ -941,30 +943,19 @@ so WorkIt fills forms as completely as Apply does.
   true`), as Apply itself treats them (`apply/answer_bank.py`, `LISUL`), and
   never one marked `reviewed: false`. A
   Claude draft (`source: claude`) comes as their Claude's even when
-  `reviewed`: Apply still calls it a draft. One rule for the import and
-  the sync: `services/apply_answers.py`. The answer bank
-  (`pipeline.answer_bank`) offers the student's own words first, the
-  newest first across those saved on applications (`answered_at`) and those
-  brought (`edited_at`; one with no time after those with one), then their
-  Claude's on applications, then
-  the brought drafts, under the same company rule: one about a company only
-  on that company's forms. A draft passes the same checks as their Claude's
-  saved answers and never fills a form that bans AI text (the engine skips
-  an answer that is not `own` there). `choice` (an entry with options, or a
-  list answer: the options ticked) skips the writing checks. Not
-  `written_answers`: those rows belong to an application, and a brought
-  answer has none.
-- **Apply keeps `fill_answers` in step** (KAN-746), once its student opts
-  in: `PATCH .../fill-answers` (routers/profiles.py) merges each entry Apply
-  saves, changes or deletes, key by key under a row lock, never the whole
-  column. Each synced entry carries `edited_at`, when Apply changed it. **A
-  newer edit wins** (`apply_answers.merge`): a change or delete older than
-  the stored entry's is left out and named in the answer's `kept`, and a
-  time ahead of the server's clock counts as now. The sync
-  never writes `written_answers`: an answer the student edited on WorkIt
-  stays theirs, and serving's newest-first order keeps an older Apply
-  answer under it. The import still replaces the column whole; it is a
-  local, one-time tool.
+  `reviewed`: Apply still calls it a draft (`services/apply_answers.py`,
+  `is_own`). **The import writes each entry of answer-bank.yaml straight
+  into the student's Answer bank** (`answer_banks`, below), the student's
+  own as theirs and the drafts flagged, each through WorkIt's rule with the
+  company it was first asked at.
+  `choice` (an entry with options, or a list answer: the options ticked)
+  skips the writing checks. Not `written_answers`: those rows belong to an
+  application, and a brought answer has none.
+- **Apply's sync is gone** (KAN-746's `PATCH .../fill-answers`, removed in
+  W11's step 5): WorkIt Auto Apply and a Developer checkout write the
+  Answer bank itself (`PATCH .../answer-bank`). An Apply checkout from
+  before W11 that still sends the sync gets a 404, and its queued changes
+  wait until it is updated.
 - **No `files` in `fill_profile`.** The files the profile names come over
   as WorkIt's own rows instead, only with `LOCAL_FILES_DIR` set: the resume
   (`files.resume_pdf`) as a `resumes` row, and the unofficial transcript
@@ -985,9 +976,67 @@ so WorkIt fills forms as completely as Apply does.
   `save_brief` (MIN_FACTS, a higher score). Apply keeps no quote, so the
   import takes the page's sentence that names the fact's product and holds
   its numbers; a fact with none is dropped.
+- **WorkIt Auto Apply writes `fill_profile` too** (W11): its Needs you
+  answers (`answered_questions`) and the facts the Fill engine reads from
+  them, through `PATCH /apply-app/profile`, since the app's profile is this
+  one with WorkIt's fields over it (`GET /apply-app/profile`). The import
+  replaces the column whole, so it drops those: it is a local developer
+  tool.
 - **Sensitive**: it holds self-identification. Only the owner reads it, and
   it never goes to a model. The import refuses a database not on this
   computer.
+
+## The Answer bank — `answer_banks.py` (W11)
+
+The one-off questions a student or their Claude answered once, which
+WorkIt Auto Apply and the WorkIt extension fill again on any later form
+(`docs/desktop_application_auto_apply.md`, W11). Not KAN-283's
+`autofill_answers` above, whose keys are WorkIt's own fixed questions.
+
+- **One row per student** (`applicant_id`, CASCADE from the profile):
+  `answers` JSONB maps the question's folded wording (the Fill engine's
+  match: `services/apply_answers.py`'s `wording`) to `{"question",
+  "answer", "review"?, "options"?}`. An answer is a string, or a list of
+  the options picked, `[]` for "none of these". `review: true` is only on
+  a Claude answer the student hasn't reviewed: it still fills forms, but
+  as not `own`, so a form that bans AI text never takes it. `options` is
+  only on the student's own pick from a list that renders a fact their
+  profile holds (a 3.85 on a GPA list in steps of 0.05, Freeform
+  2026-11-26, from `main`'s merge into KAN-834): the Fill engine then gives
+  it only to a form offering just those options (its `fromThisList`), in
+  the app and the extension alike. A save that names no `options` keeps
+  the ones the entry holds, so the website's edit of the answer keeps its
+  list; `[]` drops them. Nothing else is kept: no source, company, dates,
+  uses or facts. **Still open:** `main`'s stale drafts (ENFOS,
+  2026-11-26: a draft replaced once the Story bank lines it drew on are
+  gone) need each draft's facts, which no entry keeps; left out for now
+  at the user's call, so a draft stays until the student reviews or
+  removes it.
+- **Its own table, not a column of `applicant_profiles`**: every profile
+  read loads that row's JSONB columns, and a bank grows to hundreds of KB
+  (W11's "Size").
+- **`version` goes up by one on every write**, in the same statement as the
+  merge (`queries/answer_banks.py`, `answers || set - deleted`, never the
+  whole column from a caller's copy). It is the ETag of `GET
+  .../answer-bank`: a reader that holds it gets 304. Caps: 5,000 answers and
+  1 MB of JSON; a write past either is refused whole (413), and an
+  application's own save then goes on without the bank.
+- **Only one-off answers, and none about one company.** The server alone
+  decides what enters (one rule, `app/auto_apply/answer_bank.py`, run when
+  an answer is saved), so the whole bank fits every form and no read
+  filters it. From an application (`written_answers`) only a choice, and
+  the student's words in a field the tab never sent, are copied in: a
+  question in words the tab sent may be an essay, which the row can't
+  tell (the extension sends no essay marker, and W11 changes no extension
+  code), so its answer stays on its application. A follow-up of another
+  question ("If yes, please explain.") never enters, and a model's text
+  enters only when the student's own data holds what it states.
+- **The first read fills the row** from what WorkIt held before the table
+  (the student's own and choice answers saved to one-off questions on
+  applications), so the migration needs no script.
+  Every write makes the row first the same way.
+- **Sensitive** as any of the student's answers: only the owner reads or
+  writes it.
 
 ## Names: parts and one line (KAN-326)
 
@@ -1369,21 +1418,42 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 ## The connector's tables (KAN-377)
 
 - **`written_answers` is a row per question, keyed by the application**
-  (`(applicant_id, job_id)` to `job_applications`, CASCADE). `name` is the
+  (`(applicant_id, job_id)` to `job_applications`, CASCADE): the
+  application's essays and its one-off questions nothing else answers.
+  It is the work queue between the batch tab and the student's Claude
+  (the tab writes the questions, the connector's save the answers, the
+  tab reads them back) and the record of what that one application was
+  sent. Later forms never read it: a choice's answer, and the student's
+  words in a field the tab never sent, are copied into the student's
+  Answer bank (`answer_banks`, below) when saved. `name` is the
   form field's name, so the open tab knows where the answer goes. `own`
   (KAN-379) marks the student's own words (written into a field WorkIt
   didn't fill, or replacing what it filled; an edit of a filled answer
   stays not own): their
-  Claude's save never overwrites it, and `pipeline.answer_bank` offers it
-  first on later forms. `description` (KAN-369) is the help text the form
-  shows under the label, as the tab sent it; NULL when none.
+  Claude's save never overwrites it, and an own answer to a choice, or
+  to a question the tab never sent (`position` UNSENT), goes in the
+  student's Answer bank (`answer_banks`), which fills later forms. An
+  `essay` column (the Plan's essay marker) was designed for W11 and
+  dropped before it shipped (2026-11-20): the extension doesn't send it,
+  so the row can't tell a short question in words from an essay, and
+  such an answer stays on its application. `description` (KAN-369) is the help text the
+  form shows under the label, as the tab sent it; NULL when none.
   `review` (KAN-369, JSONB object) is what the
-  student's Claude's passes found on the answer it saved: `{plan,
-  unsupported}`, its Essay plan as `plans.Plan.stored` writes it and the
-  claim check's claims (rows saved before carry a `rating` and no plan;
-  no code reads the rating, and a row without a plan steers nothing);
+  student's Claude's passes found on the answer it saved: `{plan}`, its
+  Essay plan as `plans.Plan.stored` writes it (older rows also carry the
+  claim check's `unsupported` list, or a `rating` and no plan; nothing
+  reads either, and a row without a plan steers nothing);
   NULL for a choice, a paste or the student's own edit,
-  and cleared with the answer. An edit to a field the tab never sent (one a saved
+  and cleared with the answer. The plan is read again: one story leads
+  at most one answer per application (`fetch_plans`), later applications
+  steer off the stories sent ones led with (`led_before`), and its type
+  finds the cover letters. The save checks the claim check's list
+  against the answer and keeps none of it (2026-11-19: no code read it
+  back). While the row has no answer, `review` may instead hold the
+  fact their Claude asks the student for (`{"ask": ...}`, KAN-369).
+  `named_fact` is the brief fact the answer uses, which the Written
+  Answers page shows so the student can read up on it before an
+  interview. An edit to a field the tab never sent (one a saved
   answer filled) adds a row of its own, `required` false, placed last.
 - **`job_applications.answer_review` is the pre-submit review's one
   verdict per application** (KAN-369, `app/auto_apply/review.py`, the only

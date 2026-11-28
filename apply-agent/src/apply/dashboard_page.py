@@ -297,7 +297,7 @@ ANSWERS = r"""<div id="answers" hidden>
 <div class="bar">
   <input id="search" type="search" placeholder="Search questions, answers, companies…" autocomplete="off">
   <div class="segments" role="radiogroup" aria-label="Show">
-    <label><input type="radio" name="answers-filter" value="check"> To check <span id="check-count"></span></label>
+    <label><input type="radio" name="answers-filter" value="check"> To review <span id="check-count"></span></label>
     <label><input type="radio" name="answers-filter" value="all"> All</label>
     <label><input type="radio" name="answers-filter" value="facts"> Your facts</label>
   </div>
@@ -305,6 +305,7 @@ ANSWERS = r"""<div id="answers" hidden>
 </div>
 <section id="sec-bank">
   <h2>Saved answers <span class="count" id="bank-count"></span></h2>
+  <div class="status" id="bank-note" hidden></div>
   <div class="hidden-note"></div>
   <div id="bank"></div>
   <button id="add-open" class="tonal">+ Add an answer</button>
@@ -383,12 +384,14 @@ const answerOf = (entry, draft) => {
   if (draft.other.trim()) return draft.other.trim();
   if (entry.options.length && Array.isArray(entry.answer)) return entry.options.filter(o => draft.picked.includes(o));
   if (entry.options.length) return draft.picked[0] || '';
+  // A multi-select's answer is edited as text, its picks between semicolons; the Fill engine fits each to a form.
+  if (Array.isArray(entry.answer)) return draft.text.split(';').map(a => a.trim()).filter(Boolean);
   return draft.text;
 };
 const draftOf = (key, entry) => drafts.get(key) || (entry.options.length
   ? {picked: [].concat(entry.answer).filter(a => entry.options.includes(a)),
      other: [].concat(entry.answer).filter(a => !entry.options.includes(a)).join('; '), text: ''}
-  : {picked: [], other: '', text: entry.answer});
+  : {picked: [], other: '', text: Array.isArray(entry.answer) ? entry.answer.join('; ') : entry.answer});
 
 const bankEntry = (entry) => {
   const key = 'bank:' + entry.question, isOpen = opened === key;
@@ -399,13 +402,10 @@ const bankEntry = (entry) => {
       el('div', {className: 'q', textContent: entry.question}),
       el('div', {className: 'a', textContent: shown(entry.answer)}),
       el('div', {className: 'meta'},
-        entry.reviewed ? null : el('span', {className: 'badge unreviewed', textContent: 'Check this'}),
-        el('span', {textContent: entry.source === 'lisul' ? 'Written by you' : 'Written by Claude'}),
-        entry.uses && !entry.reviewed ? el('span', {className: 'badge used',
-          textContent: `Used on ${entry.uses + 1} applications` + (entry.last_used ? ' · last ' + entry.last_used : '')}) : null,
-        el('span', {textContent: [entry.company && 'first asked by ' + entry.company, entry.date].filter(Boolean).join(' · ')}))));
+        entry.reviewed ? null : el('span', {className: 'badge unreviewed', textContent: 'Needs review'}),
+        el('span', {textContent: entry.source === 'lisul' ? 'Written by you' : 'Drafted for you'}))));
   card.dataset.key = key;
-  card.dataset.text = [entry.question, shown(entry.answer), entry.company, ...entry.options].join('\n').toLowerCase();
+  card.dataset.text = [entry.question, shown(entry.answer), ...entry.options].join('\n').toLowerCase();
   card.dataset.review = entry.reviewed ? '' : '1';
   if (!isOpen) return card;
   const draft = draftOf(key, entry);
@@ -436,10 +436,10 @@ const bankEntry = (entry) => {
   editor.append(el('div', {className: 'actions'},
     el('button', {className: 'primary', textContent: 'Save',
       onclick: () => edit(key, 'bank/save', {question: entry.question, answer: answerOf(entry, draft)}, 'Saved')}),
-    entry.reviewed ? null : el('button', {className: 'tonal', textContent: 'Looks right',
-      onclick: () => edit(key, 'bank/review', {question: entry.question}, 'Marked checked')}),
+    entry.reviewed ? null : el('button', {className: 'tonal', textContent: 'Reviewed',
+      onclick: () => edit(key, 'bank/review', {question: entry.question}, 'Marked reviewed')}),
     el('button', {className: 'danger', textContent: 'Delete', onclick: async () => {
-      if (!confirm('Delete this answer? Claude writes it again the next time a form asks.\n\n' + entry.question)) return;
+      if (!confirm('Delete this answer? It is drafted again the next time a form asks.\n\n' + entry.question)) return;
       try {
         view = await post('bank/delete', {question: entry.question});
         drafts.delete(key); opened = null;
@@ -475,12 +475,15 @@ const render = () => {
   if (!view) return;
   const keep = document.activeElement && document.activeElement.closest('[data-key]')?.dataset.key;
   const toReview = view.bank.filter(e => !e.reviewed).length;
-  $('bank-count').textContent = `${view.bank.length} · ${toReview} to check`;
+  $('bank-count').textContent = `${view.bank.length} · ${toReview} to review`;
+  // While the bank hasn't come from WorkIt yet, why; it is tried again by itself.
+  $('bank-note').textContent = view.bank_note || '';
+  $('bank-note').hidden = !view.bank_note;
   $('check-count').textContent = toReview ? `(${toReview})` : '';
   if (!document.querySelector('[name=answers-filter]:checked'))  // to check first, while any wait
     document.querySelector(`[name=answers-filter][value=${toReview ? 'check' : 'all'}]`).checked = true;
   $('bank').replaceChildren(...(view.bank.length ? view.bank.map(bankEntry)
-    : [el('div', {className: 'empty', textContent: 'No saved answers yet: Claude adds one the first time a form asks.'})]));
+    : view.bank_note ? [] : [el('div', {className: 'empty', textContent: 'No saved answers yet: one is drafted the first time a form asks.'})]));
   $('answered-count').textContent = String(view.answered.length);
   $('answered').replaceChildren(...(view.answered.length ? view.answered.map(a =>
       textEntry('answered', a.question, a.answer, 'answered/save', value => ({question: a.question, answer: value})))
@@ -512,7 +515,7 @@ const render = () => {
 
 // The search box and the To check / All / Your facts filter narrow every section; a section
 // they empty says how many they hid, so it never looks as if there were none.
-const FILTERS = {check: 'the To check filter', facts: 'the Your facts filter'};
+const FILTERS = {check: 'the To review filter', facts: 'the Your facts filter'};
 const filter = () => {
   const words = $('search').value.toLowerCase().split(/\s+/).filter(Boolean);
   const mode = document.querySelector('[name=answers-filter]:checked')?.value || 'all';

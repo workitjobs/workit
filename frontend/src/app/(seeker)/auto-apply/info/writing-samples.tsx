@@ -17,6 +17,7 @@ import {
 } from "@/lib/writing-samples-actions";
 
 import { INFO_CARD, InfoCardHead } from "./card-head";
+import { StyleCard } from "./style-card";
 import { SectionAction } from "../../profile/section-action";
 import { useUnsavedChanges } from "../../settings/unsaved-changes";
 
@@ -28,14 +29,21 @@ const WRITING_SAMPLES_ID = "writing-samples";
 
 /**
  * Writing Samples (KAN-384, KAN-387): up to three pieces of the student's own
- * writing, a class essay or a cover letter, from which their own Claude
- * builds a style card, so the answers it writes read the way they write.
- * Optional: without samples, Claude writes plainly. WorkIt's own AI never
- * reads them. The extension asks for them once, after a student's first
+ * writing, a class essay or a cover letter, so the answers written for them
+ * read the way they write: WorkIt Auto Apply's essays read them in its Story
+ * bank (W11), through WorkIt's AI, and the connector hands them to the
+ * student's own Claude, which builds a style card from them. Optional. The
+ * page's one promise is that the student's name and contact details are
+ * hidden before an AI reads them (2026-11-26, the team's call; it said only
+ * the student's Claude reads them until then). The extension asks for them once, after a student's first
  * batch whose answers their Claude wrote, and opens /auto-apply/info#writing-samples
  * (Application Info; /profile#writing-samples forwards there for older
  * versions),
  * which opens Add Sample at once.
+ *
+ * Under the samples, while there are any, the style card their own Claude
+ * builds from them, which the student reads, writes or deletes here
+ * (./style-card.tsx).
  *
  * Each sample is shown as its first lines, with Remove. Add opens a text box
  * in place, with Cancel and Save under it, as the sections above edit. A
@@ -49,6 +57,8 @@ const WRITING_SAMPLES_ID = "writing-samples";
  */
 export function WritingSamples() {
   const [samples, setSamples] = useState<WritingSample[] | null>(null);
+  // The style card (./style-card.tsx): the server deletes it with every change to the samples, and so does this.
+  const [card, setCard] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [text, setText] = useState("");
@@ -60,9 +70,12 @@ export function WritingSamples() {
   const read = useCallback(
     () =>
       getWritingSamples()
-        .then(({ samples: s, error: err }) => {
+        .then(({ samples: s, styleCard, error: err }) => {
           if (err) setLoadError(err);
-          else setSamples(s);
+          else {
+            setSamples(s);
+            setCard(styleCard);
+          }
           // The extension's ask lands here: open the box the student came for.
           if (s && s.length < MAX_SAMPLES && window.location.hash === `#${WRITING_SAMPLES_ID}`) {
             setAdding(true);
@@ -100,6 +113,7 @@ export function WritingSamples() {
         return;
       }
       setSamples((s) => [...(s ?? []), sample]);
+      setCard(null);
       setAdding(false);
     } catch {
       setError("Could not reach the server. Check your connection and try again.");
@@ -114,6 +128,7 @@ export function WritingSamples() {
     }));
     if (err) return setError(err);
     setSamples((s) => (s ?? []).filter((x) => x.id !== sample.id));
+    setCard(null);
     toast.show({
       message: "Your writing sample is removed.",
       action: { label: "Undo", onClick: () => restore(sample.text) },
@@ -125,8 +140,10 @@ export function WritingSamples() {
       sample: null,
       error: "Could not reach the server.",
     }));
-    if (sample) setSamples((s) => [...(s ?? []), sample]);
-    else toast.show({ message: `Your writing sample wasn't put back. ${err ?? ""}`.trim() });
+    if (sample) {
+      setSamples((s) => [...(s ?? []), sample]);
+      setCard(null);
+    } else toast.show({ message: `Your writing sample wasn't put back. ${err ?? ""}`.trim() });
   }
 
   const room = samples !== null && samples.length < MAX_SAMPLES;
@@ -147,7 +164,7 @@ export function WritingSamples() {
         part="writing-samples"
         id="writing-samples-heading"
         title="Writing Samples"
-        description="Up to three pieces of your own writing, such as a class essay or a cover letter. Your Claude reads them so the answers it writes sound like you. Optional, and only your Claude reads them."
+        description="Up to three pieces of your own writing, such as a class essay or a cover letter, so the answers written for you sound like you. Optional. Your name and contact details are hidden before any AI reads them."
         actions={
           // With none yet, Add is the button in the body, below.
           room &&
@@ -251,6 +268,8 @@ export function WritingSamples() {
           </div>
         </form>
       )}
+      {/* After the Add box, so a new sample's box opens under the samples, not under the card's heading. */}
+      {samples && samples.length > 0 && <StyleCard card={card} onChange={setCard} />}
       {!adding && error && (
         <p role="alert" className="text-note text-danger mt-4">
           {error}

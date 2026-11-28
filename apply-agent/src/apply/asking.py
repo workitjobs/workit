@@ -129,7 +129,7 @@ def links(profile: ApplicantProfile) -> tuple[str, ...]:
     is listed once, from the Story bank or the resume, whose words say what it is."""
     own = [f"{LINK_NAMES.get(name, name.removesuffix('_url').replace('_', ' ').title())}: {url}"
            for name, url in (profile.get("links") or {}).items() if isinstance(url, str) and url.strip()]
-    bank = data_folder.STORY_BANK.read_text(encoding="utf-8") if data_folder.STORY_BANK.is_file() else ""
+    bank = data_folder.story_bank()
     stories = [one_line(line).lstrip("-* ") for line in bank.splitlines() if URL.search(line)]
     pdf = profile.get("files.resume_pdf")
     on_resume = [f"{words} (on the resume): {url}" for words, url in
@@ -191,8 +191,10 @@ def known(asked: str, profile: ApplicantProfile, bank: AnswerBank | None = None,
     """What Apply already holds that answers `asked`, a line a fact; () when
     it holds nothing, and Lisul must be asked. An answer Lisul gave before
     (the profile's answered questions, the Answer bank, a Story bank line
-    from an earlier Essay fact) answers the same question. A question for
-    the graduation date is answered by the profile's (graduation). A question for
+    from an Essay fact a Developer checkout saved before essays.TOLD)
+    answers the same question; an Essay fact's answer is never kept now. A
+    question for the graduation date is answered by the profile's
+    (graduation). A question for
     links is answered by the links Apply holds when each kind it names
     (GitHub, LinkedIn, a site, a repo) is among them: those of its kinds.
     A Story bank line true of one company only is `employer`'s (essays.story_bank)."""

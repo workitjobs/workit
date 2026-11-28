@@ -49,7 +49,7 @@ from playwright.sync_api import Page
 
 from apply import asking, tracker
 from apply.adapters import JobSite, SetupError
-from apply.answer_bank import LISUL, AnswerBank
+from apply.answer_bank import AnswerBank
 from apply.model import (
     Answers,
     FillError,
@@ -370,8 +370,8 @@ def plan(questions: QuestionSet, posting: Posting, profile: ApplicantProfile, ba
     beside the form (the Posting description, Company material): an AI trap in it makes the
     Application a Handoff, and an AI ban in it bans AI-written text on the form."""
     bank = bank or AnswerBank()
-    entries = {question: {"answer": entry.answer, "own": entry.source == LISUL, "none": entry.none,
-                          "options": list(entry.options)} for question, entry in bank.answers().items()}
+    entries = {question: {"answer": entry.answer, "own": entry.own, "none": entry.none, "options": list(entry.options)}
+               for question, entry in bank.answers().items()}
     context = {"posting": posting, "today": (today or date.today()).isoformat(), "postingText": HostCall(functools.cache(posting_text)),
                "employerText": employer_text}
     asked = [_as_home_address(q) for q in questions]
@@ -457,7 +457,7 @@ def _local_path(answer: Any) -> bool:
 
 
 def remember(profile: ApplicantProfile, posting: Posting, question: Question, answer: str,
-             bank: AnswerBank | None = None, day: date | None = None) -> None:
+             bank: AnswerBank | None = None) -> None:
     """Add Lisul's answer to a Missing fact to the profile: as the fact the
     question asks for, or else by the question's wording. The caller saves it.
     A pick from a list that renders a fact the profile holds (a 3.85 on a GPA list in steps of 0.05, for a 3.86)
@@ -467,7 +467,7 @@ def remember(profile: ApplicantProfile, posting: Posting, question: Question, an
     if "fact" in change:
         profile.set(change["fact"], change["value"])
     elif "options" in change and bank is not None:
-        bank.answer(change["question"], change["answer"], day or date.today(), options=change["options"])
+        bank.answer(change["question"], change["answer"], options=change["options"])
     else:
         profile.set_answered(change["question"], change["answer"])
 

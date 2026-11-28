@@ -12,7 +12,7 @@ from fakes import FakeClaude, RecordingBoard
 from test_run_answers import profile_with
 
 from apply import home, regenerate
-from apply.answer_bank import CLAUDE, AnswerBank
+from apply.answer_bank import AnswerBank
 from apply.dashboard import Dashboard, NoFrames
 from apply.essays import Essay
 from apply.model import Posting, Question
@@ -85,33 +85,32 @@ def test_an_answer_over_the_forms_cap_or_with_an_invented_name_stays_off_the_for
 
 def test_a_one_off_answer_is_drafted_again_and_replaces_its_draft_in_the_answer_bank(tmp_path):
     profile = ApplicantProfile.load(profile_with(tmp_path))
-    bank = AnswerBank(tmp_path / "answer-bank.yaml")
-    bank.add(CLUB, "The coding club", "Harvey", TODAY)
+    bank = AnswerBank()
+    bank.add(CLUB, "The coding club", "Harvey")
     form = a_form(regenerate.Written(CLUB, "The coding club", regenerate.DRAFT))
 
     redone = regenerate.regenerate(FakeClaude(drafts={"Which student club": "The robotics club, which I led"}), form,
                                    "club", "I led the robotics club", profile, bank, TODAY)
 
-    assert redone.text == "The robotics club, which I led" and redone.banked
-    entry = AnswerBank(tmp_path / "answer-bank.yaml").get(CLUB.label)
-    assert entry.answer == "The robotics club, which I led" and entry.source == CLAUDE and not entry.reviewed
-    assert entry.first_seen == TODAY and entry.company == "Harvey"
+    assert redone.text == "The robotics club, which I led"
+    entry = bank.get(CLUB.label)
+    assert entry.answer == "The robotics club, which I led" and not entry.own
 
 
 def test_lisuls_own_answer_and_a_bare_label_are_never_replaced_in_the_answer_bank(tmp_path):
     profile = ApplicantProfile.load(profile_with(tmp_path))
-    bank = AnswerBank(tmp_path / "answer-bank.yaml")
-    bank.answer(CLUB.label, "His own words", TODAY)
+    bank = AnswerBank()
+    bank.answer(CLUB.label, "His own words")
     form = a_form(regenerate.Written(CLUB, "His own words", regenerate.DRAFT))
     redone = regenerate.regenerate(FakeClaude(drafts={"Which student club": "Another club"}), form, "club", "say more",
                                    profile, bank, TODAY)
-    assert redone.text == "Another club" and not redone.banked
+    assert redone.text == "Another club"
     assert bank.get(CLUB.label).answer == "His own words"
 
     form = a_form(regenerate.Written(FROM, "May 2027", regenerate.DRAFT))
     redone = regenerate.regenerate(FakeClaude(drafts={"From": "June 2027"}), form, "from", "I start in June", profile,
                                    bank, TODAY)
-    assert redone.text == "June 2027" and not redone.banked and bank.get("From") is None
+    assert redone.text == "June 2027" and bank.get("From") is None
 
 
 def test_no_context_asks_for_some_and_changes_nothing(tmp_path):
@@ -120,26 +119,36 @@ def test_no_context_asks_for_some_and_changes_nothing(tmp_path):
     before = home.STORY_BANK.read_text()
     claude = FakeClaude()
     redone = regenerate.regenerate(claude, form, "why", "   ", profile, AnswerBank(), TODAY)
-    assert not redone.text and "Type what Claude should know" in redone.why
+    assert not redone.text and "Type what the AI should know" in redone.why
     assert claude.asked == [] and home.STORY_BANK.read_text() == before
 
 
-def test_only_answers_claude_wrote_into_a_text_field_can_be_regenerated():
+def test_only_answers_the_ai_wrote_into_a_text_field_are_marked_and_can_be_regenerated():
+    """Fault: an AI draft from an earlier form that he hasn't reviewed went on the form with no mark, or his own
+    Answer bank answer was marked as the AI's."""
+    reviewed, unreviewed = Question("mine", "Why this team?", "text"), Question("draft", "Why this city?", "text")
+
     class Planned:
         posting, text, material = POSTING, "", None
         pick = Question("pick", "Which team?", "select", True, ("A", "B"))
-        questions = [WHY, CLUB, pick, FROM]
-        answers = {"why": EARLIER, "club": "The coding club", "pick": "A", "from": "May 2027"}
+        questions = [WHY, CLUB, pick, FROM, reviewed, unreviewed]
+        answers = {"why": EARLIER, "club": "The coding club", "pick": "A", "from": "May 2027",
+                   "mine": "My own words.", "draft": "The AI's words."}
         written = [Essay(WHY, EARLIER)]
         drafted = [type("D", (), {"question": CLUB, "answer": "The coding club"}),
                    type("D", (), {"question": pick, "answer": "A"})]  # a pick from a list: not offered
         unbanked = []
+        banked = [reviewed, unreviewed]  # the Answer bank's: his own (reviewed), and an AI draft from an earlier form
 
         def known(self):
             return ""
 
+        def own(self):
+            return {"mine"}
+
     form = regenerate.form_of(Planned())
-    assert [(w.question.name, w.kind) for w in form.written] == [("why", regenerate.ESSAY), ("club", regenerate.DRAFT)]
+    assert [(w.question.name, w.kind) for w in form.written] == [("why", regenerate.ESSAY), ("club", regenerate.DRAFT),
+                                                                  ("draft", regenerate.DRAFT)]
     assert not form.read  # no Company material yet: a regenerate of an essay reads it
 
 

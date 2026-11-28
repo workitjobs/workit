@@ -6,7 +6,6 @@ import pytest
 
 from app.auto_apply.checks import (
     Context,
-    company_specific,
     copied,
     high_stakes,
     numbers,
@@ -147,10 +146,3 @@ def test_every_problem_is_named_at_once():
     assert len(problems("I am thrilled! I grew it by 99%.", Context(limit=10))) == 3
 
 
-def test_an_answer_about_one_company_is_specific_to_it():
-    assert company_specific("Why do you want to work here?", "I like boats.", "Acme")
-    assert company_specific("What excites you about this role?", "Boats.", "Acme")
-    assert company_specific("Why Acme?", "Boats.", "Acme")
-    assert company_specific("Tell us about a project you are proud of.", "At Acme's hackathon I built a boat.", "Acme")
-    assert not company_specific("Tell us about a project you are proud of.", "I built a boat.", "Acme")
-    assert not company_specific("What is your greatest strength?", "I finish things.", None)

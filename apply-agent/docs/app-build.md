@@ -48,9 +48,9 @@ Three lists decide what the app holds. Change only these:
   build doesn't check what the code reads: a missing input crashes the built
   app when it runs. `worker-extension/` is read by the Worker setup (until
   W6 uses the Chrome Web Store copy). `sample/` left the app on
-  2026-11-24, ahead of the code: until W11 stops `student.app` from
-  copying it, a built app whose data folder has no Applicant profile stops
-  at launch.
+  2026-11-24, ahead of the code: a built app whose data folder had no
+  Applicant profile stopped at launch until W11 (KAN-834) stopped
+  `student.app` from copying it, its profile now WorkIt's.
 - **A release sees only committed files.** Commit a change before a
   `--release` build.
 - A new rule about what ships goes in `../CLAUDE.md`, "Building the app", in
@@ -181,9 +181,6 @@ it out of git, and delete the test build afterwards: it allows plain HTTP.
   build. It needs the Apple keys first (`../../docs/secrets.md`, Load the
   Apple keys).
 - `worker-extension/` leaves `INPUTS` with W6.
-- W11: `student.app` still copies the Test Person sample, which the app no
-  longer ships, into a data folder with no Applicant profile, so such a
-  first launch stops until the student's profile comes from WorkIt.
 - CDP Workers' Chrome is started by Playwright inside the app, so macOS may
   blame the app for Chrome's updater ("prevented from modifying apps")
   during a run on a host outside `plain_worker_hosts`.

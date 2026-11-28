@@ -16,19 +16,19 @@ from pathlib import Path
 
 from apply import (
     already_applied,
-    answer_sync,
     answering,
     app_window,
     build,
     captcha,
     home,
+    local_data,
     rehearsal,
     tailored,
     worker_tiles,
 )
 from apply.accounts_tab import AccountsTab
-from apply.adapters import Adapters, ClaudeError, UsageReading
-from apply.answer_bank import FILE as ANSWER_BANK
+from apply.adapters import Adapters, ClaudeError, SetupError, UsageReading
+from apply.answer_bank import AnswerBank, WorkItSource
 from apply.answers_tab import AnswersTab, saving_answers
 from apply.applicant import as_applicant
 from apply.ask_model import live_claude
@@ -41,13 +41,13 @@ from apply.first_run import workers
 from apply.home import HOME
 from apply.keychain import SystemKeychain
 from apply.plain.site import live_site
-from apply.profile import ApplicantProfile
+from apply.profile import ApplicantProfile, load_policies
 from apply.records import FolderRecords
-from apply.tracker import FileTracker, WorkItTracker
+from apply.tracker import FileTracker, KeychainTracker, WorkItTracker
 from apply.worker import sent_resume
-from apply.workit import WaitingWrites, WorkIt, site
+from apply.workit import WaitingWrites, WorkIt, WorkItError, Write, site
 
-RECORDS = HOME / "rehearsals"  # each held form's Record, as `apply rehearse` keeps them
+RECORDS = local_data.RECORDS  # each held form's Record, while its form is open (W11)
 MAX_PLAN = "APPLY_MAX_PLAN"  # set by a Developer checkout's `apply app --max-plan`
 NO_MODEL = "WorkIt Auto Apply doesn't {what}: a person does it, or WorkIt's Model route"
 NO_MAIL = "WorkIt Auto Apply reads no email: type the code or open the link from your inbox yourself"
@@ -114,19 +114,27 @@ def asking(policies: dict, environ=os.environ):
     return live_claude(policies, NoClaude())
 
 
-def adapters(profile: ApplicantProfile) -> Adapters:
-    """What a Student build's run touches. The policies are the Student build's own (apply.build.STUDENT_POLICIES)."""
+def adapters(profile: ApplicantProfile, bank: AnswerBank) -> Adapters:
+    """What a Student build's run touches, with the app's one Answer bank. The policies are the Student build's own
+    (apply.build.STUDENT_POLICIES)."""
     policies = profile.policies()
     site = live_site(policies)
     answering.refresh(WorkIt())  # WorkIt's Question types, for the run's essays
     asks = as_applicant(asking(policies), profile)  # no private detail in a kind (apply.private)
     resume = Path(str(profile.get("files.resume_pdf") or "")).name
+    keychain = SystemKeychain()
+    student = build.STUDENT
     return Adapters(
         feed=live_feed(),
-        # Apply's Tracker in the data folder, as a Developer checkout's: the Employer accounts (and so their
-        # passwords' keychain items, for Remove All My Data) outlive a launch, and the student's own Submit is
-        # written to their Applications Tracker on WorkIt with the resume the form was given (KAN-544).
-        tracker=WorkItTracker(FileTracker(), WaitingWrites(), lambda application: sent_resume(application, resume)),
+        # The student's own Submit goes to their Applications Tracker on WorkIt (KAN-544) with the Sent resume and
+        # what the form sent (W11). WorkIt Auto Apply keeps no Tracker file: its rows live for the run, its Employer
+        # accounts in the keychain, and an application's files go once WorkIt has it (apply.local_data). A Developer
+        # checkout's `apply app` keeps its Tracker file and its files, and names the Sent resume by its copy.
+        tracker=WorkItTracker(KeychainTracker(keychain) if student else FileTracker(),
+                              WaitingWrites(delivered=forget_sent if student else None),
+                              lambda application: "" if student else sent_resume(application, resume),
+                              ref_of=lambda application, answers: resume_ref(application, answers, resume),
+                              sent_of=lambda application: rehearsal.SENT_ANSWERS.pop(application, [])),
         site=site,
         claude=asks,
         mailbox=NoMailbox(),
@@ -135,9 +143,9 @@ def adapters(profile: ApplicantProfile) -> Adapters:
         records=FolderRecords(RECORDS),
         notifier=Silent(),
         phone=None,
-        keychain=SystemKeychain(),
+        keychain=keychain,
         repairs=NoRepairs(),
-        answer_bank=answer_sync.bank(profile.folder / ANSWER_BANK, policies),
+        answer_bank=bank,
         signed_in=site.signed_in(),
         tailored=tailored.from_workit(),
         everyday=captcha.to_everyday_chrome,
@@ -150,6 +158,9 @@ def tracker_url() -> str:
     application is there, not only this Mac's."""
     return f"{site().web}/applications"
 
+
+# How long Start waits for an Answer bank that hasn't read yet, as it tries again.
+BANK_WAIT = 5.0
 
 # A stopped run ends once its Workers' Chromes have let go of their profiles, so a Start right after Stop finds them
 # free (KAN-874): a fill under way when Stop came runs on to its own end. At most FREE_WAIT seconds, looked at each
@@ -176,19 +187,36 @@ class Runs:
     """The window's runs (W5 step 4): each Start rehearses its links in the Workers and shows the run's own Apply
     window, its tiles, while it goes. Apply never presses Submit: each form is held for the student."""
 
-    def __init__(self, profile: ApplicantProfile, make: Callable[[ApplicantProfile], Adapters] = adapters,
+    def __init__(self, profile: ApplicantProfile, bank: AnswerBank,
+                 make: Callable[[ApplicantProfile, AnswerBank], Adapters] = adapters,
                  rehearse: Callable[..., object] = rehearsal.rehearse,
-                 keep_awake: Callable[[], AbstractContextManager] = awake):
-        self._profile, self._make, self._rehearse, self._awake = profile, make, rehearse, keep_awake
+                 keep_awake: Callable[[], AbstractContextManager] = awake,
+                 refresh: Callable[[], None] = lambda: None):
+        """`refresh` puts the student's profile in as each Start begins: WorkIt's (`profile_from_workit`) in the
+        app."""
+        self._profile, self._bank, self._make, self._rehearse, self._awake = profile, bank, make, rehearse, keep_awake
+        self._refresh = refresh
         self._site = None  # the run's Workers, to stop when the app quits
 
-    def run(self, links: list[str], show: Callable[[Dashboard], None]) -> None:
-        """Rehearse `links` with the run's own Apply window shown (`show`), till every form it held is closed."""
-        with self._awake():  # the computer never sleeps mid-run (KAN-885)
-            self._rehearse_shown(links, show)
+    def run(self, links: list[str], show: Callable[[Dashboard], None], jobs: dict[str, str] | None = None) -> None:
+        """Rehearse `links` with the run's own Apply window shown (`show`), till every form it held is closed. `jobs`
+        names the WorkIt job of each link from the student's Auto Apply queue. A run waits for the Answer bank
+        (W11): one that hasn't read yet is tried again, a few seconds at most. Then it reads the profile."""
+        if not self._bank.wake(BANK_WAIT):
+            raise SetupError("Your Answer bank hasn't come from WorkIt yet: WorkIt Auto Apply keeps trying. "
+                             "Press Start again in a moment.")
+        self._refresh()
+        send_waiting()
+        try:
+            with self._awake():  # the computer never sleeps mid-run (KAN-885)
+                self._rehearse_shown(links, show, jobs or {})
+        finally:
+            if build.STUDENT:  # the profile's file copies: the next Start reads them again (W11)
+                local_data.forget_files()
 
-    def _rehearse_shown(self, links: list[str], show: Callable[[Dashboard], None]) -> None:
-        made = self._make(self._profile)
+    def _rehearse_shown(self, links: list[str], show: Callable[[Dashboard], None], jobs: dict[str, str]) -> None:
+        made = self._make(self._profile, self._bank)
+        made.jobs = jobs
         self._site = site = made.site
         try:
             answers = AnswersTab(made.answer_bank, self._profile, held=made.tracker.rows)
@@ -216,6 +244,102 @@ class Runs:
             self._site = None
 
 
+# The files the student's profile names, as WorkIt gave them at the last Start: the default resume, the transcript.
+FILES = local_data.FILES
+# The default resume's id on WorkIt, as the last Start read it ({"uploaded_resume_id"} or {"built_resume_id"}): the
+# Sent resume a form given it names (W11), so no copy of the file is kept.
+RESUME_REF: dict = {}
+
+
+def resume_ref(application_id: str, answers: list[dict], resume: str) -> dict:
+    """The Sent resume of an Application the student submitted, by its id on WorkIt, when what its form sent
+    (`answers`, rehearsal.sent_answers: a file by its name) holds the profile's resume, named `resume` (a tailored
+    one keeps its name, apply.tailored.resume_for): the tailored resume its form was given (apply.tailored.GIVEN),
+    else the profile's. {} for a form that took no resume."""
+    given = tailored.GIVEN.pop(application_id, None)
+    sent = {name for a in answers for name in (a["answer"] if isinstance(a["answer"], list) else [a["answer"]])}
+    return (given or dict(RESUME_REF)) if resume and resume in sent else {}
+
+
+def send_waiting() -> None:
+    """At each Start, the writes WorkIt couldn't take before: an applied one goes before the run's already-applied
+    check reads WorkIt, and nothing else would send it if the student sends no form again. Never stops a Start."""
+    try:
+        for problem in WaitingWrites(delivered=forget_sent if build.STUDENT else None).flush():
+            print(problem, file=sys.stderr)
+    except Exception as error:
+        print(f"Waiting writes not sent ({type(error).__name__}: {error})", file=sys.stderr)
+
+
+def forget_sent(write: Write) -> None:
+    """WorkIt has what the Application sent: nothing of it stays on the Mac (W11)."""
+    local_data.forget(write.company, write.application_id)
+
+
+def profile_from_workit(profile: ApplicantProfile, client: WorkIt | None = None) -> None:
+    """The student's profile and policies from WorkIt (W11: the app keeps no profile file and no Test Person), read
+    at each Start, so an edit on WorkIt's website reaches the next run. The files it names are read too and kept in
+    FILES, which a form's upload takes by their path. Raises SetupError, with nothing changed, when WorkIt doesn't
+    answer."""
+    client = client or WorkIt()
+    try:
+        got = client.applicant_profile()
+        facts = got["profile"]
+        resume = got["files"].get("resume") or {}
+        RESUME_REF.clear()
+        RESUME_REF.update({k: str(resume[k]) for k in ("uploaded_resume_id", "built_resume_id") if resume.get(k)})
+        for key, fact in (("resume", "resume_pdf"), ("transcript", "unofficial_transcript_pdf")):
+            if where := got["files"].get(key):
+                FILES.mkdir(parents=True, exist_ok=True)
+                path = FILES / Path(where["name"]).name  # a name, never a path WorkIt could steer
+                path.write_bytes(client.profile_file(where))
+                facts.setdefault("files", {})[fact] = str(path)
+    except WorkItError as error:
+        raise SetupError(f"Your profile didn't come from WorkIt ({error}). Press Start again in a moment.") from None
+    got["policies"].pop("how_heard", None)  # "How did you hear about us?" stays Apply's: the extension answers "WorkIt"
+    profile.refresh(facts, layered(load_policies(), got["policies"]))
+    writing = got.get("writing") or {}
+    home.WORKIT = home.FromWorkIt(writing.get("story_bank") or "", writing.get("voice") or "")
+
+
+def read_profile(profile: ApplicantProfile) -> str:
+    """The profile from WorkIt for the Answers page, opened before any Start: why it didn't come, or ""."""
+    try:
+        profile_from_workit(profile)
+    except SetupError as error:
+        return str(error)
+    return ""
+
+
+def to_workit(changes: list[tuple]) -> None:
+    """A profile save, into the student's profile on WorkIt: their Needs you answers, the ones they removed, and the
+    facts the Fill engine read from them, in order, so a later change wins. A file's path is this Mac's, never
+    sent."""
+    answered, facts, removed = {}, {}, []
+    for kind, key, value in changes:
+        if kind == "answered":
+            answered[key], removed = value, [q for q in removed if q != key]
+        elif kind == "forget":
+            answered.pop(key, None)
+            removed.append(key)
+        elif kind == "set" and not key.startswith("files."):
+            facts[key] = value
+    if answered or facts or removed:
+        WorkIt().save_answered(answered, facts, removed)
+
+
+def layered(under: dict, over: dict) -> dict:
+    """`over` laid over `under`, section by section, as the extension lays them (WorkIt's policies over the Student
+    build's own): an empty value leaves `under`'s, so WorkIt's empty high_stakes_job_systems keeps Apply's [ashby]."""
+    out = dict(under)
+    for key, value in over.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = layered(out[key], value)
+        elif value not in (None, "", [], {}):
+            out[key] = value
+    return out
+
+
 def reclaim_left() -> None:
     """Stop the plain Workers' Chromes an Apply that crashed or was killed left up (launcher.reclaim_all), as the app
     starts, not only once a run reaches each profile: a crash left one per form open till then."""
@@ -230,16 +354,26 @@ def reclaim_left() -> None:
 
 def app() -> None:
     """WorkIt Auto Apply: its window (apply.app_window), with no port. It signs the student in, takes them through
-    first run, then shows their Auto Apply queue and runs it (W5)."""
-    if home.fill_from_sample():
-        print(f"No Applicant profile yet: WorkIt Auto Apply runs as Test Person from {HOME} till yours is there.")
-    profile = ApplicantProfile.load(HOME / "applicant-profile.yaml")
-    answers = AnswersTab(answer_sync.bank(profile.folder / ANSWER_BANK, profile.policies()), profile)
-    runs = Runs(profile)
+    first run, then shows their Auto Apply queue and runs it (W5). The profile and the Answer bank are WorkIt's
+    (W11): the bank is read in the background, so the window opens at once while it reads, and the profile at each
+    Start."""
+    if build.STUDENT:  # what an older version or a crash left: only open forms' files and the sign-ins stay (W11)
+        try:
+            local_data.sweep(SystemKeychain())
+        except Exception as error:  # a keychain the student denied: the window opens, and the next launch tries again
+            print(f"Data folder not cleaned ({type(error).__name__}: {error})", file=sys.stderr)
+    profile = ApplicantProfile({}, HOME, load_policies(), saver=to_workit)
+    # The Story bank and voice are WorkIt's too, read with the profile at each Start: never the data folder's files,
+    # which a Developer checkout's `apply app` would read.
+    home.WORKIT = home.FromWorkIt()
+    bank = AnswerBank(WorkItSource())
+    bank.load_in_background()
+    answers = AnswersTab(bank, profile, read=lambda: read_profile(profile))
+    runs = Runs(profile, bank, refresh=lambda: profile_from_workit(profile))
     threading.Thread(target=reclaim_left, daemon=True, name="reclaim").start()
     try:
-        with Dashboard(0, NoFrames(), answers, sample=profile.get("sample_data") is True, tracker_url=tracker_url(),
-                       serve=False) as board:
+        with Dashboard(0, NoFrames(), answers, tracker_url=tracker_url(), serve=False) as board:
             app_window.run(board, start=runs.run)
     finally:
         runs.close()
+        bank.close()  # the changes still on their way to WorkIt get a few seconds

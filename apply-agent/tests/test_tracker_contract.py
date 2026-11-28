@@ -9,7 +9,7 @@ import pytest
 from trackers import tracker_and_lisul
 
 from apply.model import Outcome, Status
-from apply.tracker import AnswerRow, EmployerAccount, Row
+from apply.tracker import EmployerAccount, Row
 
 
 @pytest.fixture(params=["memory", "file", "sheet", "checkbox-sheet", "live-sheet"])
@@ -187,40 +187,15 @@ def test_new_employer_accounts_are_listed(tracker):
     assert tracker.employer_accounts() == [nvidia, ibm]
 
 
-HOUSING = AnswerRow("Do you have housing within 30 miles of our office?", "Yes", drafted="Yes", options=("Yes", "No"),
-                    company="MetOx", first_seen=date(2026, 10, 16))
-SKILLS = AnswerRow("Skill Areas (Select all that apply)", "Software; Robotics", drafted="Software; Robotics",
-                   options=("Finance", "Software", "Robotics"), company="Gas South", first_seen=date(2026, 10, 16))
-
-
-def test_answers_claude_drafted_are_listed_in_the_answers_tab(tracker):
-    tracker.add_answer(HOUSING)
-    tracker.add_answer(SKILLS)
-
-    assert tracker.answers() == [HOUSING, SKILLS]
-
-
-def test_lisul_edits_an_answer_and_ticks_it_reviewed_in_the_answers_tab(tracker, lisul):
-    tracker.add_answer(HOUSING)
-    tracker.add_answer(SKILLS)
-
-    lisul.edit_answer(HOUSING.question, answer="No", reviewed=True)
-
-    assert tracker.answers() == [
-        AnswerRow(HOUSING.question, "No", True, "Yes", ("Yes", "No"), "MetOx", date(2026, 10, 16)), SKILLS,
-    ]
-
-
 def test_the_tracker_file_keeps_every_row_between_runs(tmp_path):
     from apply.tracker import FileTracker
 
     first = FileTracker(tmp_path / "tracker.json")
     first.add(arc(suggested_outcome=Outcome.OA, confirmation_received=date(2026, 10, 17)))
     first.add_request("https://jobs.lever.co/acme/2")
-    first.add_answer(SKILLS)
     first.add_employer_account(EmployerAccount("IBM", "https://careers.ibm.com", "lisul@example.com", date(2026, 10, 16)))
 
     again = FileTracker(tmp_path / "tracker.json")
     assert again.rows() == [arc(suggested_outcome=Outcome.OA, confirmation_received=date(2026, 10, 17))]
-    assert (again.requests(), again.answers()) == (["https://jobs.lever.co/acme/2"], [SKILLS])
+    assert again.requests() == ["https://jobs.lever.co/acme/2"]
     assert again.employer_accounts()[0].site == "https://careers.ibm.com"

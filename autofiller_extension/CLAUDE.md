@@ -16,7 +16,7 @@ as an unpacked extension and talks to the **existing** WorkIt backend over
 HTTP. Nearly everything it fills is read-only against data that already
 had an endpoint: `applicant_profiles`, the **experience bank** (`GET
 /applicants/{id}/bank`, KAN-212), the onboarding **job preferences** (`GET
-/applicants/{id}/preferences`, KAN-231), and the **autofill answer bank**
+/applicants/{id}/preferences`, KAN-231), and the **Application answers**
 (`GET /applicants/{id}/autofill-answers`, KAN-283) — the same rows the
 Experience Bank and onboarding screens read and write, never an uploaded
 resume's `parsed_json`. Same rule the recommender and Scout follow
@@ -1015,6 +1015,18 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   A Plan outside a batch (no application) uses the student's saved answers
   too, `GET .../answer-bank?company=` with the company the engine read off
   the page (`planQuestions` takes the bank as a function of it).
+  **Since W11 both routes answer the student's whole Answer bank**
+  (`docs/desktop_application_auto_apply.md`; backend
+  `app/auto_apply/answer_bank.py`), keyed by the folded wording, with
+  `question` and `none` beside `answer` and `own`, and its version as the
+  ETag: nothing in it is about one company, so `company` does nothing.
+  W11 changes no code here (decided 2026-11-20): the extension still
+  reads the bank fresh for each Plan, and sends no essay marker, so the
+  server can't tell a short question in words from an essay. The answer
+  to a written question the tab sent stays on its application; a choice,
+  and the student's words in a field the tab never sent, enter the bank,
+  through the server's one rule (follow-ups, company answers and
+  Claude's text that only its posting supports stay out).
   Each Plan of a batch tab, and each early read, also gives the engine the
   job's `job_type` (the queued application's, kept on the batch's record of
   the tab, `jobTypeInTab`) as the Posting's `job_type`: a full-time role's
@@ -2984,9 +2996,9 @@ the student's (its source becomes "student", the badge reads You, and
 Next Thing That Needs You stops going to it) and, in a batch tab, saves
 it as their own answer to the question (`batch/own-answer`, PUT
 .../answers with `own: true`, the text the field shows; a multi-select's
-picks joined with "; "). The backend's `answer_bank` offers it on later
-forms by the question's wording, one about this company only on its
-forms, and the engine's Plan fills it as the student's ("You"): their own
+picks joined with "; "). The backend puts it in the student's Answer
+bank (W11) by the question's wording, unless it is about one company, and
+the engine's Plan fills it on later forms as the student's ("You"): their own
 bank answer beats a rule's guess. A guess the student changes on the form
 is theirs too (the edit read-back covers every guessed row, optional ones
 included, `guessCard.watched`); its row offers **Save for next time**,

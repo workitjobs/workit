@@ -33,6 +33,7 @@ const OPEN: Record<InfoPartKey, string> = {
   "work-authorization": "group-data-[part=work-authorization]/info:flex",
   "self-identification": "group-data-[part=self-identification]/info:flex",
   "application-answers": "group-data-[part=application-answers]/info:flex",
+  "answer-bank": "group-data-[part=answer-bank]/info:flex",
   files: "group-data-[part=files]/info:flex",
 };
 

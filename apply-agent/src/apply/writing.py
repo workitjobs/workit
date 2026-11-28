@@ -57,12 +57,15 @@ POSTING_TALK = re.compile(r"\b(?:(?:the|your|this)\ (?:job\ )?(?:posting|listing
 
 
 def style_card() -> str:
+    """The applicant's voice: WorkIt's style card in WorkIt Auto Apply (W11), else the data folder's voice.md."""
+    if home.WORKIT is not None:
+        return home.WORKIT.voice
     return VOICE.read_text(encoding="utf-8") if VOICE.is_file() else ""
 
 
 def samples() -> str:
     """The applicant's own essays and answers, word for word, from the Story bank."""
-    own = re.findall(rf"{OWN}(.*?)(?=^## )", home.STORY_BANK.read_text(encoding="utf-8"),
+    own = re.findall(rf"{OWN}(.*?)(?=^## )", home.story_bank(),
                      re.MULTILINE | re.DOTALL)
     return "\n".join(own).strip()
 

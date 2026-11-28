@@ -9,6 +9,7 @@ import dataclasses
 import json
 import os
 import sys
+import threading
 from collections.abc import Callable
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -64,21 +65,6 @@ class EmployerAccount:
     created: date
 
 
-@dataclass(frozen=True)
-class AnswerRow:
-    """One Answer bank entry in the Tracker's Answers tab. Apply adds a row
-    for each answer Claude drafts and never writes it again; Lisul edits its
-    answer or ticks it reviewed, and the next run copies that into the bank."""
-
-    question: str
-    answer: str  # Lisul's to edit; a select-all-that-apply's options are joined by "; "
-    reviewed: bool = False  # Lisul's
-    drafted: str = ""  # the answer as Apply listed it, so an edit shows
-    options: tuple[str, ...] = ()
-    company: str = ""  # where it was first asked
-    first_seen: date | None = None
-
-
 # Heads a Missing fact options cell whose question takes any number of the options.
 ANY_OF = "Any of:"
 
@@ -122,7 +108,6 @@ class InMemoryTracker:
         self._rows: dict[str, Row] = {}
         self._requests: list[str] = []
         self._accounts: list[EmployerAccount] = []
-        self._answers: list[AnswerRow] = []
 
     def add(self, row: Row) -> None:
         check_new(row)
@@ -170,29 +155,56 @@ class InMemoryTracker:
     def employer_accounts(self) -> list[EmployerAccount]:
         return list(self._accounts)
 
-    def add_answer(self, row: AnswerRow) -> None:
-        self._answers.append(row)
-
-    def answers(self) -> list[AnswerRow]:
-        return list(self._answers)
-
-    def edit_answer_as_lisul(self, question: str, **fields) -> None:
-        """Lisul edits an answer in the Answers tab, or ticks it reviewed."""
-        [n] = [n for n, row in enumerate(self._answers) if row.question == question]
-        self._answers[n] = dataclasses.replace(self._answers[n], **fields)
-
     def paste_request(self, url: str) -> None:
         """Lisul pastes a Posting link into the Requests tab."""
         self._requests.append(url.strip())
 
 
-# The Tracker file in the data folder.
+# The Tracker file in the data folder: a Developer checkout's. WorkIt Auto Apply keeps none (KeychainTracker).
 TRACKER = HOME / "tracker.json"
+# WorkIt Auto Apply's applications on the student's Applications Tracker on WorkIt, as the Tracker file's rows (W11):
+# with no Tracker file, what Lisul applied to before (the screener facts, other roles at the company) is WorkIt's,
+# read once a run by the already-applied check (apply.already_applied.Check). Empty in a Developer checkout.
+ON_WORKIT: list[dict] = []
+# The company a Write names when the row has none: WorkIt's add by link needs one.
+UNKNOWN_COMPANY = "Unknown company"
+
+# The keychain item, under the Employer accounts' service, that lists the accounts WorkIt Auto Apply made (W11): no
+# site is named this (a site is a host), so it never reads as an account. Their passwords are the service's other items.
+ACCOUNT_LIST = "account list"
+
+
+def accounts_in(keychain) -> list[EmployerAccount]:
+    """The Employer accounts the keychain's list names (ACCOUNT_LIST); none when it names none."""
+    kept = keychain.password(ACCOUNT_LIST)
+    return [EmployerAccount(**{**a, "created": date.fromisoformat(a["created"])}) for a in json.loads(kept or "[]")]
+
+
+def keep_accounts(keychain, accounts: list[EmployerAccount]) -> None:
+    keychain.save(ACCOUNT_LIST, json.dumps([dataclasses.asdict(a) for a in accounts], default=_plain))
+
+
+class KeychainTracker(InMemoryTracker):
+    """WorkIt Auto Apply's Tracker (W11): no file. Its rows live in memory for the run (WorkIt's Applications
+    Tracker is the record of where each application stands), and its Employer accounts, which must outlive a launch
+    so a job site's account is signed in to and never made again, live in the keychain beside their passwords."""
+
+    def __init__(self, keychain):
+        super().__init__()
+        self._keychain = keychain
+        self._list = threading.Lock()  # two Workers' new accounts at once: each read-and-add sees the other's
+
+    def employer_accounts(self) -> list[EmployerAccount]:
+        return accounts_in(self._keychain)
+
+    def add_employer_account(self, account: EmployerAccount) -> None:
+        with self._list:
+            keep_accounts(self._keychain, [*accounts_in(self._keychain), account])
 
 # FileTracker's methods that change the file; every other one only reads it.
 _WRITES = ("add", "update", "answer", "approve", "edit_as_lisul", "remove_request", "add_request", "paste_request",
-           "add_employer_account", "add_answer", "edit_answer_as_lisul")
-_READS = ("get", "rows", "requests", "employer_accounts", "answers")
+           "add_employer_account")
+_READS = ("get", "rows", "requests", "employer_accounts")
 
 
 class FileTracker(InMemoryTracker):
@@ -228,15 +240,12 @@ class FileTracker(InMemoryTracker):
         self._requests = list(saved.get("requests", []))
         self._accounts = [EmployerAccount(**{**a, "created": date.fromisoformat(a["created"])})
                           for a in saved.get("employer_accounts", [])]
-        self._answers = [AnswerRow(**{**a, "options": tuple(a["options"]),
-                                      "first_seen": date.fromisoformat(a["first_seen"]) if a["first_seen"] else None})
-                         for a in saved.get("answers", [])]
+        # A file from before W11 also holds an "answers" list (the Tracker's Answers tab, removed): its next save drops it.
 
     def _save(self) -> None:
         saved = {"applications": [dataclasses.asdict(row) for row in self._rows.values()],
                  "requests": self._requests,
-                 "employer_accounts": [dataclasses.asdict(a) for a in self._accounts],
-                 "answers": [dataclasses.asdict(a) for a in self._answers]}
+                 "employer_accounts": [dataclasses.asdict(a) for a in self._accounts]}
         part = self.path.with_suffix(".part")
         part.write_text(json.dumps(saved, indent=1, default=_plain), encoding="utf-8")
         os.replace(part, self.path)
@@ -246,15 +255,21 @@ def past_applications(posting_url: str = "", path: Path | None = None) -> tuple[
     """The companies the Tracker shows an Application submitted to, and those of them where Lisul's Outcome
     is an interview or an offer, but for `posting_url`'s own row (the Application being filled). Read
     without the lock: the file is saved whole (os.replace), and a plan may run while a write holds it."""
-    try:
-        saved = json.loads((path or TRACKER).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return [], []
-    rows = [row for row in saved.get("applications", []) if row.get("company") and row.get("posting_url") != posting_url
+    rows = [row for row in saved(path)["applications"] if row.get("company") and row.get("posting_url") != posting_url
             and row.get("status") == Status.SUBMITTED]
     interviewed = (Outcome.INTERVIEW, Outcome.OFFER)
     return (sorted({row["company"] for row in rows}),
             sorted({row["company"] for row in rows if row.get("outcome") in interviewed}))
+
+
+def saved(path: Path | None = None) -> dict:
+    """The Tracker file at `path` as saved (its applications and Requests; none when it is missing or won't read),
+    with WorkIt Auto Apply's rows from WorkIt (ON_WORKIT) among its applications."""
+    try:
+        kept = json.loads((path or TRACKER).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        kept = {}
+    return {**kept, "applications": [*kept.get("applications", []), *ON_WORKIT]}
 
 
 def _plain(value):
@@ -304,10 +319,16 @@ class WorkItTracker:
     submitted form was given as the resume ("" for none), kept as its Sent
     resume. A write that fails is said and never stops the run."""
 
-    def __init__(self, inner, writes, resume_of: Callable[[str], str]):
+    def __init__(self, inner, writes, resume_of: Callable[[str], str],
+                 ref_of: Callable[[str, list], dict] = lambda application_id, answers: {},
+                 sent_of: Callable[[str], list] = lambda application_id: []):
+        """WorkIt Auto Apply's applied write (W11) carries what the form sent (`sent_of`) and names its Sent resume
+        by its id on WorkIt (`ref_of`, from those answers: with no file)."""
         self.inner = inner
         self._writes = writes
         self._resume_of = resume_of
+        self._ref_of = ref_of
+        self._sent_of = sent_of
 
     def __getattr__(self, name):
         return getattr(self.inner, name)
@@ -326,10 +347,13 @@ class WorkItTracker:
         stage = STAGES.get(row.status)
         if stage is None or row.status == before:
             return
+        applied = stage == Stage.APPLIED
         try:
+            answers = self._sent_of(row.application_id) if applied else []
             said = self._writes.send(Write(
-                row.application_id, row.posting_url, row.company or "Unknown company", row.role or "Job", stage,
-                self._resume_of(row.application_id) if stage == Stage.APPLIED else ""))
+                row.application_id, row.posting_url, row.company or UNKNOWN_COMPANY, row.role or "Job", stage,
+                self._resume_of(row.application_id) if applied else "",
+                resume_ref=self._ref_of(row.application_id, answers) if applied else {}, answers=answers))
         except Exception as error:  # the run goes on: the row is in Apply's own Tracker
             said = f"not in your Applications Tracker ({type(error).__name__}: {error})"
         print(f"{row.company}, {row.role}: {said}", file=sys.stderr)

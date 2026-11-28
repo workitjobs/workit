@@ -8,7 +8,6 @@ import json
 from fakes import FakeClaude
 from test_claude_answers import (
     MICROMOUSE,
-    NOW,
     PROJECT,
     ResearchForm,
     run_all,
@@ -159,7 +158,7 @@ def test_his_reviewed_answer_bank_entry_wins_over_the_code_and_any_draft(monkeyp
     form = ResearchForm("Northwood Space")
     form.questions = form.questions + [Question("qo", asked, "textarea", True)]
     claude, bank = FakeClaude(essays={PROJECT: MICROMOUSE}), AnswerBank()
-    bank.answer(f"{asked} (Example Co only)", mine, NOW.date())
+    bank.answer(f"{asked} (Example Co only)", mine)
 
     [row] = run_all(monkeypatch, form, claude, ["Example Co"], bank=bank)
 
@@ -167,10 +166,10 @@ def test_his_reviewed_answer_bank_entry_wins_over_the_code_and_any_draft(monkeyp
     assert sent_answer(form, asked) == mine
     # Another company's entry ("(Acme only)") answers nothing here.
     other = AnswerBank()
-    other.answer(f"{asked} (Acme only)", mine, NOW.date())
+    other.answer(f"{asked} (Acme only)", mine)
     assert other.reviewed(asked, "Example Co") is None and other.reviewed(asked, "Acme").answer == mine
     # A draft, unreviewed or Claude's, never wins this way: only his reviewed answer does.
-    other.add(Question("q", "Why us?", "textarea", True), "A draft.", "Acme", NOW.date())
+    other.add(Question("q", "Why us?", "textarea", True), "A draft.", "Acme")
     assert other.reviewed("Why us?") is None
 
 

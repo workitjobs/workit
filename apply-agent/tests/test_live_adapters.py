@@ -10,6 +10,7 @@ import urllib.request
 
 import pytest
 from conftest import FIXTURES
+from fake_bank import Server
 from trackers import FakeSpreadsheet
 
 from apply import cli, dashboard, home, orchestrator, rehearsal, sheet
@@ -28,6 +29,14 @@ from apply.tracker import FileTracker, InMemoryTracker, WorkItTracker
 
 class _Opened(list):
     behind: list[str]
+
+
+@pytest.fixture(autouse=True)
+def workit_bank(monkeypatch) -> Server:
+    """The student's Answer bank on WorkIt, which every command reads before it starts (W11): a fake, empty."""
+    server = Server()
+    monkeypatch.setattr(cli, "WorkItSource", lambda: server)
+    return server
 
 
 @pytest.fixture(autouse=True)
@@ -201,7 +210,8 @@ def test_apply_watch_reopens_the_dashboard_of_the_run_going(tmp_path, windows):
 
 
 def a_profile_with_a_bank(folder):
-    """A dummy Applicant profile with an Answer bank beside it, in a scratch folder."""
+    """A dummy Applicant profile with an Answer bank file from before W11 beside it, in a scratch folder: the
+    command sends it to WorkIt as it starts."""
     folder.mkdir()
     profile = folder / "applicant-profile.yaml"
     profile.write_text((FIXTURES / "profile.yaml").read_text())
@@ -211,10 +221,15 @@ def a_profile_with_a_bank(folder):
     return profile
 
 
-def test_live_adapters_use_the_answer_bank_beside_the_profile_given(tmp_path):
+def test_a_developer_command_sends_the_old_answer_bank_beside_the_profile_to_workit_once(tmp_path, workit_bank):
+    """The upload is a Developer checkout's alone (W11): it runs as a command starts, never in WorkIt Auto Apply."""
     profile = ApplicantProfile.load(a_profile_with_a_bank(tmp_path / "mine"))
     adapters = cli.live_adapters(profile, tracker=InMemoryTracker(), mailbox=object(), phone=RecordingNotifier())
     assert [e.question for e in adapters.answer_bank.entries()] == ["How did you hear about us?"]
+    assert [e["question"] for [e], _ in workit_bank.sent] == ["How did you hear about us?"]
+    assert (tmp_path / "mine" / "answer-bank.before-workit.yaml").is_file()
+    cli.live_adapters(profile, tracker=InMemoryTracker(), mailbox=object(), phone=RecordingNotifier())
+    assert len(workit_bank.sent) == 1
 
 
 @pytest.mark.parametrize("command", [["answers"], ["watch"]])

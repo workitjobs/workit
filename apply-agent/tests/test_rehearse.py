@@ -28,6 +28,7 @@ from conftest import (
     SKYDIO_URL,
 )
 from fake_bamboohr import FakeBambooServer
+from fake_bank import Source
 from fake_jobvite import URL as JOBVITE_URL
 from fake_jobvite import FakeJobviteServer
 from fake_lever import FakeLeverServer
@@ -63,7 +64,7 @@ from test_greenhouse_filler import board_listing_schools
 from test_rippling_filler import RIPPLING_FORM, RIPPLING_URL
 from test_run_answers import profile_with
 
-from apply import auto_submit, batch, rehearsal, rescue, send_button, worker
+from apply import auto_submit, batch, essays, rehearsal, rescue, send_button, worker
 from apply.adapters import Adapters, ClaudeError, Drive, SetupError, UsageReading
 from apply.answer_bank import AnswerBank
 from apply.ashby import AshbyFiller
@@ -481,7 +482,7 @@ def _steps(step) -> list:
 def test_a_workday_rehearsal_answers_a_bare_from_for_its_school_and_banks_nothing_by_its_label(monkeypatch, tmp_path):
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
     world = experience_profile(graduation_day=21)
-    bank, claude = AnswerBank(tmp_path / "answer-bank.yaml"), FakeClaude(drafts={"From": "05/26/2027"})
+    bank, claude = AnswerBank(), FakeClaude(drafts={"From": "05/26/2027"})
 
     with FakeWorkdayServer(XCEL_FORM, steps=_steps(SCHOOL_QUESTIONS)) as server:
         [done] = rehearse([XCEL_URL], server, world.profile, claude, answer_bank=bank)
@@ -499,7 +500,7 @@ def test_a_bare_from_claude_drafts_is_told_its_section_and_banked_only_under_it(
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
     job = ("Application Questions 1 of 2", [WorkdayField("title", "Job Title", "text", True),
                                             WorkdayField("from", "From", "date", True, format="MM/DD/YYYY")])
-    bank, claude = AnswerBank(tmp_path / "answer-bank.yaml"), FakeClaude(drafts={"Job Title": "Intern", "From": "05/24/2027"})
+    bank, claude = AnswerBank(), FakeClaude(drafts={"Job Title": "Intern", "From": "05/24/2027"})
 
     world = experience_profile()  # kept: its folder holds the profile
     with FakeWorkdayServer(XCEL_FORM, steps=_steps(job)) as server:
@@ -513,13 +514,41 @@ def test_a_bare_from_claude_drafts_is_told_its_section_and_banked_only_under_it(
     assert server.submissions == []
 
 
+def test_a_draft_names_the_workit_job_the_queue_gave_its_link(monkeypatch, tmp_path):
+    """Fault: the draft named its company alone, which WorkIt's rule would have to trust (W11), not the job the
+    student's Auto Apply queue gave the link."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path), jobs={ARC_URL: "j1"})
+
+    assert done.outcome == "ready to submit", done.why
+    assert done.posting.job_id == "j1"  # the Worker's drafts send it (test_claude_answers)
+    assert fake.submissions == []
+
+
+def test_a_rehearsal_reads_the_bank_again_when_the_usage_reading_names_a_newer_version(monkeypatch, tmp_path):
+    """W11: the version rides on the usage reading each link already asks, so the bank costs no request of its own
+    unless it changed."""
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    workit = Source()  # at version 7
+    bank = AnswerBank(workit)
+    bank.load()
+
+    with FakeJobServer(ARC_FORM) as fake:
+        rehearse([ARC_URL], fake, profile_with(tmp_path), answer_bank=bank,
+                 usage=ScriptedUsage(lambda: UsageReading(bank_version=8)))
+
+    assert (workit.reads, workit.asked) == (2, 0)
+
+
 def test_the_pre_submit_reviews_fix_is_filled_before_the_form_shows_as_ready(monkeypatch, tmp_path):
     # A bare From nothing on the form places: Claude's draft is never banked, and when the review names the right
     # answer for a wrong one, that answer is filled and the form reviewed again, never left as a banner.
     monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
     bare = ("Application Questions 1 of 2", [WorkdayField("from", "From", "date", True, format="MM/DD/YYYY")])
     problem = "'From (MM/DD/YYYY)': 05/24/2027 is the internship start date, not his school start"
-    bank = AnswerBank(tmp_path / "answer-bank.yaml")
+    bank = AnswerBank()
     claude = FakeClaude(drafts={"From": "05/24/2027"},  # a number the profile holds (its earliest start), so it is used
                         # A fix for an answer from the profile is never taken (General Motors' degree, live).
                         reviews=[{"problems": [problem, "First Name: not his name"],
@@ -820,11 +849,13 @@ def test_lisuls_own_submit_on_a_held_page_is_kept_in_the_tracker_as_submitted(mo
     monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
     lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
     profile, tracker = ApplicantProfile.load(profile_with(tmp_path)), InMemoryTracker()
+    essays.TOLD[ARC_URL] = {"What did the boat do?": "It floated."}  # his answer to this form's Essay fact
 
     with FakeJobServer(ARC_FORM) as fake:
         lines = hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=tracker)
         submissions = fake.submissions
 
+    assert ARC_URL not in essays.TOLD  # never kept past its submit
     assert len(submissions) == 1  # Lisul's, sent from the held page
     [row] = tracker.rows()
     assert (row.status, row.date_applied, row.posting_url) == ("submitted", NOW.date(), ARC_URL)

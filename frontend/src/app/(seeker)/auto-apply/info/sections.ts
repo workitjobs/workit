@@ -2,14 +2,17 @@ import {
   ChatCenteredTextIcon,
   FolderSimpleIcon,
   KeyIcon,
+  NotebookIcon,
   PenNibIcon,
+  PuzzlePieceIcon,
   ScrollIcon,
+  SealQuestionIcon,
   StampIcon,
   UserFocusIcon,
 } from "@phosphor-icons/react/ssr";
 
 /**
- * Application Info's six cards, with each one's glyph (./card-head.tsx)
+ * Application Info's cards, with each one's glyph (./card-head.tsx)
  * and the id of its card (`hash`).
  *
  * EACH GLYPH IS ITS OWN (2026-11-11): no other screen draws it, so it means
@@ -35,6 +38,22 @@ export const INFO_SECTIONS = [
     label: "Application Answers",
     Icon: ChatCenteredTextIcon,
     hash: "#section-application-answers",
+  },
+  // W11's Answer bank: the one-off answers every later form takes. New, so its hash is no old address.
+  { key: "answer-bank", label: "Answer Bank", Icon: NotebookIcon, hash: "#section-answer-bank" },
+  // W11: what WorkIt Auto Apply's Needs You kept, a card under the Answer Bank in its part.
+  {
+    key: "app-answers",
+    label: "Answers From WorkIt Auto Apply",
+    Icon: SealQuestionIcon,
+    hash: "#section-app-answers",
+  },
+  // The door to Written Answers, the Chrome extension's essays: its glyph is the extension's, as the page's line is.
+  {
+    key: "written-answers",
+    label: "Written Answers",
+    Icon: PuzzlePieceIcon,
+    hash: "#section-written-answers",
   },
   { key: "transcript", label: "Transcript", Icon: ScrollIcon, hash: "#section-transcript" },
   {
@@ -73,6 +92,8 @@ export const INFO_PARTS = [
   { key: "work-authorization", label: "Work Authorization", Icon: StampIcon },
   { key: "self-identification", label: "Self-Identification", Icon: UserFocusIcon },
   { key: "application-answers", label: "Application Answers", Icon: ChatCenteredTextIcon },
+  // W11: the one-off answers every later form takes, a list the student edits one answer at a time.
+  { key: "answer-bank", label: "Answer Bank", Icon: NotebookIcon },
   { key: "files", label: "Files & Sign-Up", Icon: FolderSimpleIcon },
 ] as const;
 

@@ -10,8 +10,8 @@ import pytest
 from trackers import FakeSpreadsheet, tracker_and_lisul
 
 from apply.model import Outcome, Status
-from apply.sheet import ANSWERS, APPLICATIONS, TABS, SheetTracker
-from apply.tracker import AnswerRow, Row
+from apply.sheet import APPLICATIONS, TABS, SheetTracker
+from apply.tracker import Row
 
 
 def row(application_id: str) -> Row:
@@ -116,7 +116,6 @@ def test_blank_rows_holding_only_an_unticked_checkbox_are_not_rows(tmp_path):
 
     assert tracker.rows() == []
     assert tracker.get("a") is None
-    assert tracker.answers() == []
 
 
 def test_an_update_after_blank_rows_lands_on_its_own_row(tmp_path):
@@ -156,21 +155,6 @@ def test_an_added_row_is_appended_when_no_row_is_blank(tmp_path):
     tracker.add(row("b"))
 
     assert tracker.rows() == [row("a"), row("b")]
-
-
-def test_an_added_answer_lands_in_the_first_blank_row(tmp_path):
-    spreadsheet, tracker = checkbox_sheet(tmp_path)
-    housing = AnswerRow("Housing within 30 miles?", "Yes", drafted="Yes", options=("Yes", "No"))
-    skills = AnswerRow("Skill Areas", "Software", reviewed=True, drafted="Software")
-
-    tracker.add_answer(housing)
-    tracker.add_answer(skills)
-
-    headers, *cells = spreadsheet.worksheet(ANSWERS).get_all_values()
-    assert [(values[headers.index("Question")], values[headers.index("Reviewed")]) for values in cells] == [
-        ("Housing within 30 miles?", "FALSE"), ("Skill Areas", "TRUE"), ("", "FALSE"),
-    ]
-    assert tracker.answers() == [housing, skills]
 
 
 def test_the_sheets_rows_and_requests_are_copied_once_into_the_tracker_file(tmp_path):

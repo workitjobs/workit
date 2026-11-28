@@ -85,7 +85,7 @@ PROTECTED = tuple(f"apply-agent/src/apply/{name}.py" for name in (
     "apply-agent/tests/test_submit_guard.py", "apply-agent/tests/test_email_code.py", "apply-agent/tests/test_repairer.py", "apply-agent/tests/test_repair_requests.py",
 )
 # The applicant's own files, in the data folder outside every checkout: a Repair reads them, never edits them.
-FACTS = tuple(HOME / name for name in ("applicant-profile.yaml", "story-bank.md", "answer-bank.yaml"))
+FACTS = tuple(HOME / name for name in ("applicant-profile.yaml", "story-bank.md"))  # the Answer bank is on WorkIt
 # Nor, anywhere, a file pytest runs or reads as it starts: the Repair's own `uv
 # run pytest` would run it before any gate (a conftest.py, pytest's config).
 RUN_BY_PYTEST = ("conftest.py", "pytest.ini", "tox.ini", "setup.cfg", "pyproject.toml")
@@ -146,7 +146,7 @@ How to repair:
 4. Commit with `git add <paths>` and `git commit -m` (in the engine: `git -C ../autofiller_extension/fill-engine add <paths>` and `git -C ../autofiller_extension/fill-engine commit -m`): one logical change per commit, its tests with it. Never stage autofiller_extension/fill-engine itself: its pointer to the engine is moved for you. The subject is a plain imperative sentence of about 50 characters, with no ticket and no trailers. Never mention Claude, AI or an assistant in a commit message, and add no Co-Authored-By line.
 
 Never:
-- invent a fact about the applicant. Answers come only from {profile}, {story_bank}, {answer_bank} and his resume. For a Missing fact, check whether the profile already holds the answer: if it does, teach the planner the question; if it doesn't, it is a new fact for the applicant, so change nothing and give the verdict "not a bug".
+- invent a fact about the applicant. Answers come only from {profile}, {story_bank}, his Answer bank (on WorkIt, which this session doesn't read) and his resume. For a Missing fact, check whether the profile already holds the answer: if it does, teach the planner the question; if it doesn't, it is a new fact for the applicant, so change nothing and give the verdict "not a bug".
 - weaken, skip or delete an existing test or assertion, or edit a saved form (tests/fixtures, ../autofiller_extension/fill-engine/test/fixtures).
 - change {protected}. A fix that needs one of them is the applicant's: change nothing and say so in the summary.
 - push, merge, switch branches, run `apply`, open a browser, or submit anything. The engine never submits a form.
@@ -580,7 +580,7 @@ def _system() -> str:
     engine = ", ".join(f"{FROM_APP}/{path}" for path in ENGINE_PROTECTED)
     return SYSTEM.format(protected=", ".join(PROTECTED) + ", " + engine + ", any " + " or ".join(RUN_BY_PYTEST)
                          + " anywhere, the data folder " + str(HOME) + ", or the code that submits a form ("
-                         + ", ".join(code) + ")", profile=FACTS[0], story_bank=FACTS[1], answer_bank=FACTS[2])
+                         + ", ".join(code) + ")", profile=FACTS[0], story_bank=FACTS[1])
 
 
 def _prompt(request: RepairRequest) -> str:

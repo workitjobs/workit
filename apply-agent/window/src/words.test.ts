@@ -13,6 +13,10 @@ test("each refusal Apply's routes and app methods can send reads in the student'
     ["That question is no longer waiting for you.", "That question is already answered."],
     ["Write an answer.", "Type an answer first."],
     ["Not saved: [Errno 28] No space left on device", "Your answer wasn't saved. Try again."],
+    // The Answer bank's: WorkIt's rule keeps its reason, and no answer says to try again.
+    ["Not saved: WorkIt keeps it out of your Answer bank. It names Hooli, so it stays on this form.",
+     "WorkIt keeps this out of your Answer bank. It names Hooli, so it stays on this form."],
+    ["Not saved: WorkIt didn't answer.", "WorkIt didn't answer, so this isn't saved. Try again in a minute."],
     ["That is too big to be an answer.", "That file is too big to attach."],
     ["That essay is too long.", "That answer is too long."],
     ["Only the Apply window may answer for you.", "This window couldn't do that. Quit WorkIt Auto Apply and open it again."],

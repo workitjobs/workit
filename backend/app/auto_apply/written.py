@@ -9,7 +9,6 @@ its transaction, as every layer-2 step does.
 """
 
 import dataclasses
-import datetime
 import re
 import uuid
 from collections.abc import Collection, Iterable, Sequence
@@ -17,6 +16,7 @@ from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auto_apply import answer_bank as saved_bank
 from app.auto_apply import briefs, checks, plans, question_types, truth
 from app.auto_apply.queries import (
     drop_own_written,
@@ -24,8 +24,6 @@ from app.auto_apply.queries import (
     fetch_answered,
     fetch_application_companies,
     fetch_ask,
-    fetch_brought_answers,
-    fetch_company_names,
     fetch_next_to_write,
     fetch_plans,
     fetch_posting_text,
@@ -36,6 +34,7 @@ from app.auto_apply.queries import (
     fetch_text_answers,
     fetch_unanswered,
     fetch_written,
+    is_one_off,
     put_questions,
     save_own_written,
     save_written,
@@ -52,7 +51,6 @@ from app.schemas.applications import (
     OwnAnswer,
     PostingAnswers,
     PostingQuestions,
-    SavedAnswer,
     SavedFact,
     WrittenAnswer,
     WrittenQuestion,
@@ -230,9 +228,10 @@ async def save_answers(
     must be one of the brief's facts, and is saved with the answer, which
     names none without it. Claude's answer written in words also needs the
     claims its claim check listed (KAN-369, `unsupported` by name, [] when
-    it found none), and its Essay plan (`plans_given` by name), checked by
-    plans.check against the student's sources and the application's other
-    answers and kept with it: a missing list or plan, a listed claim still
+    it found none; checked here, never stored), and its Essay plan
+    (`plans_given` by name), checked by plans.check against the student's
+    sources and the application's other answers and kept with it: a
+    missing list or plan, a listed claim still
     in the answer, or a plan that fails a check is refused. A plan's
     company fact is the answer's named fact when it names none. A paste
     needs none. Every answer in words, Claude's or a paste, then gets the
@@ -286,17 +285,25 @@ async def save_answers(
         ), failing)
     facts = await _named_facts(db, job_id, named)
     await save_written(db, applicant_id, job_id, kept, facts, {
-        name: {"plan": plan.stored(), "unsupported": (unsupported or {})[name]} for name, plan in planned.items()
+        name: {"plan": plan.stored()} for name, plan in planned.items()
     })
+    claims: dict[str, list[str]] = {}
     if said := {name: text for name, text in kept.items() if is_text(questions[name].kind)}:
         # Here, not at the top: review.py imports Refused from this module.
         from app.auto_apply import review
         own = await _own_facts(db, applicant_id, job_id)
-        await review.flag_claims(db, applicant_id, job_id, {
-            name: (text, truth.unsupported(text, own, (*sources, questions[name].label),
-                                           planned[name].story if name in planned else ""))
+        claims = {
+            name: truth.unsupported(text, own, (*sources, questions[name].label), planned[name].story if name in planned else "")
             for name, text in said.items()
-        })
+        }
+        await review.flag_claims(db, applicant_id, job_id, {name: (said[name], claims[name]) for name in said})
+    company, _, _ = await fetch_posting_text(db, job_id)
+    # Only a choice: a question in words the tab sent may be an essay, which the row can't tell.
+    await saved_bank.keep(db, applicant_id, [
+        saved_bank.Kept(question=questions[name].label, answer=text, review=True, choice=True, company=company)
+        for name, text in kept.items()
+        if not is_text(questions[name].kind)
+    ])
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
 
@@ -304,12 +311,11 @@ async def save_answers(
 async def _own_facts(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> list[str]:
     """What the student gave, for the truth check: their experience bank
     (bank_facts: one text per entry, so an outcome stands only on its own
-    entry's facts), their profile, and their own words in the answer bank
-    (on other applications, and brought from Apply)."""
-    own = [*(s for s in await fetch_saved_answers(db, applicant_id, exclude=job_id) if s.own),
-           *(s for s in await fetch_brought_answers(db, applicant_id) if s.own)]
+    entry's facts), their profile, and their own words: on other
+    applications, and in their Answer bank (W11)."""
+    own = [s.answer for s in await fetch_saved_answers(db, applicant_id, exclude=job_id) if s.own]
     return [*bank_facts(await load_bank(db, applicant_id)), *await fetch_profile_facts(db, applicant_id),
-            *("; ".join(s.answer) if isinstance(s.answer, list) else s.answer for s in own)]
+            *own, *await saved_bank.own_words(db, applicant_id)]
 
 
 def _plan_problems(
@@ -603,104 +609,20 @@ async def writing_samples(db: AsyncSession, applicant_id: uuid.UUID) -> list[str
 
 
 async def answer_bank(
-    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID | None = None, company: str | None = None,
-) -> dict[str, SavedAnswer]:
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID | None = None, held: int | None = None,
+) -> saved_bank.Stored | None:
     """
-    The answers the student has saved (on other applications, and brought
-    from Apply) that may be offered on a form, by question wording: for each
-    wording the student's own (KAN-379), else the newest. A wording counts
-    once in any case or spacing, as the Fill engine matches it. The form is
-    the application for `job_id`'s, or, with no job (a form filled outside a
-    batch), one at `company` (the page's, when the extension read it). An
-    answer about one company (checks.company_specific) is offered only on
-    that company's forms, never on another's or on one whose company isn't
-    known (KAN-380). No answer naming a company of the student's other
-    applications is offered. One of their Claude's must also pass the rest
-    of checks.py (the posting's numbers among them; not the copy check,
-    which its save ran, so a sample the student pasted is offered) and hold
-    no claim the truth check finds, since no tab would flag it there; the
-    student's own words skip the checks meant for Claude's text (they are
-    their words, as the paste skips the copy check). The form's own length
-    limit is the Fill engine's to check, on the page, for every answer. The
-    extension gives it to the engine's Plan as its Answer bank (`own`: the
-    student's words), so a question answered before is filled without the
-    student's Claude. Raises NotFound with a job and no application for it.
+    The student's whole Answer bank (W11, answer_bank.py) and its version,
+    which the extension gives the Fill engine's Plan as its Answer bank, so
+    a question answered once is filled again without the student's Claude.
+    Every answer in it is safe on every form (the company rule ran when it
+    was saved), so a form's job only says the application exists. None
+    when `held` is the bank's version (the reader's copy is current).
+    Raises NotFound with a job and no application for it.
     """
-    if job_id is not None:
-        if await fetch_stage(db, applicant_id, job_id) is None:
-            raise NotFound("No application for that job.")
-        company, _, _ = await fetch_posting_text(db, job_id)
-        sources, employers, _ = await _check_material(db, applicant_id, job_id)
-    else:
-        sources, employers, _ = await _check_material(db, applicant_id, None, company)
-    same = (company or "").strip().casefold()
-    facts = await _own_facts(db, applicant_id, job_id)
-    bank: dict[str, SavedAnswer] = {}
-    seen: set[str] = set()
-    written = await fetch_saved_answers(db, applicant_id, exclude=job_id)
-    # Their own words first, the newest edit first (KAN-746): saved on an
-    # application or synced from Apply (`fill_answers`), so an older Apply
-    # answer never beats one they edited on WorkIt, and a newer one does. One
-    # with no time (an import's) goes after those with one, an application's
-    # first. Then their Claude's: on applications, then brought.
-    brought = await fetch_brought_answers(db, applicant_id)
-    own = sorted([*(s for s in written if s.own), *(s for s in brought if s.own)],
-                 key=lambda s: s.at or _NEVER, reverse=True)  # a stable sort: ties keep that order
-    saved_answers = [*own, *(s for s in written if not s.own), *(s for s in brought if not s.own)]
-    # A draft brought from Apply with no company (no first_seen) that names
-    # one is about that company: offered only on its forms.
-    unplaced = [s for s in brought if not s.own and not s.choice and s.company is None]
-    known = await _known_companies(db, applicant_id) if unplaced else set()
-    for saved in saved_answers:
-        theirs = (saved.company or "").strip().casefold()
-        said = "; ".join(saved.answer) if isinstance(saved.answer, list) else saved.answer
-        if any(saved is s for s in unplaced) and (
-            named := companies_named(said, known)
-        ) and named != {briefs.company_key(company or "")}:
-            continue
-        if checks.company_specific(saved.question, said, saved.company) and not (same and theirs == same):
-            continue
-        # Every answer keeps the other-employer rule; only their Claude's take the checks meant for its text.
-        if not saved.choice and any(checks.names(said, name) for name in employers):
-            continue
-        if not saved.own and not saved.choice and (checks.problems(saved.answer, checks.Context(
-            sources=(*sources, saved.question), employers=employers, question=saved.question,
-        )) or truth.unsupported(said, facts, (*sources, saved.question))):
-            continue
-        if (wording := _wording(saved.question)) not in seen:
-            seen.add(wording)
-            bank[saved.question] = SavedAnswer(answer=saved.answer, own=saved.own)
-    return bank
-
-
-# Before any answer's time: an own answer with none sorts after those with one.
-_NEVER = datetime.datetime.min.replace(tzinfo=datetime.UTC)
-
-
-async def _known_companies(db: AsyncSession, applicant_id: uuid.UUID) -> set[str]:
-    """The keys (briefs.company_key) of every company WorkIt knows, less the
-    places the student worked or studied: naming those is their own story."""
-    own = {briefs.company_key(place) for place in places(await load_bank(db, applicant_id))}
-    return {key for name in await fetch_company_names(db) if (key := briefs.company_key(name)) and key not in own}
-
-
-def companies_named(text: str, known: Collection[str]) -> set[str]:
-    """The keys of the `known` companies `text` names: each run of up to
-    four capitalized words (a possessive's "'s" and the punctuation that
-    ends a run dropped) folded as briefs.company_key folds a company's name."""
-    named: set[str] = set()
-    run: list[str] = []
-    for word in [*text.split(), ""]:
-        bare = re.sub(r"(['\u2019]s)?[,.;:!?)\"\u201d]*$", "", word.lstrip("(\"\u201c"))
-        if bare[:1].isupper() or bare[:1].isdigit():
-            run.append(bare)
-        if not (bare[:1].isupper() or bare[:1].isdigit()) or not word.endswith(bare):
-            for start in range(len(run)):
-                for end in range(start + 1, min(start + 4, len(run)) + 1):
-                    if len(key := briefs.company_key(" ".join(run[start:end]))) > 1 and key in known:
-                        named.add(key)
-            run = []
-    return named
+    if job_id is not None and await fetch_stage(db, applicant_id, job_id) is None:
+        raise NotFound("No application for that job.")
+    return await saved_bank.read(db, applicant_id, held)
 
 
 def _wording(question: str) -> str:
@@ -742,6 +664,15 @@ async def save_own_answer(
         if found:
             raise Refused(f"Not saved: {' '.join(found)}", {own.name: found})
     await save_own_written(db, applicant_id, job_id, own.name, own.label.strip(), answer, own.own)
+    # A choice, or a field the tab never sent (a saved answer or a guess filled it), read from the row just saved:
+    # the first save of such a field makes its row, and every later save finds it. A question in words the tab sent
+    # may be an essay, which the row can't tell: it stays on its application.
+    if await is_one_off(db, applicant_id, job_id, own.name):
+        company, _, _ = await fetch_posting_text(db, job_id)
+        await saved_bank.keep(db, applicant_id, [saved_bank.Kept(
+            question=own.label.strip(), answer=answer, review=not own.own,
+            choice=asked is not None and not is_text(asked.kind), company=company,
+        )])
     await db.commit()
 
 
@@ -754,7 +685,10 @@ async def drop_own_answer(
     Delete). Nothing saved is no error. Raises NotFound with no application."""
     if await fetch_stage(db, applicant_id, job_id) is None:
         raise NotFound("No application for that job.")
+    saved = {q.name: q for q in await fetch_written(db, applicant_id, job_id)}.get(name)
     await drop_own_written(db, applicant_id, job_id, name, own_only=own_only)
+    if saved is not None and saved.answer:
+        await saved_bank.drop(db, applicant_id, saved.label, saved.answer, own_only=own_only)
     await db.commit()
 
 

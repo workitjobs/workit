@@ -390,8 +390,11 @@ Find files with a directory listing; these are the rules for where code goes.
   `ask`s. **`POST /apply-app/ask` builds each prompt on the server** (D5):
   the app sends a kind and its data, and `app/apply_prompts/` holds each
   kind's data model, size and builder, ported from Apply's modules. A
-  kind's data fields never change in place (an app copy can be older than
-  the server): a change is a new version beside the old one. A new kind
+  kind's data fields, and the fields of its answer, never change in place
+  (an app copy can be older than the server): a change is a new version
+  beside the old one (`essays.write` 2 renamed the answer's `needs_lisul`
+  to `needs_applicant`; Apply's `ask_model.VERSIONS` names each kind it
+  reads at a version past 1). A new kind
   joins its module's `KINDS` and a sample in `tests/test_apply_prompts.py`.
   **A kind's build puts what is the same for many calls first** (its
   instructions, then the student's sources, then the form's data), so the
@@ -431,7 +434,52 @@ Find files with a directory listing; these are the rules for where code goes.
   that moves the engine pointer (`.github/CLAUDE.md`, "Publish the Fill
   engine"). The server never checks a signature: the app does, with the
   public key compiled in, so a bucket someone else wrote to still runs
-  nothing. **No route takes a schema from a student.** If one ever does,
+  nothing. **WorkIt Auto Apply's profile is WorkIt's** (W11, 2026-11-24):
+  `GET /apply-app/profile` answers the student's Fill engine profile and
+  policies, built from what WorkIt holds exactly as the extension builds
+  them (`queries/engine_student.py` reads the rows its routes answer,
+  `services/engine_profile.py` ports its `engineProfile` and
+  `enginePolicies`), and where each file the profile names is read. The
+  app reads it at each Start and keeps no profile file. **A change to the
+  extension's mapping changes the port**: `tests/test_engine_profile.py`
+  runs both on the same students (the extension's in Node,
+  `tests/engine_profile_parity.mjs`) and fails when they differ. `PATCH
+  /apply-app/profile` keeps what the student answered in the app's Needs
+  you, by question (`answered_questions`) or as a fact by dotted key
+  (never `files.*`), in `fill_profile`, under WorkIt's own fields, so the
+  extension fills them too. **The Story bank and voice are WorkIt's too**
+  (2026-11-26): the same read answers `writing`, the Story bank built from
+  the student's writing samples and experience bank
+  (`services/story_bank.py`, in Apply's layout, each entry once across
+  resumes), and the style card as the voice. Nothing a fill adds joins it,
+  since every essay's prompt carries all of it, and an answer to an
+  essay's Essay fact never reaches WorkIt: the app keeps it in memory for
+  that one form's essay. **Every answer it keeps there has a page**
+  (2026-11-27): `GET /apply-app/answered` lists the Needs you answers and
+  each fact of `fill_profile` that no WorkIt field holds
+  (`engine_profile.workit_profile`, the same layering), for the website's
+  Application Info, and the PATCH's `remove_answered` and `remove_facts`
+  take one out, a section it empties too. A fact a WorkIt field holds is
+  not listed: that field wins on every form, so an edit there would
+  change nothing. **A Needs you fact one of the website's own fields holds
+  goes into that field** (2026-11-27, `services/workit_fields.py`): an
+  Application answer through `merge_answers`, My Profile's phone or a link
+  set on the row, each checked by the website's own schema
+  (`AutofillAnswers`, `ApplicantProfileUpdate`). The field is found by
+  running WorkIt's own mapping (`workit_profile`) on each field the
+  student left unanswered, never by a second table that could drift: a
+  field with options takes the option that gives the fact's value, a text
+  field only when the key holds its own value (a probe value checks it,
+  since an address line fills the home's city from the location). A list
+  field, a field the student answered, and a fact no field gives stay in
+  `fill_profile`. Tests: `tests/test_apply_app.py`. **`POST
+  /apply-app/profile/upload` is a Developer checkout's** (`apply upload`):
+  its own files, taking only what WorkIt lacks, so a second upload changes
+  nothing the student edited since. Writing samples and the style card
+  follow the import's rules (`scripts/import_apply_writing.py`), only for a
+  student with none. Tests: `tests/test_apply_app.py`,
+  `tests/test_story_bank.py`.
+  **No route takes a schema from a student.** If one ever does,
   it must refuse `$ref` (fetches URLs), `pattern`/`patternProperties`
   (ReDoS with Python's backtracking `re`) and more than 32 levels
   (`jsonschema` stack overflow). Tests: `tests/test_apply_app.py`.
@@ -442,7 +490,9 @@ Find files with a directory listing; these are the rules for where code goes.
   its form is open: `open_application`, `get_application`) and the errors
   for it. `written.py` holds the written-answer steps (the questions a tab
   sends, the connector's and the Written Answers page's saves, each checked
-  by `checks.py`, and the answer bank); `pipeline.py` re-exports them, so
+  by `checks.py`), and `answer_bank.py` the student's Answer bank (W11:
+  the whole bank read, PATCH, and what the saves put in it); `pipeline.py`
+  re-exports them, so
   callers keep naming them `pipeline.save_answers` and so on, but a test
   that fakes one of their layer-1 calls patches `written`. `resume.py`
   holds the resume steps (`choose_resume`, `prepare_resume`, `FileFailed`),
@@ -510,13 +560,14 @@ Find files with a directory listing; these are the rules for where code goes.
   The paste passes `by="student"`, which skips only the copy check against
   the student's own writing samples (that check stops their Claude
   parroting them; a student may paste their own words). Re-checks of a
-  saved answer (`ask_questions`, `answer_bank`) leave the copy check out
-  for the same reason: the save ran it.
+  saved answer (`ask_questions`) leave the copy check out for the same
+  reason: the save ran it.
   **Claude's written answer carries its Essay plan and claim check**
   (KAN-369, Apply's evidence-first writer): the plan it was written from
   (type, story, company fact, angle, and its type's slots, each with
-  quotes) and the claims the prompt's check listed (`unsupported`), stored
-  in `written_answers.review` as `{plan, unsupported}`. `plans.check`
+  quotes) and the claims the prompt's check listed (`unsupported`). The
+  plan is stored in `written_answers.review` as `{plan}`; the list is
+  checked at the save and not kept, since nothing read it. `plans.check`
   (pure, `tests/test_plans.py`) holds the plan to the sources the
   connector gave (`written._plan_sources`: the experience as
   `bank_context` writes it, skills, posting, brief facts, the
@@ -854,10 +905,34 @@ Find files with a directory listing; these are the rules for where code goes.
   queue, and the extension would fill the application. Not applied: an applied or later one answers 409
   (`AlreadyApplied`) and keeps its stage, so Apply never moves a record
   back. Tests: `tests/test_tracker.py`.
+- **What each application sent** (W11, `routers/sent_applications.py`,
+  table `sent_applications`, `models/applications.py`'s
+  `Sent_Application`): WorkIt Auto Apply's applied write keeps each
+  question and the answer it filled and read back (`ai` on one AI wrote;
+  never a password, PIN or SSN answer), so no Record of it stays on the
+  student's Mac, and the application's page shows it under What You Sent.
+  `PUT .../applications/{job_id}/sent` only for an application applied or
+  later (409), **once per application** (409 again, which the app reads as
+  kept: a write it sent again after WorkIt took it) and at most
+  `sent_application_daily_cap` a day (100, 429), since `form_questions`
+  keeps every new question's words for good and a loop of new questions
+  would grow it without end; `GET` the same; deleted with the application
+  (its foreign key cascades). The words go in sorted, so two sends adding
+  the same new words never deadlock. A table of its own, not a column, so a Tracker list never
+  reads the answers. **Kept small:** each question's words once for every
+  application (`form_questions`, unique by md5, so "Email" and every question
+  of a posting many students apply to are one row), and each answer as
+  `[question id, answer, 1 when AI wrote it]`, never key names. On the Fill
+  engine's 25 saved forms that is 2.4 KB an application at the median, from
+  4.1 KB; option lists (up to 110 KB a form) are never kept. Words no
+  application names any more stay (shortcut: a clean-up job if the table
+  ever matters). Tests: `tests/test_sent_applications.py`.
 - **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
-  add, replace, remove) and the connector's tools (their Claude reads the
-  samples and saves the card). Tests: `tests/test_writing_samples.py`.
+  add, replace, remove, and their own words for the card or its delete,
+  `PUT` and `DELETE /applicants/{id}/style-card`, W11) and the connector's
+  tools (their Claude reads the samples and saves the card). A card needs
+  a sample, from either writer. Tests: `tests/test_writing_samples.py`.
 - **The connector is an MCP server inside this API** (`app/connector/`,
   KAN-377; `../auto-apply/architecture.md` 14.6): the official MCP SDK at
   `/mcp`, with WorkIt as its own OAuth server (`connector/oauth.py`; the
@@ -955,8 +1030,8 @@ Find files with a directory listing; these are the rules for where code goes.
   the tab (`review.flag_claims`, kept as `answer_review.truth`). The flag
   names the claims and marks the first one's sentence. It holds until the
   answer changes or the student keeps it. The pre-submit review's own flag
-  shows first. `answer_bank` never offers one of their Claude's answers
-  that has such claims on another form. Plain
+  shows first. An answer of their Claude's with such claims never enters
+  the student's Answer bank. Plain
   code only: judgment stays with their Claude's claim check and the
   pre-submit review. **`apply-agent/src/apply/truth.py` is a byte-for-byte
   copy** that Apply's tests compare: change this one, then copy it there.
@@ -964,29 +1039,41 @@ Find files with a directory listing; these are the rules for where code goes.
   filled without passing that form's checks**: when a tab sends the form's
   own limit (`ask_questions`; a question read early had none), each saved
   answer of their Claude's is checked again and a failing one dropped
-  (`queries.drop_written`) for their Claude to write again; `answer_bank`
-  offers one of their Claude's on another application only if it passes
-  that application's checks (the engine checks the form's limit on the page). **An answer about one
-  company is offered on that company's forms only** (`checks.company_specific`,
-  read through `pipeline.answer_bank`: reuse saved answers through it, never
-  from `written_answers` directly). A draft of their Claude's brought
-  from Apply with no company (no `first_seen`) that names a company WorkIt
-  knows (`written.companies_named`; the student's own places don't count)
-  is that company's answer. The companies WorkIt knows
-  (`queries.fetch_company_names`) never include an added job's company:
-  one student typed it (KAN-515, KAN-542). **The student's own words win**
-  (KAN-379): the student's words in a tab (`PUT .../answers`, `own` true:
-  written into a field WorkIt didn't fill, or replacing what it filled) set
-  the row's `own`, which their Claude's later save never overwrites and
-  `answer_bank` offers first, unchecked by the checks meant for their
-  Claude's text (only the company rule, no other application's company
-  named, and the form's limit on the page apply to them); an edit of an answer WorkIt filled (`own`
-  false) stays not own and passes the same checks as their Claude's save;
-  the extension plans every batch form with `GET .../answer-bank`, so a
-  saved question never reaches their Claude, and every form outside a
-  batch with `GET /applicants/{id}/answer-bank?company=` (no application:
-  an answer about a company only when the page's company is that one). Seam-2 tests:
-  `tests/test_connector_saved_answers.py`. Seam-2 tests:
+  (`queries.drop_written`) for their Claude to write again. **Later forms
+  reuse an answer only through the student's Answer bank** (W11,
+  `app/auto_apply/answer_bank.py`; models/CLAUDE.md, "The Answer bank"),
+  never from `written_answers` directly. A save puts an answer there only
+  for a choice or a field the tab never sent (a question in words the tab
+  sent may be an essay, which the row can't tell: the extension sends no
+  essay marker) and only past the one rule for what enters the bank,
+  which only the server runs, at the save and not at the read: no question about the
+  company or role, and no company of the student's applications (the
+  form's own included; their own places excepted) named in the question
+  or a text answer, and no follow-up of another question
+  (`checks.FOLLOW_UP`). A model's text also goes in only when the
+  student's own data holds what it states, checked with no posting
+  (`answer_bank._unsupported`: `checks.problems` and the truth check,
+  plain code), and names no company WorkIt knows
+  (`answer_bank.companies_named`), flagged `review` for the student.
+  WorkIt Auto Apply's PATCH names its form by `job_id` (a WorkIt job, whose
+  company the server reads itself), else by the `company` it holds for the
+  posting, and learns the bank's version from `GET
+  /apply-app/usage`, which it asks before each Application. The companies WorkIt knows (`queries.fetch_company_names`)
+  never include an added job's company: one student typed it (KAN-515,
+  KAN-542). So the whole bank fits every form: `GET .../answer-bank`
+  answers all of it, with its version as the ETag (304 for the version
+  the reader holds). **The student's own words win** (KAN-379): the
+  student's words in a tab (`PUT .../answers`, `own` true: written into a
+  field WorkIt didn't fill, or replacing what it filled) set the row's
+  `own`, which their Claude's later save never overwrites, and go in the
+  bank unflagged, unchecked by the checks meant for their Claude's text;
+  in the bank too their Claude's answer never replaces the student's. An
+  edit of an answer WorkIt filled (`own` false) stays not own, passes the
+  same checks as their Claude's save, and goes in the bank flagged. Undo
+  (`DELETE .../answers`) takes the answer out of the bank too. The
+  extension plans every form with the bank, so a saved question never
+  reaches their Claude. Seam-2 tests:
+  `tests/test_connector_saved_answers.py`, `tests/test_answer_bank.py`. Seam-2 tests:
   `tests/test_connector_checks.py`. The writing samples are KAN-384's;
   until then `pipeline.writing_samples` holds none. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches
@@ -2052,6 +2139,34 @@ go then. A change needs to work on Cloudflare only.
   (`docs/scraper_gh_action/plan.md`, Decision 3 and "After a merge to
   main"). The runner's scrape needs none of this: each run checks out the
   commit it runs.
+- **KAN-834's migrations go on around one deploy, in two commands.**
+  Its `b7e4c2a9d816` adds `answer_banks`, which the new code reads for
+  every Answer bank read and save, and `d6a2f8c41e07` adds
+  `sent_applications` and `form_questions` (what each application WorkIt
+  Auto Apply filled sent); its `c3f9a1d27b6e` drops
+  `applicant_profiles.fill_answers`, which the old code selects with every
+  profile read. So no one `upgrade head` is safe: before the deploy it
+  drops a column the running code reads (every signed-in request 500), and
+  after it the new code runs without its table (the extension's bank reads
+  and saves, the Written Answers page's saves, WorkIt Auto Apply's PATCH and
+  `GET /apply-app/usage` 500). The order, once the PR has merged (never from
+  its branch: `alembic/CLAUDE.md`):
+  1. `uv run alembic upgrade d6a2f8c41e07` right away. It only adds two
+     tables, empty until the new code writes them, so the old code never
+     meets them.
+  2. Let the deploy finish.
+  3. The one-time save of what Apply's old sync left in `fill_answers`
+     into each student's Answer bank: a script run by hand and deleted,
+     never committed. Skipped, those answers are lost with the column.
+  4. `uv run alembic upgrade head` for `c3f9a1d27b6e`, which sits on
+     `d6a2f8c41e07`.
+  `b7e4c2a9d816` sits on `b3e7a1c9d452` (the added jobs' catalog logos),
+  which sits on `756dd185aedb` (the scraper's cycle leases), so step 1
+  applies `main`'s migrations before it first where they are not yet
+  applied. It sat on `a9d4c2e7f893` until main's scraper migrations took
+  that place (2026-11-26), then on `756dd185aedb` until main's
+  `b3e7a1c9d452` took that one (2026-11-27): two revisions on one parent
+  made two heads each time, and `upgrade head` refused to run.
 - **Apply `f45841235b98` (`job_postings_feed_idx`, KAN-916) once its PR
   has merged, never from its branch.** A revision that `main` lacks breaks
   every teammate's Alembic (`alembic/CLAUDE.md`). It follows KAN-915's

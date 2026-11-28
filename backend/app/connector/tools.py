@@ -340,8 +340,8 @@ def register(server: MCPServer) -> None:
             "Saves answers to one WorkIt job application's written questions, all or none, and fills "
             "them into the application's open tab in the student's browser. Refuses an answer to a "
             "question the application doesn't have, an empty one, or one that fails WorkIt's checks (over the question's "
-            "max_length among them), with every reason. A written answer is saved with its plan and the claims "
-            "its check listed as unsupported, and refused without them, while it still holds a listed claim, "
+            "max_length among them), with every reason. A written answer is saved with its plan, needs the claims "
+            "its check listed as unsupported, and is refused without them, while it still holds a listed claim, "
             "or when its plan fails WorkIt's checks (a quote not word for word in the sources, a required slot "
             "with no quote, a story another answer leads with)."
         ),

@@ -65,6 +65,7 @@ from apply import (
     refused_submit,
     regenerate,
     send_button,
+    sent_capture,
     stuck,
     submit_guard,
     tailored,
@@ -81,7 +82,7 @@ from apply.adapters import Adapters, ClaudeError, JobSite, SetupError, Tracker
 from apply.answers_tab import Refused
 from apply.asking import for_essay
 from apply.captcha import Waiter
-from apply.essays import ASK
+from apply.essays import ASK, TOLD, from_cell, headings
 from apply.model import Posting, Question, Site, Status, job_title, one_line
 from apply.orchestrator import (
     CALIBRATION,
@@ -487,11 +488,14 @@ def rehearse(
         after = []  # how the hold of a pause ended, when Lisul didn't press Resume: AGAIN, or "" (closed)
 
         def submitted(page) -> None:  # Lisul sent the form from the held page
+            if done.saved is not None:  # what it sent, as the form showed it at the press, for the applied write
+                SENT_ANSWERS[done.posting.id] = sent_answers(done.saved, captured.values)
             with writing:
                 note = _keep_submission(submitted_to, done, adapters.clock.now().date())
             note += _keep_confirmation(page, done, adapters)
             # Sent: nothing on it waits on him now, and an answer given later neither fills it nor shows it unsent.
             done.outcome, done.missing = str(Status.SUBMITTED), ()
+            TOLD.pop(done.posting.url, None)  # his answers to its Essay facts: never kept past its submit
             batch.done(url)  # it went in: a restart has nothing of it to bring back (KAN-719)
             adapters.board.update(n, status="submitted", why=note, missing=[], session="")
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, note]))
@@ -548,11 +552,15 @@ def rehearse(
         redo = _Redo(lambda: done, adapters, profile, n, site, out)
         # Ask Claude: Lisul's own words, from the tile or `apply ask`, and Claude fixes the held form (KAN-638).
         watching = {}  # the held page's Watch (apply.on_page), anew for each page held
+        # What the held form shows on each press of a button on it, for what it sent (apply.sent_capture, W11).
+        captured = sent_capture.Capture()
         # What Claude changed on the page is never Lisul's answer (KAN-693): the Watch starts again from it.
         asker = _Ask(lambda: done, adapters, profile, n, out, acted=watching.clear)
 
         def tend(page) -> None:
-            """Needs you on the held page: each Go to question pressed, and each answer Lisul typed there."""
+            """Needs you on the held page: each Go to question pressed, and each answer Lisul typed there. The listener
+            that keeps what the form shows on each press goes into each new document of it too."""
+            captured.watch(page, list(done.questions))
             watch = watching.get(id(page))
             if watch is None:
                 watching.clear()
@@ -623,6 +631,14 @@ def rehearse(
             so the next job opens even while this page is slow to let go (KAN-839)."""
             if not getattr(adapters.board, "let_go_asked", lambda k: False)(n):
                 return False
+            batch.done(url)  # not applying: no restart brings it back
+            if build.STUDENT:  # and nothing of it stays on the Mac (W11)
+                from apply import (
+                    local_data,  # here: local_data imports the worker, which imports this module's peers
+                )
+                local_data.forget(done.posting.company, done.posting.id)
+            # Last, so nothing runs between it and the hold's unwinding: work after it let the next job open its form
+            # while this one's was still open, two forms under a cap of one (test_open_slots).
             leave_room()
             return True
 
@@ -699,6 +715,7 @@ def rehearse(
             try:
                 how = site.hold(release, done.posting.job_system, submitted, done.warning(), done.wrong(),
                                 answers, fill, resume=wants, sent=sent, challenged=challenged, refused=turned_down, redo=redo, tend=tend,
+                                before_press=captured.read_now,
                                 ask=asker, signing_in=done.outcome == SIGN_IN, **holds())
             finally:
                 asker.close()
@@ -799,6 +816,7 @@ def rehearse(
                                     _email_code(adapters, done.posting.job_system, told),
                                     resume=(lambda page: adapters.board.resumed(n)) if offered else None,
                                     challenged=challenged, refused=turned_down, redo=redo, tend=tend,
+                                    before_press=captured.read_now,
                                     ask=asker, signing_in=done.outcome == SIGN_IN, **holds())
                     asker.close()
                     unheld()
@@ -826,6 +844,7 @@ def rehearse(
                     if how != AGAIN:  # Fill again, or Fill it anyway
                         break
                     adapters.board.resumed(n)  # a Resume pressed for the fill before: the new fill never takes it
+                    captured.clear()  # the new fill's form: what the last one showed is not what this one sends
                     adapters.board.update(n, resume=None)  # nor its offer: each pause offers its own
                     # Its place went while nothing of it waited on him (Fill it anyway with no page, an unconfirmed
                     # Submit): the new fill opens a form, so it waits for one again, and never past the cap.
@@ -955,13 +974,15 @@ def _after_the_limit(adapters: Adapters) -> None:
 
     It never raises. A reading that fails (a Developer checkout's `claude -p` logged out, or its probe refused) is
     no limit: the form's own calls say what is wrong, inside the link's try. Raised here, before that try, the
-    link's thread ended holding its Worker's turn, and the run waited on its summary until Ctrl-C."""
-    paused = False
+    link's thread ended holding its Worker's turn, and the run waited on its summary until Ctrl-C. Then the Answer
+    bank follows WorkIt's version, from the same reading (AnswerBank.follow, W11)."""
+    paused, version = False, None
     while True:
         try:
             reading = adapters.usage.reading()
         except (SetupError, ClaudeError):
             break
+        version = reading.bank_version
         if not reading.limited:
             break
         until = reading.resets_at or adapters.clock.now() + UNKNOWN_RESET_WAIT
@@ -970,6 +991,7 @@ def _after_the_limit(adapters: Adapters) -> None:
         paused = True
     if paused:
         adapters.board.run(paused_until=None)
+    adapters.answer_bank.follow(version)  # the link's form plans with WorkIt's bank as it is now (W11)
 
 
 def _until(release: threading.Event) -> str:
@@ -1089,6 +1111,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     shown: list[Rehearsed] = []  # each pause's summary, already handed out: the fill's Record goes on them too
     vaulted: set[str] = set()  # the hosts this fill signed in to from the vault: each once (apply.vault_sign_in)
     posting, result = resolve(url, site)
+    posting = replace(posting, job_id=adapters.jobs.get(url, ""))
     # Before any page opens (form_behind opens one for an unknown job system): never fill a form sent already.
     applied = adapters.applied_before.of(posting, url)
     behind = greenhouse.board_behind(posting, site)
@@ -1100,7 +1123,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     if behind != posting:
         fetched = None  # the form's own job system's text is read instead
         form = resolve(behind.url, site)[0]  # named by its job system now, where it names the job
-        posting = replace(form, id=posting.id, company=form.company or posting.company, title=form.title or posting.title)
+        posting = replace(form, id=posting.id, company=form.company or posting.company, title=form.title or posting.title,
+                          job_id=posting.job_id)
         applied = applied or adapters.applied_before.of(posting, url)
     if applied:
         trace.event("already applied", said=applied.said())
@@ -1213,6 +1237,8 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                 result = Result(Status.FAILED, f"{type(error).__name__}: {error}", traceback=where)
                 # The line says what failed; the log keeps where, for the fix.
                 print(f"{posting.company or url}: {where}", file=sys.stderr, flush=True)
+            finally:
+                tailored.forget(profile)  # uploaded: Fill again reads it from WorkIt again (W11)
             trace.result(result)
     note_refusals()
     posting = named(posting, result)
@@ -1503,8 +1529,7 @@ class _Redo:
                           essays=done.form.essay_cell() if kind == regenerate.ESSAY else done.saved.essays if done.saved else "",
                           drafted=tuple((q, redone.text if q == label else a) for q, a in done.saved.drafted)
                           if done.saved else ())
-            self._out(f"{company} | regenerated '{label}' with your context"
-                      + (" (in the Answer bank too)" if redone.banked else ""))
+            self._out(f"{company} | regenerated '{label}' with your context")
         else:
             written.state, written.why = "failed", redone.why
             regenerate.done(page, name, "", f"Not regenerated: {redone.why}", False)
@@ -1640,6 +1665,63 @@ def _submitted_reason(done: Rehearsed) -> str:
     return SUBMITTED_BY_LISUL + (SENT_ANYWAY.format(done.overridden) if done.overridden else "")
 
 
+# What each form sent, by Application, from the student's Submit until its applied write takes it (W11): WorkIt keeps
+# it (PUT .../sent), so no Record of it stays on the Mac. In memory only, as TOLD.
+SENT_ANSWERS: dict[str, list[dict]] = {}
+# A file box's value as the press reads it: Chrome gives every chosen file this path, with its name.
+FAKEPATH = re.compile(r"C:\\fakepath\\(.+)")
+
+
+def sent_answers(record: Record, shown: dict[str, str] | None = None) -> list[dict]:
+    """What the form sent, for WorkIt: each question it asked and the answer its field showed at the press
+    (`shown`, apply.sent_capture: the student's edits on the held form are in it), else what the fill read back or
+    planned; an essay's whole text where the press read none, and a cover letter's when the form took it as a file;
+    a file by its name alone, the one the box held at the press when the student swapped in their own; in the form's
+    order. A secret's answer (a password, a PIN, an SSN) and an empty one never
+    go. `ai` marks an essay or an answer AI drafted, as long as the form sent it as AI wrote it."""
+    shown = shown or {}
+    written = {one_line(e.question.label): e.text for e in from_cell(record.essays, headings(record.essays))
+               if e.text} if record.essays else {}
+    drafted = {one_line(question) for question, _ in record.drafted}
+    sent = []
+    for q in record.filled.questions:
+        label = one_line(q.label)
+        if not label or SECRET.search(q.label) or SECRET.search(q.name):
+            continue
+        planned = record.filled.answers.get(q.name)
+        ai_text = written.get(label) or (planned if label in drafted else None)
+        picked = FAKEPATH.match(shown.get(q.name) or "") if q.kind == "file" else None
+        if picked and picked[1] != _file_name(planned):  # the student put a file of their own in its place
+            answer, ai_text = picked[1], None
+        elif q.kind == "file":  # a letter's words, else the file's name
+            answer = written.get(label) or record.filled.readback.get(q.name) or planned
+        elif q.kind in ("text", "textarea") and q.name in shown:  # a box read at the press: empty is what it sent
+            answer = shown[q.name]
+        else:
+            answer = shown.get(q.name) or written.get(label) or record.filled.readback.get(q.name) or planned
+        if isinstance(answer, (list, tuple)):
+            answer = [str(a.name if isinstance(a, Path) else a).strip() for a in answer]
+            answer = [a for a in answer if a]
+        elif answer is not None:
+            answer = str(answer.name if isinstance(answer, Path) else answer).strip()
+        if answer:
+            sent.append({"question": label[:2000], "answer": answer if isinstance(answer, list) else answer[:20000],
+                         "ai": ai_text is not None and _same_text(answer, ai_text)})
+    return sent[:300]
+
+
+def _file_name(given) -> str:
+    return Path(str(given)).name if given and not isinstance(given, (list, tuple)) else ""
+
+
+def _same_text(sent, written) -> bool:
+    """Whether the form sent what AI wrote: the same words, whatever the spaces (a text box may fold its lines)."""
+    def fold(value) -> str:
+        value = value.name if isinstance(value, Path) else value
+        return " ".join(("; ".join(map(str, value)) if isinstance(value, (list, tuple)) else str(value)).split()).casefold()
+    return fold(sent) == fold(written)
+
+
 def _keep_submission(tracker: Tracker | None, rehearsed: Rehearsed, today) -> str:
     """Keep an Application Lisul submitted from a rehearsal in the Tracker as
     submitted, so no run applies to it again. Returns what to tell him."""
@@ -1664,7 +1746,7 @@ def _keep_confirmation(page, done: Rehearsed, adapters: Adapters) -> str:
     screenshot of the confirmation (`after-submit.png`), before its window
     closes. Returns what to add to the note."""
     shown = ""
-    if done.saved is not None:
+    if done.saved is not None and not build.STUDENT:  # WorkIt Auto Apply keeps no Record once a form is sent (W11)
         try:
             shot = page.screenshot(full_page=True)
         except Exception:
@@ -1941,6 +2023,7 @@ class _Kept:
              challenged: Callable[[], None] = lambda: None, refused: Callable[[str], None] = lambda why: None,
              redo: "_Redo | None" = None,
              tend: Callable[[object], None] = lambda page: None, ask: "_Ask | None" = None,
+             before_press: Callable[[object], None] = lambda page: None,
              fill_again: Callable[[], bool] = lambda: False, held: Callable[[], str] = lambda: "", dismiss: Callable[[], None] = lambda: None,
              let_go: Callable[[], bool] = lambda: False,
              note: "Callable[[], tuple[str, bool]] | None" = None, sent: Callable[[], None] = lambda: None,
@@ -2113,6 +2196,7 @@ class _Kept:
                             pressed_on = document(self._page)
                             # Oracle's unconfirmed application (its code never given): his Approve is CONFIRM's,
                             # never REMOVE's, and the code step it goes on to asks for the code (code_given).
+                            before_press(self._page)  # what the form shows as Apply sends it (apply.sent_capture)
                             heard(oracle.confirm(self._page) if oracle.unconfirmed(self._page)
                                   else send_button.press(self._page))  # theirs, as if they had pressed it
                             pressing = time.monotonic()

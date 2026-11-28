@@ -228,11 +228,11 @@ auto_submit_essays: false
 # applicant can judge Claude's answers before anything is submitted unseen.
 calibration_run: 10
 
-# Off (null) by default: an unreviewed Answer bank draft is used again on every
-# form that asks it, and each run lists those used again. Set a number N to
-# hold every Application that uses an unreviewed draft for the Nth time or
-# later, until the applicant reviews or edits it in the Answers tab.
-max_unreviewed_uses: null
+# What an Answer bank answer no one has reviewed yet does (a draft of the
+# model's): `use` (the default) fills every later form that asks it at once;
+# `hold` holds each Application that would take one, until the applicant
+# reviews or edits it in the Answers tab.
+unreviewed_answers: use
 
 # Workers' Chrome runs headless (true: no window; the applicant watches every
 # Worker in the dashboard) or headed (false: a visible window per Worker). Runs
@@ -337,14 +337,6 @@ records_remote: null
 # run; `gh` being offline only warns. Unset: no check. For example:
 # resume_source: {repo: you/resume, path: final/resume.pdf, branch: main}
 resume_source: null
-
-# Answer bank sync (KAN-746, docs/workit.md): with answers: true and `apply
-# login`, each answer the Answer bank saves, changes or deletes also goes to
-# your WorkIt account, so the WorkIt extension fills it with no import. Claude's
-# drafts go as Claude's, never as your words. Run `apply sync-answers` once to
-# send what the bank already holds. Off: nothing leaves this Mac.
-workit_sync:
-  answers: false
 
 # Repairs (GLOSSARY: Repair): after each run or rehearsal, Claude fixes
 # Apply's own code for what went wrong, in a worktree of its own, and the fix

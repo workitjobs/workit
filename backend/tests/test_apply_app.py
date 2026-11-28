@@ -9,6 +9,7 @@ tested in ../scout/tests/test_scout.py.
 """
 
 import datetime
+import json
 import uuid
 
 import httpx
@@ -21,6 +22,7 @@ from app.apply_prompts import KINDS, brief, said, writing
 from app.config import get_settings
 from app.deps import get_current_account
 from app.main import app
+from app.queries import writing as writing_rows
 from app.queries.model_usage import resets_at
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.services.models import get_large_llm, get_small_llm
@@ -127,7 +129,7 @@ async def test_at_the_cap_nothing_reaches_the_model_until_midnight(student, monk
     assert refused.json()["detail"] == "Today's model use is reached; it resets at midnight UTC."
     assert int(refused.headers["Retry-After"]) == (resets_at(NOW) - NOW).total_seconds()
     assert len(fake.prompts) == 1
-    assert usage == {"used": COST, "cap": COST, "resets_at": "2026-11-14T00:00:00Z"}
+    assert usage == {"used": COST, "cap": COST, "resets_at": "2026-11-14T00:00:00Z", "bank_version": 0}
 
 
 async def test_past_the_minute_limit_a_call_waits_for_the_next_minute(student, monkeypatch):
@@ -227,3 +229,152 @@ async def test_the_question_types_are_served_as_data_never_as_guidance(student):
         served = (await api.get("/apply-app/types")).json()
     assert served["order"][0] == "cover-letter" and set(served["order"]) < set(served["types"])
     assert set(served["types"]["why-company"]) == {"company_link", "stock", "high_stakes", "length", "match", "slots"}
+
+
+async def test_the_usage_reply_carries_the_answer_bank_s_version(student):
+    """WorkIt Auto Apply asks for its usage before each Application: the bank's
+    version rides along, so it reads the bank again only when it changed (W11)."""
+    async with _api() as api:
+        before = (await api.get("/apply-app/usage")).json()["bank_version"]
+        saved = await api.patch(f"/applicants/{student.id}/answer-bank", json={"set": [
+            {"question": "Which shifts can you work?", "answer": "Nights", "choice": True}]})
+        after = (await api.get("/apply-app/usage")).json()["bank_version"]
+
+    assert saved.status_code == 200, saved.text
+    assert (before, after) == (0, saved.json()["version"])
+
+
+async def test_the_app_reads_its_profile_from_workit_and_keeps_the_students_answers_there(student, database):
+    """W11: WorkIt Auto Apply keeps no profile file. Its profile is WorkIt's, built as the extension builds it
+    (tests/test_engine_profile.py holds the mapping), and a Needs you answer goes into it, beside the earlier ones,
+    so the next Start and the extension's fills both take it."""
+    async with database() as session:
+        await session.execute(text("UPDATE applicant_profiles SET location = 'Stony Brook, NY', fill_profile ="
+                                   " '{\"answered_questions\": {\"Why us?\": \"Boats.\"}}' WHERE id = :id"),
+                              {"id": student.id})
+        await session.commit()
+    async with _api() as api:
+        saved = await api.patch("/apply-app/profile", json={"answered": {"Which shift?": "Nights", "Skipped?": ""},
+                                                             "facts": {"identity.preferred_first_name": "Sammy"}})
+        refused = await api.patch("/apply-app/profile", json={"facts": {"files.resume_pdf": "/Users/x/r.pdf"}})
+        got = await api.get("/apply-app/profile")
+
+    assert saved.status_code == 204, saved.text
+    profile = got.json()["profile"]
+    assert profile["identity"]["legal_first_name"] == "Sam" and profile["identity"]["phone"] == "631-555-0142"
+    assert profile["identity"]["current_location"] == {"city": "Stony Brook", "state": "NY", "country": "United States"}
+    assert profile["answered_questions"] == {"Why us?": "Boats.", "Which shift?": "Nights", "Skipped?": ""}
+    assert profile["identity"]["preferred_first_name"] == "Sammy"  # a fact the engine read from an answer
+    assert refused.status_code == 422  # a file's path is the Mac's, never WorkIt's
+    assert got.json()["policies"]["how_heard"]["text"] == "WorkIt" and got.json()["files"] == {}
+
+
+async def test_the_app_reads_its_story_bank_and_voice_from_workit_and_an_essay_facts_answer_stays_out_of_it(
+        student, database):
+    """W11: the Story bank and voice are WorkIt's too. Fault: the Story bank missed the student's writing samples,
+    the voice wasn't the style card, an Essay fact's answer joined the Story bank, which every essay's prompt carries,
+    or a PATCH could still add a Story bank line."""
+    async with database() as session:
+        await writing_rows.add_sample(session, student.id, "I built a shelf scanner.")
+        await writing_rows.save_style_card(session, student.id, "Short sentences.")
+        await session.commit()
+    line = {"section": "## Answers to essay questions\nIn their words.", "line": "- Favorite book? Dune"}
+    async with _api() as api:
+        assert (await api.patch("/apply-app/profile", json={"story": [line]})).status_code == 422
+        assert (await api.patch("/apply-app/profile", json={"answered": {"Favorite book?": "Dune"}})).status_code == 204
+        got = (await api.get("/apply-app/profile")).json()
+
+    story = got["writing"]["story_bank"]
+    assert "## Sam's own essays\nI built a shelf scanner.\n" in story and "Dune" not in story
+    assert got["profile"]["answered_questions"] == {"Favorite book?": "Dune"}
+    assert got["writing"]["voice"] == "Short sentences."
+
+
+async def test_a_developer_upload_takes_only_what_workit_lacks(student, database):
+    """`apply upload`. Fault: it wrote over what WorkIt holds (its phone, an answer the student gave since), took a
+    file's path, or a second upload added the same samples or answers again."""
+    async with database() as session:
+        await session.execute(text("UPDATE applicant_profiles SET fill_profile = '{\"answered_questions\":"
+                                   " {\"Why us?\": \"Boats.\"}}' WHERE id = :id"), {"id": student.id})
+        await session.commit()
+    body = {"profile": {"identity": {"phone": "999-000-0000", "preferred_first_name": "Sammy"},
+                        "files": {"resume_pdf": "Sam_Resume.pdf"}, "stock_answers": {"why_field": "Robots."},
+                        "answered_questions": {"Why us?": "Old words.", "Which shift?": "Nights"}},
+            "story_bank": "# Story bank\n\n## Sam's own essays\n> I built a shelf scanner.\n\n## Skills\n- Python.\n",
+            "voice": "<!-- measured from 1 sample -->\nShort sentences."}
+    async with _api() as api:
+        first = await api.post("/apply-app/profile/upload", json=body)
+        again = await api.post("/apply-app/profile/upload", json=body)
+        got = (await api.get("/apply-app/profile")).json()
+
+    assert first.json() == {"facts": 2, "answered": 1, "samples": 1, "style_card": True}, first.text
+    assert again.json() == {"facts": 0, "answered": 0, "samples": 0, "style_card": False}
+    profile = got["profile"]
+    assert profile["identity"]["phone"] == "631-555-0142" and profile["identity"]["preferred_first_name"] == "Sammy"
+    assert profile["stock_answers"] == {"why_field": "Robots."} and "resume_pdf" not in profile.get("files", {})
+    assert profile["answered_questions"] == {"Why us?": "Boats.", "Which shift?": "Nights"}
+    assert "I built a shelf scanner." in got["writing"]["story_bank"] and got["writing"]["voice"] == "Short sentences."
+
+
+async def test_application_info_lists_what_fills_from_the_apps_answers_and_removes_one(student, database):
+    """The website shows and edits what WorkIt Auto Apply kept in fill_profile. Fault: a fact a WorkIt field holds was
+    listed (editing it changes no form, since that field wins), a file's path was listed, or Remove left the answer
+    or the fact (or the section it emptied) in place."""
+    async with database() as session:
+        await session.execute(text("UPDATE applicant_profiles SET fill_profile = :fill WHERE id = :id"), {
+            "id": student.id,
+            "fill": '{"answered_questions": {"Which shift?": "Nights", "Skipped?": ""},'
+                    ' "identity": {"legal_first_name": "Old", "pronouns": "he/him"},'
+                    ' "screeners": {"willing_to_travel": true}, "files": {"resume_pdf": "/Users/x/r.pdf"}}'})
+        await session.commit()
+    async with _api() as api:
+        listed = (await api.get("/apply-app/answered")).json()
+        removed = await api.patch("/apply-app/profile", json={"remove_answered": ["Which shift?"],
+                                                               "remove_facts": ["screeners.willing_to_travel"]})
+        after = (await api.get("/apply-app/answered")).json()
+
+    assert listed["answered"] == [{"question": "Skipped?", "answer": ""},
+                                  {"question": "Which shift?", "answer": "Nights"}]
+    # WorkIt's own first name wins over "Old", so only the pronouns and the screener fill from fill_profile.
+    assert listed["facts"] == [{"key": "identity.pronouns", "value": "he/him"},
+                               {"key": "screeners.willing_to_travel", "value": True}]
+    assert removed.status_code == 204, removed.text
+    assert after == {"answered": [{"question": "Skipped?", "answer": ""}],
+                     "facts": [{"key": "identity.pronouns", "value": "he/him"}]}
+    async with database() as session:
+        fill = await session.scalar(text("SELECT fill_profile FROM applicant_profiles WHERE id = :id"), {"id": student.id})
+    assert "screeners" not in fill  # the section the Remove emptied goes with it
+
+
+async def test_a_needs_you_fact_a_website_field_holds_is_saved_in_that_field(student):
+    """A fact the app's Needs you saves goes where the website shows it. Fault: it stayed in fill_profile (Application
+    Info's field showed nothing), a field the student answered was written over, or one typed answer took a field it
+    isn't (a city in Address Line 1)."""
+    async with _api() as api:
+        saved = await api.patch("/apply-app/profile", json={"facts": {
+            "logistics.willing_to_relocate_for_summer": True, "identity.pronouns": "she/her",
+            "links.linkedin_url": "linkedin.com/in/sam", "identity.phone": "631-555-0199",
+            "identity.home_address.city": "Boston", "screeners.made_up_fact": True}})
+        answers = (await api.get(f"/applicants/{student.id}/autofill-answers")).json()
+        profile = (await api.get(f"/applicants/{student.id}/profile")).json()
+        listed = (await api.get("/apply-app/answered")).json()
+
+    assert saved.status_code == 204, saved.text
+    assert (answers["willing_to_relocate"], answers["pronouns"]) == ("yes", "she_her")
+    assert answers["address_line1"] is None
+    assert profile["linkedin_url"] == "https://linkedin.com/in/sam"  # as My Profile's own save keeps a link
+    assert profile["phone_number"] == "631-555-0142"  # the student's own, never written over
+    assert listed["facts"] == [{"key": "identity.home_address.city", "value": "Boston"},
+                               {"key": "screeners.made_up_fact", "value": True}]
+
+
+async def test_a_profile_over_the_answer_cap_can_still_remove_one(student, database):
+    """Fault: the cap was counted before the Remove, so an imported profile over it could never shrink."""
+    many = {f"Question {n}?": "Yes" for n in range(2_001)}
+    async with database() as session:
+        await session.execute(text("UPDATE applicant_profiles SET fill_profile = CAST(:fill AS jsonb) WHERE id = :id"),
+                              {"id": student.id, "fill": json.dumps({"answered_questions": many})})
+        await session.commit()
+    async with _api() as api:
+        removed = await api.patch("/apply-app/profile", json={"remove_answered": ["Question 0?"]})
+    assert removed.status_code == 204, removed.text

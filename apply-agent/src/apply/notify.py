@@ -18,21 +18,16 @@ TITLE = "Apply run finished"
 SCRIPT = ["on run argv", "display notification (item 2 of argv) with title (item 1 of argv)", "end run"]
 
 
-def summary(statuses: Counter, new_accounts: int, drafted: list[tuple[str, str]] = (),
-            reused: list[tuple[str, str, int]] = ()) -> str:
+def summary(statuses: Counter, new_accounts: int, drafted: list[tuple[str, str]] = ()) -> str:
     """The run's counts: submitted, held, handoff, missing fact, new Employer
     accounts; then each new answer Claude drafted into the Answer bank, for
-    Lisul to review, as (question, answer); then each unreviewed draft the
-    bank answered a form with again, as (question, answer, uses)."""
+    Lisul to review, as (question, answer)."""
     counts = [f"{statuses[s]} {s}" for s in (Status.SUBMITTED, Status.HELD, Status.HANDOFF, Status.MISSING_FACT)]
     accounts = f"{new_accounts} new Employer account" + ("" if new_accounts == 1 else "s")
     line = ", ".join([*counts, accounts])
     if drafted:
         noun = "answer" if len(drafted) == 1 else "answers"
         line += f". Review {len(drafted)} {noun} Claude drafted: " + "; ".join(f"{q} → {a}" for q, a in drafted)
-    if reused:
-        noun = "draft" if len(reused) == 1 else "drafts"
-        line += f". {len(reused)} unreviewed {noun} used again: " + used_again(reused)
     return line
 
 
@@ -62,10 +57,6 @@ def waiting(applications: list[tuple[Status, str, str, str]]) -> tuple[str, str]
 def _short(reason: str, most: int = SHORT_REASON) -> str:
     reason = one_line(reason)
     return reason if len(reason) <= most else reason[:most - 1].rstrip() + "…"
-
-
-def used_again(reused: list[tuple[str, str, int]]) -> str:
-    return "; ".join(f"{q} → {a} ({n} use{'' if n == 1 else 's'})" for q, a, n in reused)
 
 
 class MacNotifier:

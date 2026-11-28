@@ -291,13 +291,73 @@ class OwnAnswer(BaseModel):
 
 
 class SavedAnswer(BaseModel):
-    """An answer saved on another application, as the Fill engine's Answer
-    bank takes it (KAN-379): `own` when the words are the student's, false
-    for their Claude's. One brought from Apply may be a choice's options
-    ticked, a list."""
+    """One Answer bank entry as the Fill engine's Answer bank takes it
+    (KAN-379, W11): the question as a form words it, the answer (a choice's
+    options ticked may be a list), `own` when it is the student's (their
+    words, or a Claude answer they reviewed), false for their Claude's
+    answer they haven't reviewed, and `none` for a multi-select's "none of
+    these" (an empty list). PUT .../answers answers with the answer alone."""
 
+    question: str | None = None
     answer: str | list[str]
     own: bool
+    none: bool | None = None
+    # The list a pick of the student's own came from: it answers only a form offering just these (BankEntry.options).
+    options: list[str] | None = None
+
+
+BankQuestion = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=LABEL_MAX)]
+BankPick = Annotated[str, StringConstraints(min_length=1, max_length=OPTION_MAX)]
+
+
+class BankEntry(BaseModel):
+    """One Answer bank entry to save (PATCH .../answer-bank, W11): the
+    question as the form words it, the answer (a list of the options picked
+    for a multi-select; [] is "none of these"), `review` for a model's
+    answer the student hasn't reviewed, `choice` for a pick from the form's
+    options, and the form it came from: `job_id` for a WorkIt job (the
+    rule reads its company from WorkIt's own database), else `company`,
+    the posting's company as WorkIt Auto Apply holds it (a pasted link, a
+    Request, a match WorkIt doesn't list); `job_id` wins when both come.
+    The rule reads them, and nothing keeps them. An entry from the Answers
+    view has neither."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    question: BankQuestion
+    answer: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=20000)] | Annotated[
+        list[BankPick], Field(max_length=100)
+    ]
+    review: bool = False
+    # a pick from the form's options (a single choice's answer is a string): the rule reads its question alone
+    choice: bool = False
+    # The list the student's own pick came from, kept with it (Freeform, 2026-11-26: a 3.85 picked on a GPA list in
+    # steps of 0.05): the Fill engine then gives it only to a form offering just these options (its fromThisList).
+    # Left out, the entry keeps the options it holds, so an edit of the answer keeps its list; [] drops them.
+    options: list[BankPick] | None = Field(default=None, max_length=200)
+    job_id: uuid.UUID | None = None
+    company: Annotated[str, StringConstraints(strip_whitespace=True, max_length=200)] | None = None
+
+
+class AnswerBankChange(BaseModel):
+    """PATCH .../answer-bank: at most 100 entries to save and 500 questions
+    to delete. A question in both is deleted."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # 100 at most: the content checks read each model text, so one save stays short (answer_bank.CHECKED_MAX).
+    set: list[BankEntry] = Field(default=[], max_length=100)
+    delete: list[BankQuestion] = Field(default=[], max_length=500)
+
+
+class AnswerBankChanged(BaseModel):
+    """What PATCH .../answer-bank did: the bank's new version, and why each
+    entry it kept out stays on its form (`kept_out`, by question: the rule,
+    W11). A version one past the writer's own says no one else wrote
+    meanwhile; any other, that the writer reads the bank again."""
+
+    version: int
+    kept_out: dict[str, str]
 
 
 class ApplicationStage(BaseModel):

@@ -1935,9 +1935,12 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   tab, and for a while no link reached the page, so a student without
   Claude could not answer (KAN-566); then only the notice did, so with
   nothing waiting the saved answers and their Delete were out of reach.
-  **That gap is open again, on purpose**: with no question waiting, no
-  link reaches Your Answers. Give the saved answers a place on the queue
-  (a row's menu, an applied job's page) before a student needs them.
+  **Application Info's Written Answers card closes that gap** (2026-11-27,
+  `auto-apply/info/written-answers-link.tsx`, in the Answer Bank part): it
+  always links here, so the saved answers and their Remove are reachable
+  with no question waiting. **The page says it is the Chrome extension's**
+  (a quiet line under Back, with the extension's puzzle-piece glyph, as the
+  card has): WorkIt Auto Apply keeps its answers on each application's page.
   never the danger red (the student fixes it; nothing broke). Each box's
   save is `secondary` until the box has text (KAN-568): a card holds
   several questions, and a brand Save under each put five on one screen.
@@ -2026,7 +2029,9 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   showed on every page, and it took the phone's magnifier and sheet with it.
   Each page's own heading and line under the bar went, about 60px a page: the
   line under Written Answers too, so that page no longer says how answers
-  reach the tab. Auto Apply keeps its queue line, which is a count, not a
+  reach the tab. It has one short line back since 2026-11-27, naming the
+  Chrome extension as its answers' source, at the user's ask: a student
+  with WorkIt Auto Apply too read the page as every answer. Auto Apply keeps its queue line, which is a count, not a
   description. **The company bar does the same** (KAN-582,
   `company/bar-title.tsx`, its own `TITLES`): a new company section joins
   that list, and a company page draws no heading of its own unless it is a
@@ -3325,9 +3330,9 @@ are in `docs/auth.md`.
   it, and a module variable would show one account's profile to the next
   person in that tab. My Profile loads through one server action,
   `getProfilePage` (`lib/profile-page-actions.ts`; KAN-368): its photo,
-  profile and answer bank ran in a row on a first visit, and a Save waited
+  profile and Application answers ran in a row on a first visit, and a Save waited
   behind them. A read added to My Profile joins that action. It reads the
-  photo and the profile only since KAN-550; the answer bank went with
+  photo and the profile only since KAN-550; the Application answers went with
   Application Info, which reads it on the server.
 - **My Profile is what an employer sees; Application Info is what the
   autofiller reads** (KAN-550, `docs/screens.md`, My Profile and Auto
@@ -3340,7 +3345,7 @@ are in `docs/auth.md`.
   `<Suspense>`; a server read added to My Profile goes there, not into
   `getProfilePage`, which the client screen calls. The work
   authorization and self-identification answers, Application Answers, the
-  Transcript and Writing Samples live in Application Info
+  Answer Bank (W11), the Transcript and Writing Samples live in Application Info
   (`/auto-apply/info`, `(seeker)/auto-apply/info/`), one white card each,
   under the feature that uses them: on My Profile they made a long form
   the student scrolled past to find their own name. A new fact that only
@@ -3744,6 +3749,15 @@ are in `docs/auth.md`.
   (KAN-572).
   The extension's add-Claude moment (KAN-387) already skips a student whose
   connector is added: keep that check there, not a flag set here.
+- **The Answer bank is edited in Application Info's Answer Bank only** on
+  the website (`(seeker)/auto-apply/info/answer-bank.tsx`,
+  `lib/answer-bank-actions.ts`; `docs/screens.md`, Answer Bank). WorkIt's
+  rule decides what enters, so a save can come back kept out with its
+  reason; the part shows it and keeps the text. Each change is one PATCH
+  and the list changes from its reply: never read the bank again after a
+  save. WorkIt Auto Apply's window has the same design
+  (`apply-agent/window/src/answers.tsx`), so a change to this one goes
+  there too.
 - **Writing samples are edited in Application Info only**
   (`(seeker)/auto-apply/info/writing-samples.tsx`,
   `lib/writing-samples-actions.ts`, KAN-387, KAN-550): the extension's ask

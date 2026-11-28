@@ -68,12 +68,12 @@ def test_tax_district_on_an_ohio_home_is_left_blank_and_never_asked(tmp_path):
 def test_an_optional_question_claude_cant_answer_is_left_blank_not_asked(tmp_path):
     asked = Question("q1", "Which robotics competitions have you judged?", "text", False)
     form = worker._Planned(ORACLE, None, ApplicantProfile.load(profile_at(tmp_path, **HOME)),
-                           FakeClaude(needs_lisul=["Which robotics"]), {}, None, False, AnswerBank(), date(2026, 11, 10))
+                           FakeClaude(needs_applicant=["Which robotics"]), {}, None, False, AnswerBank(), date(2026, 11, 10))
 
     assert form.add([CITY, asked]) is None
     assert form.missing == () and "q1" in form.left and "q1" not in form.answers
     required = worker._Planned(ORACLE, None, ApplicantProfile.load(profile_at(tmp_path, **HOME)),
-                               FakeClaude(needs_lisul=["Which robotics"]), {}, None, False, AnswerBank(), date(2026, 11, 10))
+                               FakeClaude(needs_applicant=["Which robotics"]), {}, None, False, AnswerBank(), date(2026, 11, 10))
     result = required.add([CITY, Question("q1", asked.label, "text", True)])
     assert result is not None and result.missing_fact == asked.label  # a required one is still his
 
@@ -97,7 +97,7 @@ def test_a_required_missing_fact_still_stops_a_run(tmp_path):
 
 def test_his_skip_is_kept_so_the_next_form_leaves_it_blank_without_asking(tmp_path):
     path = profile_at(tmp_path, **(HOME | {"city": "Columbus", "state": "OH"}))
-    tab = AnswersTab(AnswerBank(tmp_path / "answer-bank.yaml"), path)
+    tab = AnswersTab(AnswerBank(), path)
     answer = cli._answering(lambda: None, tab)
 
     said = answer({"status": "ready to submit"}, "Tax District", "")
@@ -109,7 +109,7 @@ def test_his_skip_is_kept_so_the_next_form_leaves_it_blank_without_asking(tmp_pa
 
 def test_his_answer_is_kept_so_the_next_form_fills_it(tmp_path):
     path = profile_at(tmp_path, **(HOME | {"city": "Columbus", "state": "OH"}))
-    answer = cli._answering(lambda: None, AnswersTab(AnswerBank(tmp_path / "answer-bank.yaml"), path))
+    answer = cli._answering(lambda: None, AnswersTab(AnswerBank(), path))
 
     answer({"status": "ready to submit"}, "Tax District", "Columbus CSD")
     form = planned(path, rehearse=True)

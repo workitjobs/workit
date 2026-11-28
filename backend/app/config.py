@@ -141,6 +141,9 @@ class Settings(BaseSettings):
     fill_report_daily_cap: int = 30
     # WorkIt Auto Apply's Send report (KAN-837): a report is up to 24 MB, mostly screenshots.
     apply_report_daily_cap: int = 10
+    # What an application WorkIt Auto Apply filled sent (W11): one per Submit the student pressed. A student sends
+    # far fewer a day; a loop can't add 300 new questions of 2,000 characters to form_questions without end.
+    sent_application_daily_cap: int = 100
     job_system_request_daily_cap: int = 50
     # Fill events (KAN-476), one per fill: five batch tabs filling all day stay far below it.
     fill_event_daily_cap: int = 2000

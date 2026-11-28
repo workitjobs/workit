@@ -17,10 +17,22 @@ writing, from which their Claude builds a style card through the connector
     DELETE /applicants/{applicant_id}/writing-samples/{sample_id}
         Removes one: 204; 404 when it isn't theirs.
 
+    PUT /applicants/{applicant_id}/style-card {"card"}
+        The student's own words for the card, in place of their Claude's:
+        204. 409 with no samples (a card describes their own writing), 422
+        for an empty one or one over CARD_MAX characters.
+
+    DELETE /applicants/{applicant_id}/style-card
+        Removes it: 204, also when there was none. Their Claude builds a
+        new one the next time it writes.
+
 Every change to the samples deletes the style card, so the card always
 describes the samples the student has now; their Claude builds a new one
-the next time it writes. Samples go to no model of WorkIt's: only the
-student's own Claude reads them.
+the next time it writes. The card goes into every answer their Claude
+writes and every essay WorkIt Auto Apply writes (W11), which is why the
+student can read and change it on Application Info. Samples go to no
+model of WorkIt's but WorkIt Auto Apply's essays, with the student's
+identity masked.
 """
 
 import uuid
@@ -31,7 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session
 from app.deps import owned_applicant
 from app.queries import writing
-from app.schemas.writing import MAX_SAMPLES, Sample, SampleBody, Samples
+from app.schemas.writing import MAX_SAMPLES, CardBody, Sample, SampleBody, Samples
 
 router = APIRouter()
 
@@ -85,5 +97,31 @@ async def remove_sample(
 ) -> Response:
     if not await writing.remove_sample(session, applicant_id, sample_id):
         raise HTTPException(404, "Writing sample not found")
+    await session.commit()
+    return Response(status_code=204)
+
+
+_CARD = "/applicants/{applicant_id}/style-card"
+
+
+@router.put(_CARD, status_code=204)
+async def save_card(
+    body: CardBody,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    if not await writing.sample_texts(session, applicant_id):
+        raise HTTPException(409, "Add a writing sample first: a style card describes your own writing.")
+    await writing.save_style_card(session, applicant_id, body.card.strip())
+    await session.commit()
+    return Response(status_code=204)
+
+
+@router.delete(_CARD, status_code=204)
+async def remove_card(
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    await writing.drop_card(session, applicant_id)
     await session.commit()
     return Response(status_code=204)

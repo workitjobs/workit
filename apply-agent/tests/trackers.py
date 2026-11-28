@@ -11,8 +11,6 @@ import pytest
 from gspread.utils import a1_to_rowcol, rowcol_to_a1
 
 from apply.sheet import (
-    ANSWER_COLUMNS,
-    ANSWERS,
     APPLICATIONS,
     COLUMNS,
     REQUESTS,
@@ -70,9 +68,6 @@ class MemoryLisul:
     def paste_request(self, url: str) -> None:
         self.tracker.paste_request(url)
 
-    def edit_answer(self, question: str, **fields) -> None:
-        self.tracker.edit_answer_as_lisul(question, **fields)
-
 
 class SheetLisul:
     """Lisul typing into the Sheet: cells found by header and Application ID."""
@@ -80,17 +75,6 @@ class SheetLisul:
     def __init__(self, spreadsheet):
         self.applications = spreadsheet.worksheet(APPLICATIONS)
         self.requests = spreadsheet.worksheet(REQUESTS)
-        self.answers = spreadsheet.worksheet(ANSWERS)
-
-    def edit_answer(self, question: str, **fields) -> None:
-        headers, *rows = self.answers.get_all_values()
-        number = 2 + [row[headers.index("Question")] for row in rows].index(question)
-        header = {field: header for header, field in ANSWER_COLUMNS.items()}
-        self.answers.batch_update([
-            {"range": rowcol_to_a1(number, headers.index(header[field]) + 1),
-             "values": [["TRUE" if value is True else str(value)]]}
-            for field, value in fields.items()
-        ], raw=False)
 
     def edit(self, application_id: str, **fields) -> None:
         headers, *rows = self.applications.get_all_values()
@@ -113,7 +97,7 @@ class SheetLisul:
 
 # Each tab's checkbox column. Lisul's Sheet holds an unticked box, read as
 # "FALSE", in this column of every blank row below the data.
-CHECKBOXES = {APPLICATIONS: "Approve", ANSWERS: "Reviewed"}
+CHECKBOXES = {APPLICATIONS: "Approve"}
 
 
 class FakeSpreadsheet:

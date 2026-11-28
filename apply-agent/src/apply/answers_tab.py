@@ -3,13 +3,18 @@ one place for Lisul to read, and his edits to what is his to edit.
 
 It shows the Answer bank (his one-off answers, each Claude-drafted or his),
 his answers to Missing facts and his Stock answers, all three editable, and
-the rest of the Applicant profile to read. An essay of a Question type that
+the rest of the Applicant profile and his voice (the style card) to read.
+WorkIt Auto Apply's window shows the same (W11): the bank, his Needs you
+answers with Edit and Remove, and the profile and voice WorkIt gave, read
+from WorkIt the first time the tab opens before any Start. An essay of a Question type that
 takes a Stock answer, written for a held Application, is offered as one:
 only his click keeps it (apply.stock), and kept ones are editable too. A key that looks like it holds a
 secret is never shown, and a file shows by its name alone.
 
 The bank is written only through AnswerBank, whose locks keep a run's
-Workers and the window from losing each other's answers; the profile only
+Workers and the window from losing each other's answers. Each edit waits
+for WorkIt's reply (W11): a refusal says why, and the window keeps the
+student's text. The profile is written only
 through ApplicantProfile. While a run goes, the tab edits the run's own
 profile, so the run's next save keeps his edit; with no run, it reads the
 profile file afresh for every view and edit."""
@@ -25,8 +30,8 @@ from ruamel.yaml.scalarstring import (
     SingleQuotedScalarString,
 )
 
-from apply import answering, stock
-from apply.answer_bank import AnswerBank, Entry
+from apply import answering, stock, writing
+from apply.answer_bank import AnswerBank, Entry, NotSaved
 from apply.model import Status
 from apply.profile import ANSWERED, SECRET, ApplicantProfile
 
@@ -46,19 +51,26 @@ class Refused(ValueError):
 
 class AnswersTab:
     def __init__(self, bank: AnswerBank, profile: ApplicantProfile | Path, today: Callable[[], date] = date.today,
-                 held: Callable[[], list] | None = None):
-        """`held` gives the Tracker's rows, read once (a Sheet read takes seconds)."""
+                 held: Callable[[], list] | None = None, read: Callable[[], str] | None = None):
+        """`held` gives the Tracker's rows, read once (a Sheet read takes seconds). `read` puts the profile in from
+        WorkIt, for a view with none yet, and says why it didn't come ("" when it did): WorkIt Auto Apply's profile
+        comes at each Start (apply.student.read_profile), and the tab can open before the first."""
         self._bank = bank
         self._profile = profile
         self._today = today
         self._held = held
+        self._read = read
         self._rows: list | None = None
 
     def view(self) -> dict:
         """What the tab shows, read again from the bank and the profile."""
         facts = self._profile_now().facts()
+        note = self._read() if self._read and not facts else ""
+        facts = facts or self._profile_now().facts()
         return {
-            "bank": [_shown(entry) for entry in _reused_first(self._bank.read_again())],
+            "bank": [_shown(entry) for entry in self._bank.entries()],
+            # While the bank hasn't come from WorkIt yet (W11), why: it is tried again by itself.
+            "bank_note": "" if self._bank.ready else self._bank.problem or "Reading your answers from WorkIt.",
             "answered": [{"question": q, "answer": _text(a)} for q, a in (facts.get(ANSWERED) or {}).items()
                          if not SECRET.search(str(q))],
             "stock": [{"key": k, "answer": _text(a)} for k, a in (facts.get(STOCK) or {}).items()
@@ -69,29 +81,35 @@ class AnswersTab:
             "profile": [{"section": section, "facts": _flat(value, files=section == "files")}
                         for section, value in facts.items()
                         if section not in (ANSWERED, STOCK) and not SECRET.search(str(section))],
+            "profile_note": note,  # why the profile hasn't come from WorkIt yet
+            "voice": writing.style_card(),
         }
 
     def save(self, question: str, answer: str | list[str]) -> None:
         """Lisul's answer to a question in the bank: his from now on, reviewed."""
+        self._bank_ready()
         question, answer = _question(question), _answer(answer)
         if not self._has(question):
             raise Refused("That question is no longer in the Answer bank.", 404)
-        self._bank.answer(question, answer, self._today())
+        _saved(self._bank.answer, question, answer)
 
     def add(self, question: str, answer: str | list[str]) -> None:
         """A question Lisul adds to the bank himself, with his answer."""
+        self._bank_ready()
         question, answer = _question(question), _answer(answer)
         if self._has(question):
             raise Refused("That question is already in the Answer bank: edit it there.", 409)
-        self._bank.answer(question, answer, self._today())
+        _saved(self._bank.answer, question, answer)
 
     def review(self, question: str) -> None:
-        if not self._bank.review(_question(question)):
+        self._bank_ready()
+        if not _saved(self._bank.review, _question(question)):
             raise Refused("That question is no longer in the Answer bank.", 404)
 
     def delete(self, question: str) -> None:
-        """Take a question out of the bank: Claude drafts it again the next time a form asks."""
-        if not self._bank.delete(_question(question)):
+        """Take a question out of the bank: it is drafted again the next time a form asks."""
+        self._bank_ready()
+        if not _saved(self._bank.delete, _question(question)):
             raise Refused("That question is no longer in the Answer bank.", 404)
 
     def save_answered(self, question: str, answer: str) -> None:
@@ -102,11 +120,16 @@ class AnswersTab:
         except ValueError as refused:  # a question that looks like it asks for a secret
             raise Refused(str(refused)) from refused
 
+    def remove_answered(self, question: str) -> None:
+        """Take one of his Needs you answers out of the profile: the next form that asks it asks him again."""
+        if not self._profile_now().forget_answered(_question(question)):
+            raise Refused("That answer is no longer in your profile.", 404)
+
     def save_pick(self, question: str, answer: str, options: list[str], company: str = "") -> bool:
         """Lisul's pick from a form's list of `options` that renders a fact his profile holds (3.85 on a GPA list in
         steps of 0.05, for a 3.86): kept in the bank with those options, as his, so only a list of just those options
         gets it, never every form that asks by that wording (Freeform, 2026-11-26). False, with nothing saved, for
-        any other answer, which goes to his facts."""
+        any other answer, which goes to his facts. Raises NotSaved when WorkIt doesn't save it (W11)."""
         # Imported here: the engine's module imports the bank's, as this one does.
         from apply import fill_engine
         from apply.model import Posting, Question
@@ -116,7 +139,7 @@ class AnswersTab:
         kept = fill_engine.list_pick(self._profile_now(), Posting("", company, "", ""), asked, answer)
         if kept is None:
             return False
-        self._bank.answer(question, answer, self._today(), options=kept)
+        self._bank.answer(question, answer, options=kept)
         return True
 
     def save_skipped(self, question: str) -> None:
@@ -177,8 +200,12 @@ class AnswersTab:
                                    "answer": essay.text})
         return offers
 
+    def _bank_ready(self) -> None:
+        """An edit waits for the bank to come from WorkIt (W11): one made before would be lost when it lands."""
+        if not self._bank.ready:
+            raise Refused(self._bank.problem or "Your answers are still coming from WorkIt: try again in a moment.", 503)
+
     def _has(self, question: str) -> bool:
-        self._bank.read_again()
         return self._bank.get(question) is not None
 
     def _profile_now(self) -> ApplicantProfile:
@@ -217,16 +244,11 @@ def _scalar(text: str) -> str:
     return SingleQuotedScalarString(text) if bool_like else text
 
 
-def _reused_first(entries: list[Entry]) -> list[Entry]:
-    """The unreviewed drafts used again first, the most used first; the rest in bank order."""
-    return sorted(entries, key=lambda e: -e.uses if e.uses and not e.reviewed else 0)
-
-
 def _shown(entry: Entry) -> dict:
-    return {"question": entry.question, "answer": entry.answer, "options": list(entry.options), "source": entry.source,
-            "reviewed": entry.reviewed, "company": entry.company.strip(),
-            "date": entry.first_seen.isoformat() if entry.first_seen else "",
-            "uses": entry.uses, "last_used": entry.last_used.isoformat() if entry.last_used else ""}
+    """An entry as the Answers tab draws it: a choice's answer is edited as text, and the Fill engine maps it to
+    each form's options (W11), so no options come with it."""
+    return {"question": entry.question, "answer": entry.answer, "options": [],
+            "source": "lisul" if entry.own else "claude", "reviewed": entry.own}
 
 
 def _flat(value: Any, prefix: str = "", files: bool = False) -> list[list[str]]:
@@ -257,13 +279,22 @@ def _text(value: Any, files: bool = False) -> str:
     return Path(str(value)).name if files else str(value)
 
 
+def _saved(change: Callable[..., Any], *args: Any) -> Any:
+    """One change to the bank; WorkIt's refusal, or its silence, as the tab's Refused."""
+    try:
+        return change(*args)
+    except NotSaved as unsaved:
+        raise Refused(str(unsaved), unsaved.status) from unsaved
+
+
 def saving_answers(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[dict, str, str], str]:
     """Save Lisul's answer typed in the Apply window (Needs you, or the
     student page's question card) where Apply reads it: a run's
     Missing fact in its Tracker row's Answer cell, as if he typed it in the
     Sheet, so the next check fills that Application again with it; a
     rehearsal's into his Applicant profile, for every form after, or, for
-    what an essay asked him, into the Story bank, for every essay after. A
+    what an essay asked him, in memory for that form's essays alone
+    (essays.TOLD), never saved. A
     bare date (From, To) is that form's alone: never saved by its label.
     The same for his answer typed on the held form itself (Board.typed).
     An empty answer is his Skip of an optional question (KAN-759): kept as
@@ -274,8 +305,6 @@ def saving_answers(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[
         essays,
         on_page,
     )
-    from apply.clock import SystemClock
-
     def answer(item: dict, question: str, text: str) -> str:
         if not text.strip():
             if question.startswith(essays.ASK) or on_page.bare(question):
@@ -286,8 +315,8 @@ def saving_answers(tracker: Callable[[], object], tab: AnswersTab) -> Callable[[
             tracker().answer(item["application_id"], text)
             return f"Saved your answer for {item.get('company') or 'it'}: it goes on at the next check."
         if question.startswith(essays.ASK):
-            essays.remember_fact(question, text, item.get("company") or "", SystemClock().now().date())
-            return "Saved to your Story bank: the essay is written with it next time."
+            essays.tell(item.get("posting_url") or "", question, text)
+            return "Kept for this application only: the essay is written with it next time."
         if on_page.bare(question):  # a bare From or To: true of one section of this form only (KAN-595)
             return "Kept on this form only: a bare date isn't saved to your facts without what it is for."
         if (options := (item.get("choices") or {}).get(question)) and tab.save_pick(question, text, options,

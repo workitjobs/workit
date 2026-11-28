@@ -1,5 +1,5 @@
 """
-The answer bank (KAN-283): GET and PATCH /applicants/{id}/autofill-answers.
+The Application answers (KAN-283): GET and PATCH /applicants/{id}/autofill-answers.
 A PATCH writes only the keys it sends, a null clears one, and an option the
 schema doesn't offer is refused. Runs against real Postgres (backend/CLAUDE.md,
 "Tests against real Postgres"), since the merge is SQL.

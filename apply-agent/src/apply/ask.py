@@ -142,7 +142,7 @@ def sources(profile, bank, resume: Path | None) -> str:
     """The applicant's sources as the prompt gives them: profile, Answer bank, policies, resume text."""
     facts = yaml.safe_dump(profile.facts(), sort_keys=False, allow_unicode=True)[:SOURCE_CHARS]
     answers = "\n".join(f"- {e.question} → {'; '.join(e.answer) if isinstance(e.answer, list) else e.answer}"
-                        f" ({'theirs' if e.source == 'lisul' else 'a draft'})" for e in bank.entries())[:SOURCE_CHARS]
+                        f" ({'theirs' if e.own else 'a draft'})" for e in bank.entries())[:SOURCE_CHARS]
     policies = yaml.safe_dump(profile.policies(), sort_keys=False, allow_unicode=True, default_flow_style=None)[:SOURCE_CHARS]
     return (f"<profile>\n{facts}</profile>\n<answer_bank>\n{answers}\n</answer_bank>\n"
             f"<policies>\n{policies}</policies>\n<resume>\n{resume_text(resume)}\n</resume>")

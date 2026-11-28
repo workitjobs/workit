@@ -23,6 +23,8 @@ before it compiles, so the compiled app's import already sees it.
 import os
 import shutil
 import tempfile
+import threading
+from dataclasses import dataclass
 from pathlib import Path
 
 import platformdirs
@@ -35,6 +37,7 @@ HOME = Path(os.environ.get("APPLY_HOME") or (APP_FOLDER if build.STUDENT else "~
 # module's __file__ names its place there (Contents/MacOS/apply/home.py), one folder less deep than src/apply/.
 CODE = Path(__file__).resolve().parents[1 if "__compiled__" in globals() else 2]
 # The Story bank, read by essays, gates, stock answers and the story map: one path, so a test moves all of them.
+# Read it through story_bank(), which is WorkIt's in WorkIt Auto Apply.
 STORY_BANK = HOME / "story-bank.md"
 # The Test Person sample data: copied into a data folder that has no Applicant profile yet, never written to.
 SAMPLE = CODE / "sample"
@@ -71,4 +74,43 @@ def fill_from_sample() -> bool:
         return False
     shutil.copytree(SAMPLE, HOME, dirs_exist_ok=True,
                     ignore=lambda folder, names: [n for n in names if (HOME / Path(folder).relative_to(SAMPLE) / n).is_file()])
+    return True
+
+
+@dataclass
+class FromWorkIt:
+    """WorkIt Auto Apply's Story bank and voice (W11): WorkIt's, read at each Start (student.profile_from_workit)
+    and kept in memory, never in a file. A line a fill adds stays in memory until the next Start."""
+
+    story_bank: str = ""
+    voice: str = ""
+
+
+WORKIT: FromWorkIt | None = None  # None in a Developer command: the data folder's files
+_ADDING = threading.Lock()  # two Workers' lines at once: each read-and-add sees the other's
+
+
+def story_bank() -> str:
+    """The Story bank as essays read it: WorkIt's in WorkIt Auto Apply, else the data folder's story-bank.md, ""
+    when there is none."""
+    if WORKIT is not None:
+        return WORKIT.story_bank
+    return STORY_BANK.read_text(encoding="utf-8") if STORY_BANK.is_file() else ""
+
+
+def add_story_line(section: str, line: str, seen: str) -> bool:
+    """`line` at the Story bank's end, under `section` (its heading line, then what it holds) unless the bank has
+    that heading already, and not when `seen` is in the bank. In WorkIt Auto Apply only in memory, for the checks
+    of the answer it was added for: WorkIt never keeps it. False when it was there."""
+    with _ADDING:
+        bank = story_bank()
+        if seen in bank:
+            return False
+        if section.split("\n", 1)[0] not in bank:
+            bank = f"{bank.rstrip()}\n\n{section}\n"
+        bank = f"{bank.rstrip()}\n{line}\n"
+        if WORKIT is None:
+            STORY_BANK.write_text(bank, encoding="utf-8")
+            return True
+        WORKIT.story_bank = bank
     return True

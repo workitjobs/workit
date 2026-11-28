@@ -2,12 +2,15 @@
 // gives are written for a developer's Apply window; the student page says each the way its own copy does.
 
 // Each line Apply can send the window today (dashboard.py's routes, app_window.Bridge), matched from its start.
-const SAID: [RegExp, string][] = [
+const SAID: [RegExp, string | ((raw: string) => string)][] = [
   [/^No run is going\./, "Nothing is being applied to right now."],
   [/^That job has started already/, "That job has already started, so it can't be removed."],
   [/^Attach the file on the form itself\./, "This file goes on the form itself. Open the form and attach it there."],
   [/^That question is no longer waiting for you\./, "That question is already answered."],
   [/^Write an answer\./, "Type an answer first."],
+  // The Answer bank's (answer_bank.NotSaved): WorkIt's rule says why it kept an answer out, in the website's words.
+  [/^Not saved: WorkIt keeps it out of your Answer bank\. /, (raw) => raw.replace(/^Not saved: WorkIt keeps it out/, "WorkIt keeps this out")],
+  [/^Not saved: WorkIt didn't answer\./, "WorkIt didn't answer, so this isn't saved. Try again in a minute."],
   [/^Not saved: /, "Your answer wasn't saved. Try again."],
   [/^That is too big to be an answer\./, "That file is too big to attach."],
   [/^That essay is too long\./, "That answer is too long."],
@@ -31,7 +34,7 @@ export const SOMETHING_WRONG = "Something went wrong. Try again.";
 
 export function said(raw: string): string {
   const found = SAID.find(([pattern]) => pattern.test(raw));
-  if (found) return found[1];
+  if (found) return typeof found[1] === "function" ? found[1](raw) : found[1];
   return DEVELOPER.test(raw) ? SOMETHING_WRONG : raw;
 }
 

@@ -5,7 +5,7 @@ import { applicantCall } from "@/lib/applicant-call";
 import { NO_ANSWERS, type AutofillAnswers } from "./autofill-answers";
 
 /**
- * The seeker's answer bank (KAN-283): what onboarding's Profile step and My
+ * The seeker's Application answers (KAN-283): what onboarding's Profile step and My
  * Profile's Application Questions read and save. Through applicantCall, as
  * every applicant action is: identity from the session, never an argument,
  * and the API checks each answer against its options.

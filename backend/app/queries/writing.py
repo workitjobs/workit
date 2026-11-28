@@ -52,7 +52,7 @@ async def card_state(db: AsyncSession, applicant_id: uuid.UUID) -> tuple[str | N
     return None, bool(await db.scalar(select(exists().where(Writing_Sample.applicant_id == applicant_id))))
 
 
-async def _drop_card(db: AsyncSession, applicant_id: uuid.UUID) -> None:
+async def drop_card(db: AsyncSession, applicant_id: uuid.UUID) -> None:
     await db.execute(delete(Style_Card).where(Style_Card.applicant_id == applicant_id))
 
 
@@ -68,7 +68,7 @@ async def add_sample(db: AsyncSession, applicant_id: uuid.UUID, text: str, *, im
     sample = Writing_Sample(applicant_id=applicant_id, text=text, imported=imported)
     db.add(sample)
     await db.flush()
-    await _drop_card(db, applicant_id)
+    await drop_card(db, applicant_id)
     return Sample(id=sample.id, text=sample.text)
 
 
@@ -82,7 +82,7 @@ async def replace_sample(db: AsyncSession, applicant_id: uuid.UUID, sample_id: u
     )
     if found is None:
         return None
-    await _drop_card(db, applicant_id)
+    await drop_card(db, applicant_id)
     return Sample(id=found, text=text)
 
 
@@ -95,7 +95,7 @@ async def remove_sample(db: AsyncSession, applicant_id: uuid.UUID, sample_id: uu
     )
     if found is None:
         return False
-    await _drop_card(db, applicant_id)
+    await drop_card(db, applicant_id)
     return True
 
 

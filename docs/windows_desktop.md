@@ -328,6 +328,14 @@ decisions beside D17 and D18.
 - **Focus.** Off the Mac, the extension's `windows.focus` brings a Worker
   forward. Check that Windows keeps Workers behind the student's apps
   (F4's "Test early").
+- **The account list** (found 2026-11-27, W11). The Student build keeps
+  the list of job-site accounts it made in one keychain item
+  (`tracker.ACCOUNT_LIST`), about 143 bytes an account. A Credential
+  Manager item holds at most 2,560 bytes, so the 18th account would not
+  save on Windows, and its sign-up would fail after the site made it. A
+  Mac's keychain has no such limit. Fix: split the list across numbered
+  items (`account list`, `account list 2`, ...), read until one is
+  missing, and forget each one in Remove All My Data.
 
 ### P12. A developer's Apply window: built from the Mac
 
@@ -384,6 +392,7 @@ Windows entry, since the Mac has none.
 | P11 keep awake | Built: a Windows entry in `awake.awake` |
 | P12 Apply window | Built: one entry for the Mac and one for the rest, in each window function |
 | P13 encoding | Built: the same code on every OS |
+| P11 account list | The same code on every OS: numbered items |
 
 ## 6. Tests
 
@@ -403,6 +412,7 @@ CLAUDE.md`, "Every test earns its place"). The built fixes' tests are in
 | P12 | Built: `tests/test_each_os.py`, the window on Windows opens, is found by its profile, isn't opened twice, and an older one is asked to close | A developer's run on Windows stops at its start |
 | P13 | Built: `tests/test_each_os.py` reads the source | A text read or write in Windows' code page |
 | P9 | Built: `tests/test_first_run.py`: with `plain_chrome: testing`, first run needs no seed | Workers on Chrome for Testing wait on a seed they never use |
+| P11 account list | `tests/test_local_data.py`: 30 accounts save and read back through a fake keychain that refuses an item over 2,560 bytes, and Remove All My Data forgets every item | The 18th account isn't saved on Windows |
 | All | A real plain Worker on Chrome for Testing says hello and fills (`test_plain_workers.py`, `test_plain_guards.py`, `test_plain_routing.py`) | A break anywhere between Apply and the extension |
 
 - **A Windows CI job: later** (decided 2026-11-24). A `windows-latest`

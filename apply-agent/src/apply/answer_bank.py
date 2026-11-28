@@ -2,82 +2,50 @@
 Applicant profile fact or rule answers), by the question's wording, so the
 same question gets the same answer on every form and costs no tokens again.
 
-It lives in answer-bank.yaml beside the Applicant profile, which Lisul may
-edit by hand: it is read and written with ruamel.yaml's round trip, so his
-comments and order stay. Workers add Claude's drafts from their own threads,
-and runs from several processes may at once, so every add takes the bank's
-lock file beside it (apply.locks), reads the bank again and adds only what
-it still lacks: an answer in the
-bank is never replaced by a new draft, unless it is a stale draft of
-Claude's: one drawn on a Story bank line the bank no longer holds, which
-the bank no longer gives (`stale`). Each answer counts how many later
-Applications it answered, so a draft used again unreviewed shows.
+It lives on WorkIt (W11 of docs/desktop_application_auto_apply.md; ADR
+0007), never in the data folder: the WorkIt extension fills from the same
+bank. Each process reads it once into memory (`load`), and the window and
+every Worker share that one object (they are threads: one lock). WorkIt's
+rule decides what may enter the bank, never this module.
 
-With `on_change` (the WorkIt sync, answer_sync.py, KAN-746), each write that
-adds, changes or deletes an answer stamps the entry's `edited_at` (UTC) and
-hands the changed entries to `on_change` after the file is saved. A write
-that only counts a use changes no answer and sends nothing.
+Every change goes to WorkIt through one sender thread, one PATCH for each
+change, in order, and memory changes only from WorkIt's reply: no form
+fills an answer WorkIt's rule kept out. The model's drafts never wait (the
+form that drafted one holds it); the student's own changes go ahead of
+them and wait for the reply (EDIT_WAIT), so the Answers view says whether
+WorkIt saved each. A reply whose version is not the bank's own plus one
+says another writer saved meanwhile: the bank is read again.
 
-A question filed twice (a hand-appended entry that repeats one, run10's
-Notion) is read as its last entry, with one warning, and the next write saves
-it once, under its one key."""
+A bank with no WorkIt (`AnswerBank()`) is memory only: Test Person's, which
+keeps no drafts (`drafts=False`), so a sample run never writes a made-up
+person's answers anywhere; and the tests'."""
 
-import io
-import json
-import re
 import sys
 import threading
-from collections.abc import Callable, Iterator, Sequence
-from contextlib import contextmanager
-from dataclasses import dataclass
-from datetime import UTC, date, datetime
-from functools import lru_cache
+import time
+from collections.abc import Iterable
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Protocol
 
 from ruamel.yaml import YAML
-from ruamel.yaml.comments import CommentedMap
-from ruamel.yaml.constructor import DuplicateKeyError
-from ruamel.yaml.scalarstring import SingleQuotedScalarString
 
-from apply import home, locks
+from apply import masked
 from apply.model import Question, one_line
 
-if TYPE_CHECKING:
-    from apply.tracker import AnswerRow
-
-CLAUDE, LISUL = "claude", "lisul"  # who gave an answer
-FILE = "answer-bank.yaml"  # the bank's file, beside the Applicant profile
-# What the WorkIt sync carries of an entry: a change to one of these is a change to send.
-SYNCED = ("question", "answer", "options", "source", "reviewed", "first_seen", "none")
-# on_change(changed, deleted): the changed entries (as filed, with their key) and the keys taken out.
-OnChange = Callable[[dict[str, dict], list[str]], None]
-
-
-PROFILE_KEY = re.compile(r"[a-z_][a-z0-9_]*(?:\.[a-z0-9_]+)*")  # a fact that names a profile key, not a Story bank line
-
-
-def stale(found: dict) -> bool:
-    """A draft of Claude's that drew on a Story bank line the bank no longer holds, word for word: Lisul
-    took that fact out, so the draft is as good as gone, and Claude drafts the question again (ENFOS,
-    2026-11-26: the WorkIt facts moved out of the bank while a run went on). His own answers never are."""
-    facts = [str(f) for f in found.get("facts") or () if not PROFILE_KEY.fullmatch(str(f))]
-    return found.get("source") != LISUL and bool(facts) and not all(f in _story(*_stamp_of(home.STORY_BANK))
-                                                                    for f in facts)
-
-
-def _stamp_of(path: Path) -> tuple[Path, int, int]:
-    try:
-        found = path.stat()
-    except OSError:
-        return path, 0, -1
-    return path, found.st_mtime_ns, found.st_size
-
-
-@lru_cache(maxsize=2)
-def _story(path: Path, mtime_ns: int, size: int) -> str:
-    """The Story bank's text, read again whenever its file changes (by its mtime and size)."""
-    return path.read_text(encoding="utf-8") if size >= 0 else ""
+# A bank that failed to read tries again after each of these waits, then every RETRY_AFTER seconds.
+RETRIES = (10.0,) * 6
+RETRY_AFTER = 60.0
+# A change WorkIt didn't answer (no reply, a 5xx) is sent again after each of these waits, then dropped; a draft
+# dropped is drafted again the next time a form asks. A refusal (a 4xx) is dropped at once.
+SEND_RETRIES = (1.0, 5.0, 30.0)
+# How long the student's change waits for WorkIt's reply, and how long the sender has at quit.
+EDIT_WAIT = 10.0
+QUIT_WAIT = 5.0
+NO_ANSWER = "Not saved: WorkIt didn't answer."
+# A Developer checkout's bank before W11, in the profile's folder, and its name once it has gone to WorkIt (upload).
+OLD_FILE, UPLOADED = "answer-bank.yaml", "answer-bank.before-workit.yaml"
+UPLOAD_BATCH = 100  # PATCH .../answer-bank takes at most 100 entries
 
 
 def key(question: str) -> str:
@@ -91,293 +59,470 @@ def key(question: str) -> str:
 class Entry:
     question: str  # as a form showed it
     answer: str | list[str]  # a multi-select's answer is the options ticked
-    options: tuple[str, ...] = ()  # the options it was answered from, for a choice
-    source: str = CLAUDE
-    reviewed: bool = False  # Lisul has looked at it
-    first_seen: date | None = None
-    company: str = ""  # where it was first asked
-    uses: int = 0  # how many Applications it answered after its first
-    facts: tuple[str, ...] = ()  # the profile keys and Story bank lines Claude's draft drew on
-    last_used: date | None = None
+    own: bool = False  # the student's own answer, or a draft they reviewed; a model's draft until then
     none: bool = False  # a multi-select none of whose options holds (answer []): its boxes stay unticked
+    # The list the student's own pick came from (Freeform, 2026-11-26): the Fill engine gives it only to a form that
+    # offers just these options (its fromThisList). A model's draft has none: the engine maps its text to each list.
+    options: tuple[str, ...] = ()
+
+
+class NotSaved(Exception):
+    """WorkIt didn't save the student's change: its rule kept it out (`status` 400, with the rule's reason), it
+    refused it, or it didn't answer (503)."""
+
+    def __init__(self, message: str, status: int):
+        super().__init__(message)
+        self.status = status
+
+
+class Source(Protocol):
+    """Where the bank is kept: WorkIt's `GET` and `PATCH .../answer-bank`."""
+
+    def read(self) -> tuple[dict[str, dict], int]:
+        """Every entry by its key, and the bank's version."""
+        ...
+
+    def change(self, entries: list[dict], deleted: list[str]) -> tuple[int, dict[str, str]]:
+        """Save `entries` and delete the questions `deleted`: the bank's new version, and why WorkIt's rule kept
+        each entry it kept out, by question."""
+        ...
+
+    def version_now(self) -> int:
+        """The bank's version now, read alone."""
+        ...
+
+
+class WorkItSource:
+    """The bank on WorkIt, as the signed-in student."""
+
+    def __init__(self, client=None):
+        self._client = client
+
+    def read(self) -> tuple[dict[str, dict], int]:
+        return self._workit().answer_bank()
+
+    def change(self, entries: list[dict], deleted: list[str]) -> tuple[int, dict[str, str]]:
+        return self._workit().change_answer_bank(entries, deleted)
+
+    def version_now(self) -> int:
+        # The usage route's, as the Model route's reading carries it: one integer, no bank.
+        return int(self._workit().call("GET", "/apply-app/usage")["bank_version"])
+
+    def _workit(self):
+        if self._client is None:
+            from apply import (
+                workit,  # imported here: the WorkIt client imports more than a bank in memory needs
+            )
+            self._client = workit.WorkIt()
+        return self._client
+
+
+@dataclass(eq=False)
+class _Change:
+    """One change for the sender: `entry` to save as PATCH takes it, or `question` to delete when it is None."""
+
+    filed: str  # the question's key
+    question: str
+    entry: dict | None
+    student: bool = False  # the student's own: ahead of the drafts, and waited for
+    tries: int = 0
+    due: float = 0.0  # when it may go (time.monotonic): later while it waits to be sent again
+    given_up: bool = False  # the student's view stopped waiting: never sent again
+    wrong: bool = False  # the review found this draft wrong while it was on its way: deleted once WorkIt saves it
+    said: str = ""  # once done: "" saved, else why not ("Not saved: ...")
+    done: threading.Event = field(default_factory=threading.Event)
+
+    def body(self) -> tuple[list[dict], list[str]]:
+        return ([self.entry], []) if self.entry is not None else ([], [self.question])
 
 
 class AnswerBank:
-    """The bank in the YAML file at `path`, or in memory without one."""
+    """The student's bank, in memory: read from `source`, or empty with none."""
 
-    def __init__(self, path: Path | None = None, on_change: OnChange | None = None):
-        self._path = path
-        self._on_change = on_change
-        self._lock = threading.Lock()
-        self._entries = self._read() if path and path.exists() else {}
+    def __init__(self, source: Source | None = None, drafts: bool = True):
+        self._source = source
+        self._drafts = drafts
+        self._entries: dict[str, Entry] = {}
+        self._version = 0
+        # One lock for the memory and the changes waiting to go, so a check and its change are one step; the
+        # sender waits on it for the next change.
+        self._lock = threading.Condition()
+        self._waiting: list[_Change] = []
+        self._sending: _Change | None = None
+        self._sender: threading.Thread | None = None
+        self._ready = threading.Event()
+        self._wake = threading.Event()  # set to try a waiting read again at once (wake)
+        self.problem = ""  # why the last read failed, while the bank waits to read
+        if source is None:
+            self._ready.set()
+
+    @property
+    def ready(self) -> bool:
+        """Whether the bank has been read: a run waits for it."""
+        return self._ready.is_set()
+
+    def load(self) -> None:
+        """Read the whole bank into memory. Raises what the read raises (WorkIt down, no login)."""
+        if self._source is None:
+            return
+        answers, version = self._source.read()
+        # Filed by this module's own fold of each question, whatever key WorkIt's own fold gave it.
+        read = [(str(k), _entry(v)) for k, v in answers.items() if isinstance(v, dict) and "answer" in v]
+        entries = {key(e.question) if e.question else k: e for k, e in read}
+        with self._lock:
+            # A read older than memory (a save's reply landed while it was on its way) would undo that save.
+            if version >= self._version:
+                self._entries, self._version = entries, version
+        _mask(entries.values())
+        self.problem = ""
+        self._ready.set()
+
+    def load_in_background(self) -> threading.Thread:
+        """Read the bank in a thread of its own, again after each wait (RETRIES, then every RETRY_AFTER, or at once
+        on `wake`) until it reads; meanwhile `problem` says why it hasn't."""
+        def keep_trying() -> None:
+            waits = iter(RETRIES)
+            while True:
+                try:
+                    self.load()
+                    return
+                except Exception as error:  # WorkIt down or no login: the window says so, and Start waits
+                    self.problem = f"Can't reach WorkIt, trying again ({type(error).__name__})."
+                self._wake.wait(next(waits, RETRY_AFTER))
+                self._wake.clear()
+
+        thread = threading.Thread(target=keep_trying, daemon=True, name="answer-bank")
+        thread.start()
+        return thread
+
+    def wake(self, wait: float = 0.0) -> bool:
+        """Try a waiting read again now (the student just signed in, or pressed Start), and wait up to `wait`
+        seconds for it. Whether the bank is read."""
+        self._wake.set()
+        return self._ready.wait(wait)
+
+    def follow(self, version: int | None = None) -> None:
+        """Before each Application (W11): read the bank again when WorkIt's version is not memory's, so a change
+        saved elsewhere (the extension, another Mac) fills this Application. `version` comes with the run's usage
+        reading; with none (a Developer checkout off the Model route), the bank asks WorkIt itself. A read that fails
+        keeps memory as it is, and the next Application tries again."""
+        if self._source is None or not self.ready:
+            return
+        try:
+            if version is None:
+                version = self._source.version_now()
+            if version != self._version:
+                self.load()
+        except Exception:  # WorkIt down, or signed out: the bank in memory still fills, and the next check retries
+            pass
 
     def get(self, question: str) -> Entry | None:
-        found = _find(self._entries, question)
-        if not isinstance(found, dict) or stale(found):
-            return None
-        # An empty answer is none, unless it says "none of these" (none: true) for a multi-select.
-        none = found.get("none") is True and found.get("answer") == []
-        return _entry(found) if none or found.get("answer") not in (None, "", []) else None
+        with self._lock:
+            found = self._entries.get(key(question))
+        return found if found is not None and _answered(found) else None
 
     def reviewed(self, question: str, company: str = "") -> Entry | None:
-        """Lisul's own reviewed answer to `question`: the one filed for `company` alone ("<question> (<company>
-        only)") first, else the one under its wording. It wins over any draft or essay (Strava, 2026-11-26)."""
+        """The student's own answer to `question` (theirs, or a draft they reviewed: `own`): the one filed for
+        `company` alone ("<question> (<company> only)") first, else the one under its wording. It wins over any draft
+        or essay (Strava, 2026-11-26)."""
         for wording in ([f"{question} ({company.strip()} only)"] if company.strip() else []) + [question]:
-            if (entry := self.get(wording)) and entry.source == LISUL and entry.reviewed:
+            if (entry := self.get(wording)) and entry.own:
                 return entry
         return None
 
     def answers(self) -> dict[str, Entry]:
-        """Every answer, by the question's wording as filed."""
-        return {str(k): entry for k in list(self._entries) if (entry := self.get(str(k)))}
+        """Every answer, by its key."""
+        with self._lock:
+            return {k: e for k, e in self._entries.items() if _answered(e)}
 
     def entries(self) -> list[Entry]:
-        return [entry for k in list(self._entries) if (entry := self.get(k))]
+        return list(self.answers().values())
 
-    def add(self, question: Question, answer: str | list[str], company: str, day: date, facts: list[str] = (),
-            wording: str | None = None) -> bool:
-        """Add Claude's draft answer to `question`, first asked at `company` on `day`,
-        drawn from `facts` (profile keys and Story bank lines), if Claude named any,
-        filed under `wording` (a bare date's section and label, fill_engine.Plan.filed),
-        else under the question's label. False if the bank already has an answer to it, which stays; a stale
-        draft (one whose Story bank facts are gone) is replaced."""
-        filed = wording or question.label
-        with self._writing() as entries:
-            if (found := _find(entries, filed)) is not None and not (isinstance(found, dict) and stale(found)):
+    def own_lines(self) -> list[str]:
+        """The student's own answers as "question: answer" lines: theirs for the truth check (a model's draft is no
+        fact of theirs, even once it is in the bank)."""
+        return [f"{e.question}: {_text(e.answer)}" for e in self.entries() if e.own]
+
+    def add(self, question: Question, answer: str | list[str], company: str = "", *, wording: str | None = None,
+            job_id: str | None = None) -> bool:
+        """The model's draft answer to `question` on a form at `company` (the WorkIt job `job_id` when it is one:
+        WorkIt's rule reads that job's company itself), filed under `wording` (a bare date's section and label,
+        fill_engine.Plan.filed), else under the question's label; sent to WorkIt, flagged for the student's review.
+        False if the bank has an answer to it already, which stays, or one on its way, or keeps no drafts (Test
+        Person's), or the draft is blank."""
+        picked = _picked(answer)
+        if not self._drafts or picked == "":
+            return False
+        form = {"job_id": job_id} if job_id else {"company": company.strip()} if company.strip() else {}
+        change = _set(wording or question.label, picked, own=False, choice=bool(question.options), form=form)
+        with self._lock:
+            if change.filed in self._entries or any(c.filed == change.filed for c in self._unsent()):
                 return False
-            entries.pop(next((k for k in entries if key(str(k)) == key(filed)), key(filed)), None)
-            entries[key(filed)] = {
-                "question": one_line(filed),
-                "answer": [_text(a) for a in answer] if isinstance(answer, list) else _text(answer),
-                "options": [_text(o) for o in question.options],
-                "source": CLAUDE,
-                "reviewed": False,
-                "first_seen": {"date": day, "company": company},
-            } | ({"facts": list(facts)} if facts else {})
-            return True
+            self._go(change)
+        return True
 
-    def redraft(self, question: Question, answer: str | list[str], company: str, day: date) -> bool:
-        """Claude's new draft to `question`, written again with context Lisul
-        added (apply.regenerate), in place of its old draft: still Claude's and
-        unreviewed, first seen as before. Lisul's own answer stays. False
-        when the bank keeps his."""
-        with self._writing() as entries:
-            found = _find(entries, question.label)
-            if isinstance(found, dict) and found.get("source") == LISUL:
+    def redraft(self, question: Question, answer: str | list[str]) -> bool:
+        """The model's new draft to `question`, written again with context the student added (apply.regenerate), in
+        place of its old draft: still the model's, flagged. The student's own answer stays. False when the bank keeps
+        theirs, or keeps no drafts."""
+        picked = _picked(answer)
+        if not self._drafts or picked == "":
+            return False
+        change = _set(question.label, picked, own=False, choice=bool(question.options))
+        with self._lock:
+            found = self._entries.get(change.filed)
+            if found is not None and found.own:
                 return False
-            if not isinstance(found, dict):
-                found = entries[key(question.label)] = {"question": one_line(question.label),
-                                                        "options": [_text(o) for o in question.options],
-                                                        "first_seen": {"date": day, "company": company}}
-            found["answer"] = [_text(a) for a in answer] if isinstance(answer, list) else _text(answer)
-            found["source"], found["reviewed"] = CLAUDE, False
-            found.pop("facts", None)  # what the old draft drew on
-            found.pop("none", None)
-            return True
+            self._go(change)
+        return True
 
-    def take_edits(self, rows: list["AnswerRow"]) -> list[str]:
-        """Copy Lisul's edits from the Answers tab into the bank: an answer he
-        changed from the one Apply listed becomes his (source lisul, reviewed),
-        and a tick in Reviewed marks it reviewed. Returns the questions changed."""
-        changed = []
-        with self._writing() as entries:
-            for row in rows:
-                found = _find(entries, row.question)
-                if not isinstance(found, dict):
-                    continue
-                was = found.get("answer")
-                answer = [a.strip() for a in row.answer.split(";") if a.strip()] if isinstance(was, list) else row.answer.strip()
-                if answer and row.answer.strip() != row.drafted.strip() and answer != was:
-                    found["answer"] = [_text(a) for a in answer] if isinstance(answer, list) else _text(answer)
-                    found["source"], found["reviewed"] = LISUL, True
-                    found.pop("none", None)
-                elif row.reviewed and found.get("reviewed") is not True:
-                    found["reviewed"] = True
-                else:
-                    continue
-                changed.append(row.question)
-        return changed
-
-    def use(self, questions: list[str], day: date) -> None:
-        """Count one more use, on `day`, of each answer in the bank to `questions`:
-        an answer a later form took from the bank. The file is only written
-        when one of them is in it, and an answer never used again has no count."""
-        with self._writing() as entries:
-            for question in questions:
-                found = _find(entries, question)
-                if isinstance(found, dict):
-                    was = found.get("uses") if isinstance(found.get("uses"), dict) else {}
-                    found["uses"] = {"count": int(was.get("count") or 0) + 1, "last": day}
-
-    def answer(self, question: str, answer: str | list[str], day: date, options: Sequence[str] = ()) -> None:
-        """Lisul's own answer to `question`, from the Apply window: it replaces
-        any draft (source lisul, reviewed). A question new to the bank joins
-        it as first seen on `day`. `options`, when given, are the list he picked
-        it from, which the plan then gives it for alone."""
-        with self._writing() as entries:
-            found = _find(entries, question)
-            if not isinstance(found, dict):
-                found = entries[key(question)] = {"question": one_line(question), "answer": "", "options": [],
-                                                  "first_seen": {"date": day, "company": ""}}
-            found["answer"] = [_text(a) for a in answer] if isinstance(answer, list) else _text(answer)
-            if options:
-                found["options"] = [_text(o) for o in options]
-            found["source"], found["reviewed"] = LISUL, True
-            if answer == []:  # none of a multi-select's options holds
-                found["none"] = True
-            else:
-                found.pop("none", None)
+    def answer(self, question: str, answer: str | list[str], options: Iterable[str] = ()) -> None:
+        """The student's own answer to `question` (the Apply window, Ask Claude's offer): it replaces any draft.
+        `options`: the list a pick came from, which it then answers alone (WorkIt keeps them; with none, the entry
+        keeps the list it has). Raises NotSaved when WorkIt doesn't save it."""
+        self._wait(_set(question, _picked(answer), own=True, student=True, options=options))
 
     def review(self, question: str) -> bool:
-        """Mark `question`'s answer reviewed, unchanged. False if the bank lacks it."""
-        with self._writing() as entries:
-            found = _find(entries, question)
-            if not isinstance(found, dict):
-                return False
-            found["reviewed"] = True
-            return True
+        """Mark `question`'s answer reviewed, unchanged: the student's from now on. False if the bank lacks it;
+        raises NotSaved when WorkIt doesn't save it."""
+        with self._lock:
+            found = self._entries.get(key(question))
+        if found is None:
+            return False
+        # Sent as a pick: the answer is the one WorkIt's rule let in, so the rule reads its question alone again. As
+        # text, a pick naming a company the student applied to ("Google") could never be reviewed.
+        self._wait(_set(found.question, found.answer, own=True, choice=True, student=True))
+        return True
 
     def delete(self, question: str) -> bool:
-        """Take `question` out of the bank, so the next form that asks it gets
-        a new draft. False if the bank lacks it."""
-        with self._writing() as entries:
-            wanted = key(question)
-            filed = next((k for k in entries if key(str(k)) == wanted), None)
-            if filed is None:
-                return False
-            del entries[filed]
-            return True
-
-    def read_again(self) -> list[Entry]:
-        """Every entry, read again from the file: what other runs and hand edits added since."""
-        if self._path is not None and self._path.exists():
-            with self._lock, locks.held(self._path.with_suffix(".lock")):
-                self._entries = self._read()
-        return self.entries()
-
-    def raw(self) -> dict[str, dict]:
-        """Every entry as filed, read again from the file, by its key: for the WorkIt sync's catch-up."""
-        self.read_again()
-        return {str(k): v for k, v in self._entries.items() if isinstance(v, dict)}
-
-    @contextmanager
-    def _writing(self) -> Iterator[dict]:
-        """The bank's entries, read again under its locks and saved after."""
-        changed: dict[str, dict] = {}
-        deleted: list[str] = []
+        """The student takes `question` out of the bank, so the next form that asks it gets a new draft. False if
+        the bank lacks it; raises NotSaved when WorkIt doesn't delete it."""
         with self._lock:
-            if self._path is None:
-                yield self._entries
-                return
-            with locks.held(self._path.with_suffix(".lock")):  # its own lock file, never the bank itself
-                if not self._path.exists():  # a new bank: an empty file to read
-                    self._path.touch()
-                text = self._path.read_text(encoding="utf-8")
-                self._entries = self._read()
-                had = bool(self._entries)
-                before = _dump(self._entries)
-                synced = {str(k): _synced(v) for k, v in self._entries.items()} if self._on_change else {}
-                yield self._entries
-                if self._on_change is not None:
-                    changed, deleted = _stamp(self._entries, synced)
-                after = _dump(self._entries)
-                if after == before:  # nothing changed: the file stays as it was
-                    return
-                # A bank with no entry yet keeps its notes on top: there is no entry for them to hang on.
-                notes = "" if had else re.match(r"(?:#.*\n|[ \t]*\n)*", text).group()
-                self._path.write_text(notes + after, encoding="utf-8")
-        if changed or deleted:
-            try:  # the bank is saved: a sync that fails never fails the write
-                self._on_change(changed, deleted)
-            except Exception as error:
-                print(f"The Answer bank's change waits to go to WorkIt ({type(error).__name__}).", file=sys.stderr)
+            if key(question) not in self._entries:
+                return False
+        self._wait(_Change(key(question), one_line(question), None, student=True))
+        return True
 
-    def _read(self) -> dict:
-        text = self._path.read_text(encoding="utf-8")
-        try:
-            return _yaml().load(text) or CommentedMap()
-        except DuplicateKeyError:
-            last, twice = _last_entries(text)
-            if self._path not in _WARNED:
-                _WARNED.add(self._path)
-                print(f"The Answer bank files {', '.join(repr(k) for k in twice)} more than once: Apply reads the last "
-                      "of each, and its next save keeps only that.", file=sys.stderr)
-            return _yaml().load(last) or CommentedMap()
+    def drop_draft(self, question: str) -> None:
+        """The pre-submit review found the model's draft to `question` wrong: out of the bank, so it never fills
+        another form. A draft still on its way goes too: one waiting is taken out, and one being sent is deleted once
+        WorkIt saves it. The student's own answer stays."""
+        filed = key(question)
+        with self._lock:
+            self._waiting = [c for c in self._waiting if c.student or c.filed != filed or c.entry is None]
+            if (sending := self._sending) and not sending.student and sending.filed == filed and sending.entry:
+                sending.wrong = True
+            found = self._entries.get(filed)
+            if found is not None and not found.own:
+                self._go(_Change(filed, found.question, None))
+
+    def upload(self, folder: Path) -> None:
+        """A Developer checkout's answer-bank.yaml from before W11, in `folder`, sent to WorkIt once: a `lisul`
+        answer not marked unreviewed as the student's own and the rest flagged, each through WorkIt's rule, which
+        keeps out what it would at any save, with no word. Only what WorkIt lacks goes: a question it doesn't hold,
+        or the student's own answer where it holds a model's draft (theirs wins, as at any save). Once memory has
+        read the result, the file is renamed UPLOADED and never read again. Raises what a send or that read raises,
+        the file kept, so the next start sends what WorkIt still lacks. WorkIt Auto Apply never calls it: no
+        student has that file."""
+        path = folder / OLD_FILE
+        if self._source is None or not path.is_file():
+            return
+        held = self.answers()
+        entries = [e for e in _old_entries(path)
+                   if not (found := held.get(key(e["question"]))) or (not e["review"] and not found.own)]
+        for start in range(0, len(entries), UPLOAD_BATCH):
+            self._source.change(entries[start:start + UPLOAD_BATCH], [])
+        if entries:
+            self.load()
+        path.rename(path.with_name(UPLOADED))
+
+    def close(self, wait: float = QUIT_WAIT) -> None:
+        """At quit: the changes still waiting get up to `wait` seconds to reach WorkIt."""
+        ending = time.monotonic() + wait
+        with self._lock:
+            while (self._waiting or self._sending) and (left := ending - time.monotonic()) > 0:
+                self._lock.wait(left)
+
+    # The sender.
+
+    def _wait(self, change: _Change) -> None:
+        with self._lock:
+            self._go(change)
+        if not change.done.wait(EDIT_WAIT):
+            change.given_up = True
+            raise NotSaved(NO_ANSWER, 503)
+        if change.said:
+            raise NotSaved(change.said, 503 if change.said == NO_ANSWER else 400)
+
+    def _go(self, change: _Change) -> None:
+        """Under the lock. With no WorkIt the change is the bank's at once; else it waits for the sender: the
+        student's after the student's other changes, ahead of every draft, and in place of a waiting draft to the
+        same question."""
+        if self._source is None:
+            self._saved(change, None, {})
+            return
+        if change.student:
+            self._waiting = [c for c in self._waiting if c.student or c.filed != change.filed]
+            self._waiting.insert(sum(c.student for c in self._waiting), change)
+        else:
+            self._waiting.append(change)
+        if self._sender is None:
+            self._sender = threading.Thread(target=self._send_all, daemon=True, name="answer-bank-sender")
+            self._sender.start()
+        self._lock.notify_all()
+
+    def _unsent(self) -> list[_Change]:
+        return [*self._waiting, *([self._sending] if self._sending else [])]
+
+    def _send_all(self) -> None:
+        # Imported here, as WorkItSource imports the client.
+        from apply.workit import Unreachable
+
+        while True:
+            with self._lock:
+                self._sending = change = self._next()
+            try:
+                version, kept_out = self._source.change(*change.body())
+            except Exception as error:  # no answer is sent again; a refusal, a lost login or a bug is dropped
+                with self._lock:
+                    self._sending = None
+                    if isinstance(error, Unreachable) and change.tries < len(SEND_RETRIES) and not change.given_up:
+                        change.due, change.tries = time.monotonic() + SEND_RETRIES[change.tries], change.tries + 1
+                        self._again(change)
+                    else:
+                        self._dropped(change, error, isinstance(error, Unreachable))
+                    self._lock.notify_all()
+                continue
+            with self._lock:
+                self._sending = None
+                stale = self._saved(change, version, kept_out)
+                self._lock.notify_all()
+            if stale:
+                try:
+                    self.load()
+                except Exception:  # the old version stays, so the next version check reads the bank (W11 rule 6)
+                    pass
+
+    def _next(self) -> _Change:
+        """Under the lock: the first change that may go now, none ahead of it to the same question. Waits for one."""
+        while True:
+            for gone in [c for c in self._waiting if c.given_up]:
+                self._waiting.remove(gone)
+                gone.done.set()
+            now = time.monotonic()
+            # Only the first change to each question may go; a later one waits for it, and so does this wait.
+            heads = [c for n, c in enumerate(self._waiting) if all(o.filed != c.filed for o in self._waiting[:n])]
+            if ready := next((c for c in heads if c.due <= now), None):
+                self._waiting.remove(ready)
+                return ready
+            self._lock.notify_all()  # close() waits for this: nothing to send now
+            due = min((c.due for c in heads), default=None)
+            self._lock.wait(None if due is None else due - now)
+
+    def _again(self, change: _Change) -> None:
+        """Under the lock: `change` back at the head of its kind, to be sent again; a draft the student changed
+        meanwhile goes, since theirs takes its place."""
+        if change.wrong or not change.student and any(c.student and c.filed == change.filed for c in self._waiting):
+            change.done.set()
+            return
+        self._waiting.insert(0 if change.student else sum(c.student for c in self._waiting), change)
+
+    def _dropped(self, change: _Change, error: Exception, unanswered: bool) -> None:
+        """Under the lock: a change WorkIt didn't save, said in the log by its question alone, masked."""
+        why = type(error).__name__ + (f" {error.status}" if getattr(error, "status", None) else "")
+        print(f"Answer bank: not saved to WorkIt ({why}): {masked.KNOWN.scrub(change.question)}", file=sys.stderr)
+        change.said = NO_ANSWER if unanswered else f"Not saved: WorkIt refused it ({why})."
+        change.done.set()
+
+    def _saved(self, change: _Change, version: int | None, kept_out: dict[str, str]) -> bool:
+        """Under the lock: WorkIt's reply to `change` into memory (no change when its rule kept the entry out).
+        Whether another writer saved meanwhile, so the bank is read again."""
+        if kept_out:  # one entry to a PATCH: its reason
+            change.said = f"{KEPT_OUT}{next(iter(kept_out.values()))}"
+        elif change.entry is None:
+            self._entries.pop(change.filed, None)
+        elif change.wrong:  # WorkIt holds a draft the review found wrong meanwhile: deleted now
+            self._go(_Change(change.filed, change.question, None))
+        else:
+            was = self._entries.get(change.filed)  # WorkIt keeps the list an entry has when a change names none
+            self._entries[change.filed] = entry = _new(change.question, change.entry["answer"],
+                                                        own=not change.entry["review"],
+                                                        options=change.entry.get("options", was.options if was else ()))
+            _mask([entry])
+        stale = version is not None and version != self._version + 1
+        if version is not None and not stale:
+            self._version = version
+        change.done.set()
+        return stale
 
 
-_WARNED: set[Path] = set()  # the banks a duplicate was warned of, once each per process
+KEPT_OUT = "Not saved: WorkIt keeps it out of your Answer bank. "
 
 
-def _last_entries(text: str) -> tuple[str, list[str]]:
-    """The bank's `text` with each earlier entry of a question filed twice taken out, so its last one stands,
-    and the questions filed twice."""
-    top = _yaml().compose(text)
-    pairs = top.value if top is not None and top.id == "mapping" else []
-    lines = text.splitlines(keepends=True)
-    starts = [k.start_mark.line for k, _ in pairs] + [len(lines)]
-    last = {str(k.value): i for i, (k, _) in enumerate(pairs)}
-    dropped = {i for i, (k, _) in enumerate(pairs) if last[str(k.value)] != i}
-    gone = {line for i in dropped for line in range(starts[i], starts[i + 1])}
-    twice = list(dict.fromkeys(str(pairs[i][0].value) for i in sorted(dropped)))
-    return "".join(line for n, line in enumerate(lines) if n not in gone), twice
+def _picked(answer: str | list[str]) -> str | list[str]:
+    """An answer as the bank keeps it: stripped, a list of the options ticked with no empty one."""
+    return [p for a in answer if (p := str(a).strip())] if isinstance(answer, list) else str(answer).strip()
 
 
-def _synced(entry: Any) -> tuple:
-    """What the WorkIt sync carries of an entry, to tell a changed one."""
-    return tuple(json.dumps(entry.get(k), default=str) for k in SYNCED) if isinstance(entry, dict) else ()
+def _old_entries(path: Path) -> list[dict]:
+    """The old file's answered entries as PATCH takes them, read as Apply wrote it (YAML 1.2: a bare Yes stays a
+    word). `source: lisul` not marked `reviewed: false` is the student's own, as WorkIt's import reads it
+    (backend/app/services/apply_answers.py, `is_own`)."""
+    found = YAML(typ="safe", pure=True).load(path.read_text(encoding="utf-8")) or {}
+    entries = []
+    for filed, entry in found.items() if isinstance(found, dict) else ():
+        if not isinstance(entry, dict) or entry.get("answer") is None:
+            continue
+        answer = _picked(entry["answer"])
+        if answer == "" or (answer == [] and entry.get("none") is not True):
+            continue
+        first = entry.get("first_seen") if isinstance(entry.get("first_seen"), dict) else {}
+        company = str(first.get("company") or "").strip()
+        # No options go: the old file kept every choice's list, so a pick from one list can't be told from the rest,
+        # and with a list each would answer only forms offering just it (W11: the engine maps a choice's text).
+        entries.append(_set(str(entry.get("question") or filed), answer,
+                            own=entry.get("source") == "lisul" and entry.get("reviewed") is not False,
+                            choice=bool(entry.get("options")), form={"company": company} if company else None).entry)
+    return entries
 
 
-def _stamp(entries: dict, synced: dict[str, tuple]) -> tuple[dict[str, dict], list[str]]:
-    """The entries that changed since `synced`, each stamped `edited_at` now, and the keys taken out."""
-    now = datetime.now(UTC).replace(microsecond=0).isoformat()
-    changed = {}
-    for k, entry in entries.items():
-        if isinstance(entry, dict) and _synced(entry) != synced.get(str(k)):
-            entry["edited_at"] = now
-            changed[str(k)] = dict(entry)
-    return changed, [k for k in synced if k not in entries]
+def _set(question: str, answer: str | list[str], own: bool, *, choice: bool = False, form: dict | None = None,
+         student: bool = False, options: Iterable[str] = ()) -> _Change:
+    """A change that saves `answer` to `question`: the student's own, or the model's, flagged for review. `choice`
+    for a pick from the form's options, and `form` names the form it came from (`job_id` or `company`): WorkIt's
+    rule reads them, and keeps neither. `options`, the list the student's own pick came from, WorkIt keeps."""
+    asked = one_line(question)
+    entry = {"question": asked, "answer": answer, "review": not own, "choice": choice or isinstance(answer, list)}
+    if listed := [str(o) for o in options]:
+        entry["options"] = listed
+    return _Change(key(asked), asked, entry | (form or {}), student=student)
 
 
-def _dump(entries: dict) -> str:
-    out = io.StringIO()
-    _yaml().dump(entries, out)
-    return out.getvalue()
-
-
-def _find(entries: dict, question: str) -> Any:
-    """The entry for `question`, under its key or a key Lisul typed in his own spacing or case."""
-    wanted = key(question)
-    return entries[wanted] if wanted in entries else next((v for k, v in entries.items() if key(str(k)) == wanted), None)
+def _new(question: str, answer: str | list[str], own: bool, options: Iterable[str] = ()) -> Entry:
+    picked = [str(a).strip() for a in answer] if isinstance(answer, list) else str(answer).strip()
+    return Entry(one_line(question), picked, own=own, none=picked == [], options=tuple(options))
 
 
 def _entry(found: dict) -> Entry:
-    seen = found.get("first_seen") or {}
-    uses = found.get("uses") if isinstance(found.get("uses"), dict) else {}
+    """One entry as WorkIt serves it."""
     answer = found["answer"]
-    return Entry(
-        question=str(found.get("question") or ""),
-        answer=[str(a) for a in answer] if isinstance(answer, list) else str(answer),
-        options=tuple(str(o) for o in found.get("options") or ()),
-        source=str(found.get("source") or CLAUDE),
-        reviewed=found.get("reviewed") is True,
-        first_seen=seen.get("date") if isinstance(seen.get("date"), date) else None,
-        company=str(seen.get("company") or ""),
-        uses=int(uses.get("count") or 0),
-        facts=tuple(str(f) for f in found.get("facts") or ()),
-        last_used=uses.get("last") if isinstance(uses.get("last"), date) else None,
-        none=found.get("none") is True and answer == [],
-    )
+    return Entry(question=str(found.get("question") or ""),
+                 answer=[str(a) for a in answer] if isinstance(answer, list) else str(answer),
+                 own=found.get("own") is not False, none=found.get("none") is True and answer == [],
+                 options=tuple(str(o) for o in found.get("options") or ()))
 
 
-def _text(value: str) -> str:
-    """Quoted when another YAML reader would take it for true or false ("Yes", "No")."""
-    bool_like = value.strip().casefold() in ("yes", "no", "y", "n", "on", "off", "true", "false")
-    return SingleQuotedScalarString(value) if bool_like else value
+def _answered(entry: Entry) -> bool:
+    """An empty answer is none, unless it says "none of these" for a multi-select."""
+    return entry.none or entry.answer not in ("", [])
 
 
-def _yaml() -> YAML:
-    y = YAML()
-    y.preserve_quotes = True
-    y.width = 4096  # a long question stays on one line
-    return y
+def _text(answer: str | list[str]) -> str:
+    return "; ".join(answer) if isinstance(answer, list) else answer
 
+
+def _mask(entries: Iterable[Entry]) -> None:
+    """Apply's own prints never show the bank's answers (apply.masked)."""
+    for entry in entries:
+        for value in entry.answer if isinstance(entry.answer, list) else [entry.answer]:
+            masked.KNOWN.add(value, "answer", masked.SHORTEST_ANSWER)

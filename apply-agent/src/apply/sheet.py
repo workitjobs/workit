@@ -19,7 +19,6 @@ from apply.home import HOME
 from apply.model import Outcome, Status
 from apply.tracker import (
     LISULS,
-    AnswerRow,
     EmployerAccount,
     Row,
     check_new,
@@ -29,7 +28,6 @@ from apply.tracker import (
 APPLICATIONS = "Applications"
 REQUESTS = "Requests"
 EMPLOYER_ACCOUNTS = "Employer accounts"
-ANSWERS = "Answers"
 
 # Each Applications column's header, and the Row field it holds.
 COLUMNS = {
@@ -55,24 +53,11 @@ COLUMNS = {
 }
 HEADERS = {field: header for header, field in COLUMNS.items()}
 
-# Each Answers column's header, and the AnswerRow field it holds. Answer and
-# Reviewed are Lisul's; Apply only adds rows.
-ANSWER_COLUMNS = {
-    "Question": "question",
-    "Answer": "answer",
-    "Reviewed": "reviewed",
-    "Claude's draft": "drafted",
-    "Options": "options",
-    "Company": "company",
-    "First seen": "first_seen",
-}
-
 # Every tab, with its header row.
 TABS = {
     APPLICATIONS: list(COLUMNS),
     REQUESTS: ["Link"],  # Lisul pastes Posting links here
     EMPLOYER_ACCOUNTS: ["Company", "Site", "Login", "Created"],
-    ANSWERS: list(ANSWER_COLUMNS),  # the Answer bank, for Lisul to review and edit
 }
 
 # Lisul's saved filter views on the Applications tab, by the Status they show.
@@ -163,12 +148,6 @@ def lay_out(spreadsheet: gspread.Spreadsheet, lock: Path = DEFAULT_LOCK) -> None
                 "filterSpecs": [{"columnIndex": headers.index("Status"), "filterCriteria": {
                     "condition": {"type": "TEXT_EQ", "values": [{"userEnteredValue": status}]}}}],
             }}})
-    answers = spreadsheet.worksheet(ANSWERS)
-    reviewed = answers.row_values(1).index("Reviewed")
-    requests.append({"setDataValidation": {"range": {
-        "sheetId": answers.id, "startRowIndex": 1, "endRowIndex": answers.row_count,
-        "startColumnIndex": reviewed, "endColumnIndex": reviewed + 1,
-    }, "rule": {"condition": {"type": "BOOLEAN"}}}})
     spreadsheet.batch_update({"requests": requests})
     tidy_applications(spreadsheet, lock)
 
@@ -265,7 +244,6 @@ class SheetTracker:
         self._requests = spreadsheet.worksheet(REQUESTS)
         self._accounts = spreadsheet.worksheet(EMPLOYER_ACCOUNTS)
         self._spreadsheet = spreadsheet
-        self._answers = None  # the Answers tab, found (or added, to a Sheet set up before it) on first use
 
     def _locked(self):
         return locked(self._lock)
@@ -353,33 +331,6 @@ class SheetTracker:
         return [
             EmployerAccount(a["Company"], a["Site"], a["Login"], date.fromisoformat(a["Created"])) for a in accounts
         ]
-
-    def add_answer(self, row: AnswerRow) -> None:
-        with self._locked():
-            answers = self._answers_tab()
-            cells = {header: _cell(getattr(row, field)) for header, field in ANSWER_COLUMNS.items()}
-            cells["Options"] = "; ".join(row.options)
-            cells["Reviewed"] = "TRUE" if row.reviewed else "FALSE"
-            headers, *rows = answers.get_all_values()
-            _write_new(answers, headers, rows, "Question", cells)
-
-    def answers(self) -> list[AnswerRow]:
-        headers, *cells = self._answers_tab().get_all_values()
-        rows = [dict(zip(headers, values)) for values in cells if _filled(headers, values, "Question")]
-        return [AnswerRow(
-            question=r["Question"], answer=r["Answer"], reviewed=r["Reviewed"] == "TRUE", drafted=r["Claude's draft"],
-            options=tuple(o.strip() for o in r["Options"].split(";") if o.strip()), company=r["Company"],
-            first_seen=date.fromisoformat(r["First seen"]) if r["First seen"] else None,
-        ) for r in rows]
-
-    def _answers_tab(self):
-        if self._answers is None:
-            try:
-                self._answers = self._spreadsheet.worksheet(ANSWERS)
-            except gspread.WorksheetNotFound:
-                self._answers = self._spreadsheet.add_worksheet(ANSWERS, rows=ROWS, cols=len(TABS[ANSWERS]))
-                self._answers.update([TABS[ANSWERS]], "A1")
-        return self._answers
 
     def _links(self) -> list[str]:
         return [values[0].strip() for values in self._requests.get_all_values()[1:]]

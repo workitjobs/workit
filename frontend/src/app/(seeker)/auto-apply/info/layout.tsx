@@ -9,6 +9,8 @@ import { getAutofillAnswers } from "@/lib/autofill-answers-actions";
 import { getBank } from "@/lib/bank-actions";
 
 import { FIELD_GRID } from "../../profile/field-styles";
+import { AnswerBank } from "./answer-bank";
+import { AppAnswers } from "./app-answers";
 import { INFO_CARD } from "./card-head";
 import { InfoNav } from "./info-nav";
 import { InfoPart, InfoParts } from "./info-part";
@@ -17,6 +19,7 @@ import { Transcript } from "./transcript";
 import { InfoDiscardBar, InfoUnsaved } from "./unsaved";
 import { WorkdaySignup } from "./workday-signup";
 import { WritingSamples } from "./writing-samples";
+import { WrittenAnswersLink } from "./written-answers-link";
 
 export const metadata: Metadata = {
   title: "Application Info",
@@ -49,7 +52,8 @@ export const metadata: Metadata = {
  * page). They stream in their own boundary, so the menu and the files
  * never wait on them. Transcript (./transcript.tsx), Writing Samples
  * (./writing-samples.tsx) and Workday Sign-Up (./workday-signup.tsx, which
- * opens the extension's own page) read their own. A failed answers read
+ * opens the extension's own page) read their own, as Answer Bank
+ * (./answer-bank.tsx, W11) does. A failed answers read
  * shows the failed read's card with Try Again (KAN-819), never a form of
  * "Not Answered" that would pass for the student's real answers.
  *
@@ -67,6 +71,11 @@ export default function ApplicationInfoLayout({ children }: { children: ReactNod
           <Suspense fallback={<AnswersLoading />}>
             <Answers />
           </Suspense>
+          <InfoPart name="answer-bank">
+            <AnswerBank />
+            <AppAnswers />
+            <WrittenAnswersLink />
+          </InfoPart>
           <InfoPart name="files">
             <Transcript />
             <WritingSamples />

@@ -38,11 +38,10 @@ from apply import (
     verify,
 )
 from apply.adapters import Claude, JobSite, UsageLimitHit
-from apply.answer_bank import LISUL, AnswerBank
+from apply.answer_bank import AnswerBank
 from apply.applicant import as_applicant
 from apply.fill_engine import (
     attested_line,
-    company_specific,
     context_free,
     left_blank,
     not_called_for,
@@ -87,10 +86,10 @@ SELF_FIXES = 2
 
 def sent_folder(company: str, application_id: str, day: date) -> Path:
     """The Application's folder under SENT, where a copy of each file its form is given is kept."""
-    return SENT / day.isoformat() / _sent_name(company, application_id)
+    return SENT / day.isoformat() / sent_name(company, application_id)
 
 
-def _sent_name(company: str, application_id: str) -> str:
+def sent_name(company: str, application_id: str) -> str:
     """An Application's folder name under SENT's day folders: its company's slug, then its id."""
     slug = re.sub(r"[^a-z0-9]+", "-", company.lower()).strip("-") or "company"
     return f"{slug}-{re.sub(r'[^A-Za-z0-9_-]+', '-', application_id)}"
@@ -114,7 +113,7 @@ def sent_files(company: str, application_id: str, sent: Path | None = None) -> l
     """Every file kept for the Application's form under SENT (the resume, the cover letter Apply wrote for it, a
     transcript), its newest folder's first (KAN-789). Only its own folder, by its whole name: a suffix match
     (`*-<id>`) also took another Application's whose id ends in this one's ("acme-9-123" for id 123)."""
-    root, name = sent or SENT, _sent_name(company, application_id)
+    root, name = sent or SENT, sent_name(company, application_id)
     days = sorted((day for day in root.iterdir() if (day / name).is_dir()), reverse=True) if root.is_dir() else []
     folders = [day / name for day in days]
     return [f for folder in folders for f in sorted(folder.iterdir()) if f.is_file() and not f.name.startswith(".")]
@@ -193,8 +192,6 @@ class Result:
     named_facts: tuple[tuple[str, str], ...] = ()  # (question, Named fact) of each essay that names one, in form order
     briefs: tuple[tuple[str, str], ...] = ()  # (question, Recording brief) of each video link Lisul makes (apply.recording)
     named: tuple[str, str] = ("", "")  # the company and role the form's own page named (Claude fill)
-    # (question, answer, uses) of each unreviewed draft the Answer bank answered this form with, in form order
-    reused: tuple[tuple[str, str, int], ...] = ()
     bot_signals: tuple[str, ...] = ()  # what suggested the job system took the browser for a bot (apply.bot_signals)
     verification: "verify.Verification | None" = None  # how verifying the filled form went (apply.verify)
     # each answer Claude wrote for the form, kept so Lisul can have one written again (apply.regenerate)
@@ -312,7 +309,6 @@ def apply_to(
                            e.plan.type if e.plan else essays.question_type(e.question), e.text,
                            story=e.plan.story if e.plan else "")
     result.drafted = tuple((one_line(planned.wording(d.question)), d.shown) for d in planned.drafted)
-    result.reused = tuple(planned.reused)
     if result.filled is not None:
         result.listed, result.fixed = tuple(planned.listed()), tuple(planned.fixed)
     result.named_facts = tuple((one_line(e.question.label), e.named) for e in planned.written if e.named)
@@ -481,11 +477,10 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                             go_on(page)
                     continue
                 problems += _unasked(filler, page, questions)
-                planned.use_bank()
                 if planned.handoffs:  # filled but for what only Lisul may answer; no Claude call
                     checked = ["Pre-submit check failed. " + "; ".join(problems)] if problems else []
                     return Result(Status.HANDOFF, "; ".join(planned.handoffs + checked + planned.to_tick + [FILLED_BUT]), filled)
-                holds += planned.overused()
+                holds += planned.unreviewed()
                 on_verify(None)  # Verifying: the window shows it while the form is read back and checked
                 found = []
                 if problems:
@@ -727,11 +722,10 @@ class _Planned:
         self.holds: list[str] = []
         self.handoffs: list[str] = []  # what Lisul must answer himself; the rest is still filled
         self.written: list[essays.Essay] = []
-        self.drafted: list[essays.Draft] = []  # one-off answers Claude drafted into the Answer bank
-        self.unbanked: list[essays.Draft] = []  # Claude's answers to one-off questions about this company
+        self.drafted: list[essays.Draft] = []  # one-off answers Claude drafted, sent to the Answer bank
+        self.unbanked: list[essays.Draft] = []  # Claude's answers to bare dates no section places: never banked
         self.roles: dict[str, str] = {}  # answers to "applying to other roles here?", by name (apply.other_roles)
         self.banked: list[Question] = []  # one-off questions the Answer bank answered
-        self.reused: list[tuple[str, str, int]] = []  # the unreviewed drafts among them, with their uses
         self._asked: set[Question] = set()  # one-off questions sent to Claude to draft
         self.material: str | None = None  # the <company> block, read once the form has essays
         self.brief = ""  # the Company brief's facts: web text, so never searched for traps or bans as the material is
@@ -781,12 +775,17 @@ class _Planned:
 
     def _keep_files(self) -> None:
         """Copy each file the form is given to the Application's folder under
-        SENT, and tell `on_files` when the list changed."""
+        SENT, and tell `on_files` when the list changed. WorkIt Auto Apply keeps
+        no copy (W11): its window names each file by its own path, and WorkIt
+        keeps the Sent resume by its id."""
         folder = sent_folder(self.posting.company, self.posting.id, self._today)
         files, taken = [], set()
         for q in self.questions:
             path = self._answers.get(q.name)
             if not isinstance(path, Path) or not path.is_file():
+                continue
+            if build.STUDENT:
+                files.append({"label": one_line(q.label), "name": path.name, "path": str(path)})
                 continue
             name = path.name if path.name not in taken else f"{len(taken) + 1}-{path.name}"
             taken.add(name)
@@ -819,10 +818,10 @@ class _Planned:
         for q in questions:
             # A bare date's answer (From, To) is one section's: it is this form's alone, never kept by its wording.
             if q.label.strip() in self._answered and not context_free(q.label):
-                remember(profile, posting, q, self._answered[q.label.strip()], self._bank, self._today)
-        for asked, answer in self._answered.items():  # what an essay asked him: its answer joins the Story bank
+                remember(profile, posting, q, self._answered[q.label.strip()], self._bank)
+        for asked, answer in self._answered.items():  # what an essay asked him: for this form alone, never saved
             if asked.startswith(essays.ASK):
-                essays.remember_fact(asked, answer, posting.company, self._today)
+                essays.tell(posting.url, asked, answer)
         self.questions = self.questions + list(questions)
         planned = plan(self.questions, posting, profile, self._bank, posting_text=self.posting_text,
                        employer_text=f"{self.text}\n{self.material or ''}", today=self._today)
@@ -878,7 +877,8 @@ class _Planned:
             if ask or to_draft:
                 stuck.doing(f"Writing answers for {where}")
             written, drafted = essays.answer(self.claude, posting, ask, to_draft, profile, self.known(), self.text,
-                                             answered=answered, sections=self.sections) if ask or to_draft else ([], [])
+                                             answered=answered, sections=self.sections,
+                                             mine=self._bank.own_lines()) if ask or to_draft else ([], [])
             written = taken + written
         except stuck.Stopped:
             self._to_lisul(planned.answers, planned.missing, new + to_draft)
@@ -888,14 +888,15 @@ class _Planned:
         self.written += written
         self._asked |= set(to_draft)
         for draft in drafted:
-            if draft.needs_lisul:
+            if draft.needs_applicant:
                 continue
-            # True of this company only, or a bare date no section places: drafted again each time, never banked.
-            if company_specific(draft.question, posting) or self.filed.get(draft.question.name, "") is None:
+            # A bare date no section places: drafted again each time, never banked. Any other draft goes to WorkIt,
+            # whose rule alone decides whether it enters the bank (one about the company stays on this form, W11).
+            if self.filed.get(draft.question.name, "") is None:
                 self.unbanked.append(draft)
             else:
-                self._bank.add(draft.question, draft.answer, posting.company, self._today, list(draft.facts),
-                               wording=self.wording(draft.question))
+                self._bank.add(draft.question, draft.answer, posting.company, wording=self.wording(draft.question),
+                               job_id=posting.job_id or None)
                 self.drafted.append(draft)
         given = {d.question.name: d.answer for d in self.drafted + self.unbanked}
         # A follow-up to a question Claude just answered ("If yes, ...", answered No) that the answer doesn't call for.
@@ -1018,7 +1019,7 @@ class _Planned:
     def own(self) -> set[str]:
         """The questions the form took Lisul's own Answer bank answer for."""
         return {q.name for q in self.banked if self._bank.reviewed(self.wording(q), self.posting.company)
-                or ((entry := self._bank.get(self.wording(q))) and entry.source == LISUL)}
+                or ((entry := self._bank.get(self.wording(q))) and entry.own)}
 
     def wording(self, q: Question) -> str:
         """The wording the Answer bank files `q`'s answer under: a bare date's section and label, else its label."""
@@ -1075,9 +1076,7 @@ class _Planned:
     def _take(self, q: Question, answer: object, trial: bool) -> bool:
         """Fill the fix `answer` for `q` (see fix); with `trial`, kept only if the next review passes it (unfix)."""
         for draft in [d for d in self.drafted if d.question.name == q.name]:
-            entry = self._bank.get(self.wording(q))
-            if entry and entry.source != LISUL and not entry.reviewed:
-                self._bank.delete(self.wording(q))
+            self._bank.drop_draft(self.wording(q))  # the model's draft only: the student's own answer stays (W11)
             self.drafted.remove(draft)
         self.fixed.append((one_line(q.label), as_text(self._answers.get(q.name)), as_text(answer)))
         if trial:
@@ -1118,25 +1117,16 @@ class _Planned:
             rows.append({"question": one_line(q.label), "answer": answer, "from": source, "kind": q.kind, "topic": topic(q)})
         return rows
 
-    def use_bank(self) -> None:
-        """Count one use of each Answer bank answer the filled form took (a
-        rehearsal, which sends nothing, counts none), and note the unreviewed
-        drafts among them with their uses, this one included."""
-        labels = [self.wording(q) for q in self.banked if q.name in self.answers]
-        if not self._rehearse:
-            self._bank.use(labels, self._today)
-        drafts = [entry for label in labels if (entry := self._bank.get(label)) and not entry.reviewed]
-        self.reused = [(one_line(e.question), ", ".join(e.answer) if isinstance(e.answer, list) else e.answer,
-                        e.uses + self._rehearse) for e in drafts]
-
-    def overused(self) -> list[str]:
-        """Why the unreviewed drafts used again too often hold the Application,
-        under the max_unreviewed_uses policy (off unless set); never an approved Hold."""
-        limit = self.profile.policy("max_unreviewed_uses")
-        if not limit or self._approved is not None:
+    def unreviewed(self) -> list[str]:
+        """Why the Answer bank answers the form took that no one has reviewed hold the Application, under the
+        unreviewed_answers policy: `use` (the default) fills them at once and holds nothing; `hold` holds the
+        Application until each is reviewed in the Answers tab. Never an approved Hold."""
+        if self.profile.policy("unreviewed_answers") != "hold" or self._approved is not None:
             return []
-        return [f"'{q}': unreviewed answer used {n} times: review it in the Answers tab"
-                for q, _, n in self.reused if n >= limit]
+        waiting = [entry for q in self.banked if q.name in self.answers
+                   if (entry := self._bank.get(self.wording(q))) and not entry.own]
+        return [f"'{one_line(e.question)}': an answer that waits for your review: review it in the Answers tab"
+                for e in waiting]
 
     def known(self) -> str:
         """What the essays know of the company: the Company material, with the Company brief in it."""
@@ -1237,7 +1227,7 @@ class _Planned:
         # Lifted with hold_high_stakes_essays: false (the Safety level's full_auto); the truth checks below still hold it.
         if high_stakes and self._approved is None and self.profile.policy("hold_high_stakes_essays") is not False:
             holds.append(f"High-stakes essay: '{one_line(q.label)}'")
-        if essay.needs_lisul:
+        if essay.needs_applicant:
             holds.append(f"'{one_line(q.label)}' needs your input beyond the Story bank")
         if essay.unsupported:
             holds.append(f"'{one_line(q.label)}' states {', '.join(essay.unsupported)}, which no source backs")

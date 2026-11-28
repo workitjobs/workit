@@ -8,10 +8,12 @@ from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
 from conftest import FIXTURES, POLICIES, research_form
+from fake_bank import Server
 from fakes import (
     PLAN_STORIES,
     FakeClaude,
@@ -36,7 +38,7 @@ from apply import (
     writing,
 )
 from apply.adapters import Adapters
-from apply.answer_bank import AnswerBank
+from apply.answer_bank import AnswerBank, key
 from apply.cli import main
 from apply.cover_letter import is_cover_letter
 from apply.essays import giveaways
@@ -46,7 +48,7 @@ from apply.model import Answers, Posting, Question
 from apply.notify import RecordingNotifier
 from apply.profile import ApplicantProfile
 from apply.records import InMemoryRecords
-from apply.tracker import AnswerRow, InMemoryTracker, Row
+from apply.tracker import InMemoryTracker, Row
 
 NOW = datetime(2026, 10, 15, 9, 30)
 PROFILE = FIXTURES / "planner-profile.yaml"
@@ -122,15 +124,18 @@ class ResearchForm:
 def run_all(monkeypatch, form: ResearchForm, claude: FakeClaude, companies: list[str], profile: Path = PROFILE,
             site: Browser | None = None, bank: AnswerBank | None = None, records: InMemoryRecords | None = None,
             tracker: InMemoryTracker | None = None, url: str = "",
-            notifier: RecordingNotifier | None = None, board: RecordingBoard | None = None) -> list[Row]:
+            notifier: RecordingNotifier | None = None, board: RecordingBoard | None = None, job_id: str = "") -> list[Row]:
     """One `apply run` over a Feed holding one Match at each of `companies`, all with the form `form`
-    (each at `url`, when given, as the Filler of its job system)."""
+    (each at `url`, when given, as the Filler of its job system; each WorkIt's job `job_id`, when given)."""
     feed = SimplifyFeed(lambda: json.dumps([{
         "id": f"posting-{n}", "company_name": company, "title": "Software Engineer Intern",
         "url": url or f"https://jobs.example.com/example/{n}", "category": "Software", "active": True, "is_visible": True,
         "terms": ["Summer 2027"], "locations": ["Torrance, CA"], "degrees": ["Bachelor's"],
         "date_posted": 1_790_000_000 - n, "date_updated": 1_790_000_000 - n,
     } for n, company in enumerate(companies, 1)]).encode())
+    if job_id:
+        simplify = feed
+        feed = SimpleNamespace(postings=lambda: [replace(p, job_id=job_id) for p in simplify.postings()])
     monkeypatch.setitem(FILLERS, "other", form)
     if url:
         monkeypatch.setitem(FILLERS, Posting("", "", "", url).job_system, form)
@@ -145,9 +150,9 @@ def run_all(monkeypatch, form: ResearchForm, claude: FakeClaude, companies: list
 
 
 def run(monkeypatch, form: ResearchForm, claude: FakeClaude, company: str = "Example Co", site: Browser | None = None,
-        bank: AnswerBank | None = None) -> Row:
+        bank: AnswerBank | None = None, job_id: str = "") -> Row:
     """One `apply run` over a Feed holding one Match at `company` whose form is `form`."""
-    [row] = run_all(monkeypatch, form, claude, [company], site=site, bank=bank)
+    [row] = run_all(monkeypatch, form, claude, [company], site=site, bank=bank, job_id=job_id)
     return row
 
 
@@ -752,7 +757,7 @@ def test_a_high_stakes_essay_is_held_with_the_essay_in_the_row_for_lisul_to_edit
 def test_an_essay_claude_cannot_draw_from_the_story_bank_is_held(monkeypatch):
     form = ResearchForm("Northwood Space")
 
-    row = run(monkeypatch, form, FakeClaude(needs_lisul=[PROJECT]))
+    row = run(monkeypatch, form, FakeClaude(needs_applicant=[PROJECT]))
 
     assert row.status == "held"
     assert "needs your input" in row.reason and PROJECT in row.reason
@@ -762,7 +767,7 @@ def test_an_essay_claude_cannot_draw_from_the_story_bank_is_held(monkeypatch):
 def test_an_essay_missing_one_fact_of_his_is_held_with_the_rest_drafted(monkeypatch):
     # Khan Academy: "Have you used Khan Academy before? What excites you ...?" came back empty,
     # though only whether he has used it is his to say.
-    form, claude = ResearchForm("Northwood Space"), FakeClaude(essays={PROJECT: MICROMOUSE}, needs_lisul=[PROJECT])
+    form, claude = ResearchForm("Northwood Space"), FakeClaude(essays={PROJECT: MICROMOUSE}, needs_applicant=[PROJECT])
 
     row = run(monkeypatch, form, claude)
 
@@ -871,8 +876,7 @@ def test_a_one_off_question_is_drafted_by_claude_sent_with_the_form_and_banked(m
     assert sent_answer(form, HOUSING) == "Yes"
     [entry] = bank.entries()
     assert entry.question.startswith(HOUSING)
-    assert (entry.answer, entry.options, entry.source, entry.reviewed) == ("Yes", ("Yes", "No"), "claude", False)
-    assert (entry.company, entry.first_seen) == ("MetOx International", NOW.date())
+    assert (entry.answer, entry.own) == ("Yes", False)  # the model's, until the student reviews it
     assert f"Claude drafted: {entry.question} → Yes" in row.reason
 
 
@@ -912,19 +916,58 @@ class AsksAboutTheCompany(ResearchForm):
 
 
 def test_a_one_off_question_about_the_company_is_drafted_and_sent_but_never_banked(monkeypatch):
-    form, claude, bank = AsksAboutTheCompany(), FakeClaude(drafts={FAMILIAR: "Somewhat"}), AnswerBank()
+    """WorkIt's rule alone keeps a draft about the company out of the bank (W11): Apply sends it with the form's
+    company, and fills the form with it all the same."""
+    server = Server(keeps_out=(FAMILIAR,))
+    bank = AnswerBank(server)
+    bank.load()
+    form, claude = AsksAboutTheCompany(), FakeClaude(drafts={FAMILIAR: "Somewhat"})
 
     row = run(monkeypatch, form, claude, company="MetOx International", bank=bank)
+    bank.close()
 
     assert row.status == "submitted", row.reason
     assert sent_answer(form, FAMILIAR) == "Somewhat"
+    assert {e["question"]: e.get("company") for [e], _ in server.sent}[FAMILIAR] == "MetOx International"
     [entry] = bank.entries()
     assert entry.question.startswith(HOUSING)  # the generic one only
 
 
+def test_a_draft_names_its_form_by_the_workit_job_when_its_posting_has_one(monkeypatch):
+    """WorkIt's rule then reads the job's company from its own database (W11), not the name Apply holds."""
+    server = Server()
+    bank = AnswerBank(server)
+    bank.load()
+
+    run(monkeypatch, without_cover_letter(ResearchForm("MetOx International")), FakeClaude(drafts={HOUSING: "Yes"}),
+        company="MetOx International", bank=bank, job_id="j1")
+    bank.close()
+
+    [([entry], [])] = server.sent
+    assert entry["question"].startswith(HOUSING) and entry["job_id"] == "j1" and "company" not in entry
+
+
+def test_an_answer_saved_in_the_extension_meanwhile_fills_the_next_application(monkeypatch):
+    """W11's Done when: a choice the student gives in the extension fills the app's next Application, with no
+    sync step and no restart. A Developer checkout off the Model route asks the bank's version itself."""
+    server = Server()
+    bank = AnswerBank(server)
+    bank.load()
+    form = without_cover_letter(ResearchForm("MetOx International"))
+    [housing] = [q.label for q in form.questions if q.label.startswith(HOUSING)]
+    server.answers[key(housing)] = {"question": housing, "answer": "No", "own": True}
+    server.version += 1  # the extension saved it after the app read the bank
+
+    row = run(monkeypatch, form, FakeClaude(drafts={HOUSING: "Yes"}), company="MetOx International", bank=bank)
+    bank.close()
+
+    assert row.status == "submitted", row.reason
+    assert sent_answer(form, HOUSING) == "No" and server.sent == []  # the student's, never drafted
+
+
 def test_a_claude_answer_banked_for_a_company_question_is_not_reused_but_drafted_again(monkeypatch):
     bank = AnswerBank()
-    bank.add(AsksAboutTheCompany().questions[-1], "Very", "Another Co", NOW.date())  # banked before they were kept out
+    bank.add(AsksAboutTheCompany().questions[-1], "Very", "Another Co")  # banked before they were kept out
     form, claude = AsksAboutTheCompany(), FakeClaude(drafts={FAMILIAR: "Somewhat"})
 
     run(monkeypatch, form, claude, company="MetOx International", bank=bank)
@@ -936,7 +979,7 @@ def test_a_claude_answer_banked_for_a_company_question_is_not_reused_but_drafted
 
 def test_lisuls_own_answer_to_a_company_question_is_still_used(monkeypatch):
     bank = AnswerBank()
-    bank.answer(FAMILIAR, "Very", NOW.date())
+    bank.answer(FAMILIAR, "Very")
     form, claude = AsksAboutTheCompany(), FakeClaude()
 
     run(monkeypatch, form, claude, company="MetOx International", bank=bank)
@@ -982,69 +1025,18 @@ def test_an_answer_in_the_bank_is_sent_again_with_no_claude_call(monkeypatch):
     assert "Claude drafted" not in rows[0].reason
 
 
-def test_a_drafted_answer_is_banked_with_the_facts_it_drew_on(monkeypatch):
-    story = "- Applying for Summer 2027 software engineering and AI/ML internships."  # a Story bank line
-    claude = FakeClaude(drafts={HOUSING: "Yes"}, facts={HOUSING: [
-        "identity.summer_2027_location", story, "files.resume_pdf", "identity.no_such_fact", "A line no source has",
-    ]})
-    bank = AnswerBank()
-
-    run(monkeypatch, ResearchForm("MetOx International"), claude, company="MetOx International", bank=bank)
-
-    [entry] = bank.entries()
-    assert entry.facts == ("identity.summer_2027_location", story)  # what Claude named that a source holds
-
-
-def test_each_application_an_answer_in_the_bank_answers_counts_one_use(monkeypatch):
+def test_lisuls_edit_in_the_bank_is_what_is_sent(monkeypatch):
     form, bank = ResearchForm("MetOx International"), AnswerBank()
     run(monkeypatch, form, FakeClaude(drafts={HOUSING: "Yes"}), company="MetOx International", bank=bank)
-    [drafted] = bank.entries()
-    assert drafted.uses == 0  # drafting it is not a use again
+    bank.answer(bank.entries()[0].question, "No")
 
-    run_all(monkeypatch, form, FakeClaude(), ["Another Co", "Third Co"], bank=bank)
-
-    [entry] = bank.entries()
-    assert (entry.uses, entry.last_used) == (2, NOW.date())
-
-
-def test_the_run_notification_lists_the_unreviewed_drafts_used_again(monkeypatch, capsys):
-    form, bank, notifier = ResearchForm("MetOx International"), AnswerBank(), RecordingNotifier()
-    run(monkeypatch, form, FakeClaude(drafts={HOUSING: "Yes"}), company="MetOx International", bank=bank)
-    [entry] = bank.entries()
-    bank.use([entry.question], NOW.date())
-
-    run_all(monkeypatch, form, FakeClaude(), ["Another Co"], bank=bank, notifier=notifier)
-
-    [(_, message)] = notifier.sent
-    assert message.endswith(f"1 unreviewed draft used again: {entry.question} → Yes (2 uses)")
-    assert f"Unreviewed drafts used again (review them in the Answers tab): {entry.question} → Yes (2 uses)" \
-        in capsys.readouterr().out
-
-
-def test_a_reviewed_answer_used_again_is_not_listed(monkeypatch):
-    form, bank, notifier = ResearchForm("MetOx International"), AnswerBank(), RecordingNotifier()
-    run(monkeypatch, form, FakeClaude(drafts={HOUSING: "Yes"}), company="MetOx International", bank=bank)
-    bank.review(bank.entries()[0].question)
-
-    run_all(monkeypatch, form, FakeClaude(), ["Another Co"], bank=bank, notifier=notifier)
-
-    [(_, message)] = notifier.sent
-    assert "used again" not in message
-    assert bank.entries()[0].uses == 1
-
-
-def test_lisuls_edit_in_the_bank_is_what_is_sent(monkeypatch, tmp_path):
-    form, path = ResearchForm("MetOx International"), tmp_path / "answer-bank.yaml"
-    run(monkeypatch, form, FakeClaude(drafts={HOUSING: "Yes"}), company="MetOx International", bank=AnswerBank(path))
-    path.write_text(path.read_text().replace("answer: 'Yes'", "answer: 'No'").replace("source: claude", "source: lisul"))
-
-    run(monkeypatch, form, FakeClaude(), company="Another Co", bank=AnswerBank(path))
+    run(monkeypatch, form, FakeClaude(), company="Another Co", bank=bank)
 
     assert [s[label] for s in form.submitted for label in s if label.startswith(HOUSING)] == ["Yes", "No"]
 
 
 @pytest.mark.parametrize("claude", [
-    FakeClaude(needs_lisul=[HOUSING]),
+    FakeClaude(needs_applicant=[HOUSING]),
     FakeClaude(drafts={HOUSING: "Maybe"}),  # not one of the options
 ], ids=["needs Lisul", "no such option"])
 def test_a_one_off_question_claude_cannot_answer_is_a_missing_fact(monkeypatch, claude):
@@ -1178,11 +1170,11 @@ def test_a_video_asks_context_line_names_its_host_only_as_a_word():
 
 def test_prose_an_earlier_run_banked_for_a_video_link_never_answers_it():
     profile, bank = ApplicantProfile.load(PROFILE, POLICIES), AnswerBank()
-    bank.add(Question("q", OPENSESAME_LINK, "textarea"), "I built a tool that fills forms.", "OpenSesame", NOW.date())
+    bank.add(Question("q", OPENSESAME_LINK, "textarea"), "I built a tool that fills forms.", "OpenSesame")
     assert asking.known(OPENSESAME_LINK, profile, bank) == ()
 
     bank = AnswerBank()
-    bank.add(Question("q", OPENSESAME_LINK, "textarea"), "https://youtu.be/abc123", "OpenSesame", NOW.date())
+    bank.add(Question("q", OPENSESAME_LINK, "textarea"), "https://youtu.be/abc123", "OpenSesame")
     assert asking.known(OPENSESAME_LINK, profile, bank) == ("https://youtu.be/abc123",)
 
 
@@ -1196,7 +1188,7 @@ def test_a_plain_short_drafted_answer_passes_the_truth_check(monkeypatch):
 
 
 DECISION = "What made you pick YOLOv8-OBB over a plain detector for the depot tracker?"
-PICKED = "Buses park at angles in the depot, so rotated boxes kept two side-by-side buses apart."
+PICKED = "Buses park at angles in the depot, so rotated boxes kept all 14 side-by-side buses apart."
 
 
 def proud_plan(decision: list[str], ask: str = "", others: bool = True) -> dict:
@@ -1209,26 +1201,33 @@ def proud_plan(decision: list[str], ask: str = "", others: bool = True) -> dict:
     return {PROJECT: {"type": "best-project", "slots": [*slots, {"slot": "decision", "quotes": decision, "ask": ask}]}}
 
 
-def test_an_essays_question_for_lisul_is_a_missing_fact_and_his_answer_joins_the_story_bank(monkeypatch):
+def test_an_essays_question_for_lisul_is_a_missing_fact_and_his_answer_writes_that_essay_unsaved(monkeypatch,
+                                                                                                   tmp_path):
+    """Fault: the essay was written without his answer, or the answer was saved (to his profile, or a Story bank line
+    every essay's prompt would carry), or the truth check missed it and held the essay that states its number."""
     form, tracker = ResearchForm("Northwood Space"), InMemoryTracker()
     waiting = proud_plan([], DECISION, others=False)  # no line backs any of it: nothing to write it from
     first = FakeClaude(essays={PROJECT: MICROMOUSE}, plans=[waiting, waiting])
     project = f"{answering.load()['best-project'].slots[0].holds}?"  # its first slot's question, asked first
 
-    [row] = run_all(monkeypatch, form, first, ["Example Co"], tracker=tracker)
+    profile = tmp_path / PROFILE.name  # his answer is saved into it: never into the fixture
+    for fixture in (PROFILE, PROFILE.parent / "policies.yaml"):
+        (tmp_path / fixture.name).write_text(fixture.read_text())
+    [row] = run_all(monkeypatch, form, first, ["Example Co"], profile, tracker=tracker)
 
     assert (row.status, row.missing_fact) == ("missing fact", f"Essay fact: {project}")
     assert form.submitted == []
     assert not any(PROJECT in json.dumps(c["data"]["questions"]) for c in asks(first))  # not written
     tracker.answer(row.application_id, PICKED)
-    second = FakeClaude(essays={PROJECT: MICROMOUSE}, plans=[proud_plan([PICKED])])
+    quoted = f"{MICROMOUSE} At the depot I kept all 14 parked buses apart with rotated boxes."
+    second = FakeClaude(essays={PROJECT: quoted}, plans=[proud_plan([PICKED])])
 
-    [row] = run_all(monkeypatch, form, second, ["Example Co"], tracker=tracker)
+    [row] = run_all(monkeypatch, form, second, ["Example Co"], profile, tracker=tracker)
 
-    assert f"- {project} {PICKED} (asked for Example Co, 2026-10-15)" in home.STORY_BANK.read_text()
-    assert PICKED in plans(second)[0]["prompt"]  # the plan quotes it from the Story bank
+    assert ApplicantProfile.load(profile).answered(DECISION) is None and PICKED not in home.STORY_BANK.read_text()
+    assert PICKED in plans(second)[0]["prompt"]  # the plan quotes it from this form's answers
     assert row.status == "submitted", row.reason
-    assert [a for label, a in form.submitted[0].items() if label.startswith(PROJECT)] == [MICROMOUSE]
+    assert [a for label, a in form.submitted[0].items() if label.startswith(PROJECT)] == [quoted]
 
 
 def test_an_essay_the_story_bank_tells_in_part_is_written_from_it_never_held(monkeypatch):
@@ -1259,26 +1258,20 @@ def test_a_rehearsal_lists_an_essays_question_for_lisul_and_holds_the_essay_with
     assert planned._holds(essay, False) == [f"'{PROJECT}' is written once you answer: {DECISION}"]
 
 
-def test_an_essays_question_answered_in_a_rehearsals_window_joins_the_story_bank_not_the_profile():
+def test_an_essays_question_answered_in_a_rehearsals_window_is_kept_for_that_form_alone():
+    """Fault: the answer was saved (to the profile, or the Story bank), or kept for another form."""
     from apply import cli
 
     class Tab:
         def save_answered(self, question, text):
-            raise AssertionError("not a profile fact")
+            raise AssertionError("never saved")
 
-    said = cli._answering(lambda: None, Tab())({"company": "Figma"}, f"Essay fact: {DECISION}", PICKED)
+    item = {"company": "Figma", "posting_url": "https://jobs.example.com/figma/1"}
+    said = cli._answering(lambda: None, Tab())(item, f"Essay fact: {DECISION}", f"  {PICKED}\n")
 
-    assert said == "Saved to your Story bank: the essay is written with it next time."
-    assert f"- {DECISION} {PICKED} (asked for Figma, " in home.STORY_BANK.read_text()
-
-
-def test_an_answer_saved_twice_joins_the_story_bank_once():
-    for _ in range(2):
-        essays.remember_fact(f"Essay fact: {DECISION}", f"  {PICKED}\n", "Figma", NOW.date())
-    bank = home.STORY_BANK.read_text()
-    assert bank.count(PICKED) == 1 and bank.count(essays.ANSWERED) == 1
-    assert bank.endswith(f"{essays.ANSWERED}\nThe applicant's own answers to what an essay asked during a fill, word for word.\n"
-                         f"- {DECISION} {PICKED} (asked for Figma, 2026-10-15)\n")
+    assert said == "Kept for this application only: the essay is written with it next time."
+    assert essays.TOLD == {"https://jobs.example.com/figma/1": {DECISION: PICKED}}
+    assert PICKED not in home.STORY_BANK.read_text()
 
 
 def test_the_pre_submit_review_checks_drafted_answers_against_the_profile(monkeypatch):
@@ -1321,32 +1314,6 @@ def test_the_record_lists_what_claude_drafted(monkeypatch):
     assert f"- {HOUSING}" in readme and "→ Yes" in readme
 
 
-def test_each_drafted_answer_is_listed_in_the_answers_tab_where_lisuls_edit_wins_next_run(monkeypatch, tmp_path):
-    form, tracker, path = ResearchForm("MetOx International"), InMemoryTracker(), tmp_path / "answer-bank.yaml"
-    run_all(monkeypatch, form, FakeClaude(drafts={HOUSING: "Yes"}), ["MetOx International"], bank=AnswerBank(path),
-            tracker=tracker)
-    [listed] = tracker.answers()
-    assert listed == AnswerRow(listed.question, "Yes", False, "Yes", ("Yes", "No"), "MetOx International", NOW.date())
-    assert listed.question.startswith(HOUSING)
-
-    tracker.edit_answer_as_lisul(listed.question, answer="No")
-    run_all(monkeypatch, form, FakeClaude(), ["MetOx International", "Another Co"], bank=AnswerBank(path), tracker=tracker)
-
-    assert [s[label] for s in form.submitted for label in s if label.startswith(HOUSING)] == ["Yes", "No"]
-    entry = AnswerBank(path).get(listed.question)
-    assert (entry.answer, entry.source, entry.reviewed) == ("No", "lisul", True)
-    assert len(tracker.answers()) == 1
-
-
-def test_an_answer_banked_outside_a_run_is_listed_in_the_answers_tab_at_the_next(monkeypatch):
-    bank, tracker = AnswerBank(), InMemoryTracker()
-    bank.add(Question("x", "Drafted in a rehearsal?", "select", True, ("Yes", "No")), "Yes", "Zipline", NOW.date())
-
-    run_all(monkeypatch, ResearchForm("Northwood Space"), FakeClaude(), ["Example Co"], bank=bank, tracker=tracker)
-
-    assert tracker.answers() == [AnswerRow("Drafted in a rehearsal?", "Yes", False, "Yes", ("Yes", "No"), "Zipline", NOW.date())]
-
-
 def with_policies(tmp_path, policies: str) -> Path:
     """The test profile, with a policies.yaml beside it."""
     profile = tmp_path / "profile.yaml"
@@ -1355,48 +1322,33 @@ def with_policies(tmp_path, policies: str) -> Path:
     return profile
 
 
-def banked_housing(reviewed: bool = False, uses: int = 0) -> AnswerBank:
+def banked_housing(reviewed: bool = False) -> AnswerBank:
     bank = AnswerBank()
     housing = next(q for q in ResearchForm("MetOx International").questions if q.label.startswith(HOUSING))
-    bank.add(housing, "Yes", "MetOx International", NOW.date())
-    for _ in range(uses):
-        bank.use([housing.label], NOW.date())
+    bank.add(housing, "Yes", "MetOx International")
     if reviewed:
         bank.review(housing.label)
     return bank
 
 
-def test_an_unreviewed_draft_used_max_unreviewed_uses_times_holds_the_application(monkeypatch, tmp_path):
-    profile = with_policies(tmp_path, "max_unreviewed_uses: 2\n")
+def test_with_unreviewed_answers_hold_an_application_that_takes_one_waits_for_review(monkeypatch, tmp_path):
+    profile = with_policies(tmp_path, "unreviewed_answers: hold\n")
     form, bank = ResearchForm("MetOx International"), banked_housing()
 
-    rows = run_all(monkeypatch, form, FakeClaude(), ["First Co", "Second Co", "Third Co"], profile, bank=bank)
+    [row] = run_all(monkeypatch, form, FakeClaude(), ["First Co"], profile, bank=bank)
 
-    # Workers fill at once, so which Application uses the draft first varies.
-    assert sorted(row.status for row in rows) == ["held", "held", "submitted"]
     [entry] = bank.entries()
-    reasons = " | ".join(row.reason for row in rows if row.status == "held")
-    assert f"'{entry.question}': unreviewed answer used 2 times: review it in the Answers tab" in reasons
-    assert "unreviewed answer used 3 times" in reasons
+    assert row.status == "held"
+    assert f"'{entry.question}': an answer that waits for your review: review it in the Answers tab" in row.reason
 
 
-def test_with_max_unreviewed_uses_off_a_draft_used_again_and_again_holds_nothing(monkeypatch, tmp_path):
-    profile = with_policies(tmp_path, "")
-    form, bank = ResearchForm("MetOx International"), banked_housing(uses=10)
+def test_by_default_an_unreviewed_answer_fills_at_once_and_a_reviewed_one_never_holds(monkeypatch, tmp_path):
+    form = ResearchForm("MetOx International")
+    used = run_all(monkeypatch, form, FakeClaude(), ["First Co"], with_policies(tmp_path, ""), bank=banked_housing())
+    reviewed = run_all(monkeypatch, form, FakeClaude(), ["Second Co"],
+                       with_policies(tmp_path, "unreviewed_answers: hold\n"), bank=banked_housing(reviewed=True))
 
-    rows = run_all(monkeypatch, form, FakeClaude(), ["First Co"], profile, bank=bank)
-
-    assert [row.status for row in rows] == ["submitted"], rows[0].reason
-    assert bank.entries()[0].uses == 11
-
-
-def test_a_reviewed_answer_is_never_held_for_its_uses(monkeypatch, tmp_path):
-    profile = with_policies(tmp_path, "max_unreviewed_uses: 1\n")
-    form, bank = ResearchForm("MetOx International"), banked_housing(reviewed=True, uses=5)
-
-    rows = run_all(monkeypatch, form, FakeClaude(), ["First Co"], profile, bank=bank)
-
-    assert [row.status for row in rows] == ["submitted"], rows[0].reason
+    assert [row.status for row in used + reviewed] == ["submitted", "submitted"], [r.reason for r in used + reviewed]
 
 
 def test_a_cover_letter_is_written_to_the_template_slot_by_slot_then_edited():
@@ -1412,7 +1364,7 @@ def test_a_cover_letter_is_written_to_the_template_slot_by_slot_then_edited():
         if kind == "essays.plan":
             return FakeClaude().ask_kind(kind, data)
         if kind == "essays.write":
-            return {"essays": {"q1": paragraphs | {"needs_lisul": False}}}
+            return {"essays": {"q1": paragraphs | {"needs_applicant": False}}}
         return {"edited": {"q1": edited}} if kind == "writing.edit" else {"unsupported": {"q1": []}}
     claude.ask_kind = ask_kind
 
@@ -1490,7 +1442,7 @@ def test_an_essay_about_an_answer_given_above_sees_that_answer(monkeypatch):
         Question("listed", FIGMA_LISTED, "textarea", True, description="2-4 sentences."),
     ]
     bank = AnswerBank()
-    bank.answer(FIGMA_AREAS, "Infrastructure", NOW.date())
+    bank.answer(FIGMA_AREAS, "Infrastructure")
     claude = FakeClaude(essays={FIGMA_LISTED[:40]: MICROMOUSE})
 
     run(monkeypatch, form, claude, bank=bank)
@@ -1557,7 +1509,6 @@ def test_an_answer_still_holding_a_tell_is_edited_once_more_with_it_flagged():
     assert _flagged_with(sent[1], "pivotal")
 
 
-
 def test_tells_and_copied_runs_are_found():
     assert writing.tells("A pivotal, robust result — truly!") == ("pivotal", "robust", "—", "!")
     assert writing.tells("I built a scraper and tested it.") == ()
@@ -1613,7 +1564,7 @@ def test_the_review_is_told_which_answers_are_lisuls_own_from_the_bank(monkeypat
     claude = FakeClaude()
 
     form, bank = ResearchForm("MetOx International"), AnswerBank()
-    bank.answer(next(q.label for q in form.questions if q.label.startswith(HOUSING)), "Yes", NOW.date())
+    bank.answer(next(q.label for q in form.questions if q.label.startswith(HOUSING)), "Yes")
 
     run_all(monkeypatch, form, claude, ["First Co"], profile, bank=bank)
 
@@ -2133,24 +2084,32 @@ def test_a_question_for_facts_apply_already_holds_never_reaches_lisul():
     planned._on_files = lambda files: None
     planned.profile, planned._bank = ApplicantProfile.load(PROFILE, POLICIES), AnswerBank()
     planned.posting, planned._today = FIGMA, NOW.date()
-    planned._bank.add(Question("x", "Why us?", "text"), "Made-up reason.", "Example Co", NOW.date())
+    planned._bank.add(Question("x", "Why us?", "text"), "Made-up reason.", "Example Co")
     assert planned._missing(planned.questions, [f"Essay fact: {ask}"]) is None
     assert planned.missing == () and planned.answers == {"g": "https://github.com/test-person", "w": "Made-up reason."}
 
 
+def saved_before_told(asked: str, answer: str, company: str) -> None:
+    """An Essay fact answer as a Developer checkout's Story bank holds one from before essays.TOLD (2026-11-26)."""
+    fact = f"- {asked.removeprefix(essays.ASK)} {answer}"
+    home.add_story_line(f"{essays.ANSWERED}\nThe applicant's own answers to what an essay asked during a fill.",
+                        f"{fact} (asked for {company}, {NOW.date().isoformat()})", fact)
+
+
 def test_an_essay_fact_that_names_its_company_is_read_only_on_that_companys_forms():
-    # Fault: a Strava-only answer in the Story bank reaches another company's essays or questions (Strava, 2026-11-26).
+    # Fault: a Strava-only answer in an older checkout's Story bank reaches another company's essays or questions
+    # (Strava, 2026-11-26).
     asked = "Essay fact: Are you applying to any Strava internship besides this one?"
-    essays.remember_fact(asked, "No. This is the only Strava internship I'm applying to.", "Strava", NOW.date())
-    essays.remember_fact("Essay fact: Which club did you lead?", "The robotics club.", "Strava", NOW.date())
+    saved_before_told(asked, "No. This is the only Strava internship I'm applying to.", "Strava")
+    saved_before_told("Essay fact: Which club did you lead?", "The robotics club.", "Strava")
 
     assert "only Strava internship" in essays.story_bank("Strava")
     assert "only Strava internship" not in essays.story_bank("Acme")
     assert "only Strava internship" not in essays.story_bank()
     assert "The robotics club." in essays.story_bank("Acme")  # true anywhere: every company's
     # One that doesn't name its company but asks of other roles there is that company's too.
-    essays.remember_fact("Essay fact: Are you applying to other internships here?", "No, only this one I'm applying to.",
-                         "Strava", NOW.date())
+    saved_before_told("Essay fact: Are you applying to other internships here?", "No, only this one I'm applying to.",
+                      "Strava")
     assert "only this one" in essays.story_bank("Strava") and "only this one" not in essays.story_bank("Acme")
     assert "only Strava internship" not in essays.sources(ApplicantProfile.load(PROFILE, POLICIES), employer="Acme")
     profile = ApplicantProfile({}, home.HOME, {})
@@ -2253,12 +2212,12 @@ def test_a_web_address_field_gets_only_a_bare_url(monkeypatch):
 
     def ask_kind(kind, data):
         claude.kinds.append({"kind": kind, "data": data})
-        return {"drafts": {"d1": {"answer": asked, "needs_lisul": False, "facts": []}}}
+        return {"drafts": {"d1": {"answer": asked, "needs_applicant": False, "facts": []}}}
     claude.ask_kind = ask_kind
 
     _, [draft] = essays.answer(claude, posting, [], [site], ApplicantProfile.load(PROFILE, POLICIES))
 
-    assert draft.answer == "https://github.com/test/solver" and not draft.needs_lisul
+    assert draft.answer == "https://github.com/test/solver" and not draft.needs_applicant
     assert claude.kinds[-1]["data"]["short_questions"]["d1"]["url"] is True
     assert essays.bare_url("See https://a.example/x and https://b.example/y.") == ""  # which one is meant: unsure
     assert essays.bare_url("The solver, which I wrote.") == ""

@@ -56,6 +56,11 @@ if TYPE_CHECKING:
     from apply.claude_cli import ClaudeCLI
 
 
+# The version of each WorkIt kind this app reads, where it is not 1 (backend/app/apply_prompts/).
+# essays.write 2: a question only the applicant can answer is flagged needs_applicant.
+VERSIONS = {"essays.write": 2}
+
+
 @dataclass(frozen=True)
 class Provider:
     """An OpenAI-compatible chat API that `ask` can use."""
@@ -442,8 +447,9 @@ class WorkItAsk:
     def reading(self) -> UsageReading:
         """The run's usage (Adapters.usage): `claude`'s (a Developer checkout's Max windows), and limited from the
         moment today's use reaches WorkIt's Usage cap (GET /apply-app/usage) until it resets, so no form opens until
-        then (rehearsal._after_the_limit, orchestrator._resume_at). WorkIt not answering reads as not limited: the
-        next ask says what is wrong itself."""
+        then (rehearsal._after_the_limit, orchestrator._resume_at), and the Answer bank's version (W11), which the
+        run follows (AnswerBank.follow). WorkIt not answering reads as not limited: the next ask says what is wrong
+        itself."""
         try:
             reading = self._claude.reading()
         except SetupError:  # no claude -p on this Mac: only drive and research need it, and they say so
@@ -452,6 +458,7 @@ class WorkItAsk:
             usage = self._workit.call("GET", "/apply-app/usage")
         except WorkItError:
             return reading
+        reading = replace(reading, bank_version=usage.get("bank_version"))
         if usage["used"] < usage["cap"]:
             return reading
         # Local and naive, as the Clock's and claude_cli's times are; a minute away at least, so a Mac clock a little
@@ -469,7 +476,7 @@ class WorkItAsk:
         """WorkIt's answer. Its per-minute limit is waited out once, and WorkIt down or every model busy
         (BUSY_WAITS); its Usage cap raises UsageLimitHit, which pauses the run until the cap resets (midnight
         UTC)."""
-        return self._post("/apply-app/ask", {"kind": kind, "version": 1, "data": data}, kind)
+        return self._post("/apply-app/ask", {"kind": kind, "version": VERSIONS.get(kind, 1), "data": data}, kind)
 
     def _post(self, path: str, body: dict, kind: str) -> dict:
         waited, busy = False, list(BUSY_WAITS)

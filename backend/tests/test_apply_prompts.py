@@ -57,6 +57,10 @@ SAMPLES = {
 }
 
 
+# Version 2 takes version 1's data; only its answer's flag is named again.
+SAMPLES["essays.write", 2] = SAMPLES["essays.write", 1]
+
+
 def _built(key):
     kind = KINDS[key]
     data = kind.data.model_validate(SAMPLES[key])
@@ -106,10 +110,19 @@ def test_a_plan_has_an_entry_for_each_question_and_lists_only_the_asked_types():
 
 
 def test_a_cover_letter_is_written_in_its_slots_and_a_choice_from_its_options():
-    schema = _built(("essays.write", 1)).schema["properties"]
+    schema = _built(("essays.write", 2)).schema["properties"]
     assert set(schema["essays"]["properties"]["q2"]["properties"]) >= {"opening", "proof", "closing"}
     area = schema["drafts"]["properties"]["d1"]["properties"]["answer"]
     assert area == {"type": "array", "items": {"type": "string", "enum": ["Backend", "ML"]}, "maxItems": 2}
+
+
+def test_version_1_of_the_writing_call_differs_from_2_only_in_the_applicant_s_flag():
+    """An app copy older than version 2 reads `needs_lisul`; version 2 says `needs_applicant`."""
+    old, new = _built(("essays.write", 1)), _built(("essays.write", 2))
+    assert "needs_lisul" not in new.system + json.dumps(new.schema)
+    assert old.system == new.system.replace("needs_applicant", "needs_lisul")
+    assert old.schema == json.loads(json.dumps(new.schema).replace('"needs_applicant"', '"needs_lisul"'))
+    assert old.prompt == new.prompt
 
 
 def test_a_web_address_field_is_asked_for_a_bare_url():
@@ -139,8 +152,8 @@ def test_write_data_that_doesnt_hold_together_is_refused(change):
 def test_only_the_calls_apply_says_as_the_applicant_get_the_pronouns_note():
     # Apply's as_applicant wraps essays.py's calls, the recording brief and the Pre-submit review (worker.py), no others.
     assert {key for key, kind in KINDS.items() if kind.applicant} == {
-        ("essays.plan", 1), ("essays.write", 1), ("writing.check", 1), ("writing.edit", 1), ("probe.typical", 1),
-        ("recording.brief", 1), ("presubmit.review", 1), ("presubmit.fix", 1)}
+        ("essays.plan", 1), ("essays.write", 1), ("essays.write", 2), ("writing.check", 1), ("writing.edit", 1),
+        ("probe.typical", 1), ("recording.brief", 1), ("presubmit.review", 1), ("presubmit.fix", 1)}
     assert "pronouns" not in _built(("brief.team", 1)).system
 
 
@@ -216,7 +229,7 @@ def test_an_opinion_question_with_closest_facts_is_answered_never_asked():
     assert "closest facts" in built.prompt and "never give a slot an ask" in built.system
     drafted = essays.write(essays.WriteData.model_validate(
         {**SAMPLES["essays.write", 1], "short_questions": {"d1": AREA | {"closest_facts": True}}}))
-    assert '"closest_facts": true' in drafted.prompt and "never set needs_lisul for it" in drafted.system
+    assert '"closest_facts": true' in drafted.prompt and "never set needs_applicant for it" in drafted.system
     plain = essays.plan(essays.PlanData.model_validate(SAMPLES["essays.plan", 1]))
     assert "closest facts" not in plain.prompt + plain.system
 
@@ -228,6 +241,6 @@ def test_an_essay_the_sources_tell_in_part_is_written_from_the_nearest_facts_wit
                "closest_facts": True}
     built = essays.write(essays.WriteData.model_validate(
         {**SAMPLES["essays.write", 1], "questions": {"q1": younger}, "plans": {"q1": {"type": "best-project"}}}))
-    assert "closest facts" in built.prompt and "never set needs_lisul for it" in built.system
+    assert "closest facts" in built.prompt and "never set needs_applicant for it" in built.system
     assert "give the nearest thing the sources state about that story" in built.system
     assert "never with an age or a year they don't give" in built.system

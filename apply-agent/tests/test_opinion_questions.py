@@ -57,12 +57,12 @@ def test_its_plan_asks_nothing_and_keeps_only_the_backed_slots():
 
 # Fault: a one-off opinion question dropped as a Missing fact though Claude answered it from the sources.
 def test_a_drafted_answer_stands_whatever_needs_lisul_says():
-    given = {"answer": "The portfolio site styled after VS Code", "needs_lisul": True}
+    given = {"answer": "The portfolio site styled after VS Code", "needs_applicant": True}
     prompt = "example.com, a portfolio site styled after VS Code"
     q = Question("d1", "What's your favorite thing you've built?", "text")
     assert essays._draft(q, given, prompt, Profile(), prompt, nearest=True).answer == given["answer"]
-    assert essays._draft(q, given, prompt, Profile(), prompt).needs_lisul
-    assert essays._draft(q, {"answer": "", "needs_lisul": True}, prompt, Profile(), prompt, nearest=True).needs_lisul
+    assert essays._draft(q, given, prompt, Profile(), prompt).needs_applicant
+    assert essays._draft(q, {"answer": "", "needs_applicant": True}, prompt, Profile(), prompt, nearest=True).needs_applicant
 
 
 # Fault: an essay naming the tools that fill the form reaches it (it says the application was automated).

@@ -194,7 +194,26 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
   PDF named resume) kept as the Sent resume. This is
   `WorkIt.record_applied`, the import's write sequence. A job that is
   applied or later on WorkIt already stays as it is ("already
-  interviewing").
+  interviewing"). **WorkIt Auto Apply's applied write** (W11, 2026-11-27)
+  names the Sent resume by its id on WorkIt instead (`Write.resume_ref`:
+  the tailored resume the form was given, `tailored.GIVEN`, else the
+  profile's, `student.RESUME_REF`; `POST .../sent-resumes`), since it keeps
+  no `sent/` copy, and carries what the form sent (`Write.answers`, from
+  `rehearsal.sent_answers` at the Submit, with what each field showed at
+  the press, `apply.sent_capture`; `PUT .../applications/{job}/sent`).
+  The answers go even to a job already applied: a write WorkIt took the
+  stage of, its answers lost on the way, is sent again and finds it
+  applied, and WorkIt's 409 for answers it has already counts as kept.
+  The Sent resume is named only when the form took the resume
+  (`student.resume_ref`); a resume WorkIt no longer has (404: deleted on
+  the website while the form was held) names none, and the Submit still
+  goes on the Tracker with its answers. Each fetch of a tailored resume
+  first drops the id an earlier fill of the job left (`tailored.GIVEN`). Once WorkIt has it, `WaitingWrites(delivered=)` deletes the
+  application's files from the Mac (`apply.local_data`); a write that
+  waits keeps its answers in `workit-queue.json` until it is sent. Its
+  Tracker is `tracker.KeychainTracker`: no `tracker.json`, its rows in
+  memory for the run, its Employer accounts in the keychain
+  (`tracker.ACCOUNT_LIST`).
   handoff, missing fact and held to `needs_you` (the stage PUT; a 409
   means the job is applied already, and is not an error). Apply never
   writes `queued`: on WorkIt that is the batch apply queue, and the
@@ -256,62 +275,173 @@ sends a `workit.Write` through a `workit.WaitingWrites`.
 in Chromium: a submit by Lisul is Applied with the Sent resume, and no
 submit sends nothing. `-k saves_the_record_again` checks his submit's Record.
 
-## The Answer bank's sync to WorkIt (KAN-746)
+## The Answer bank lives on WorkIt (W11)
 
-`src/apply/answer_sync.py`. Before, the backend's import
-(`backend/app/scripts/import_apply_profile.py`) copied the Answer bank into
-WorkIt one time, and a later answer reached the extension only with the
-import run again.
+`src/apply/answer_bank.py`, W11 of `../../docs/desktop_application_auto_apply.md`;
+why it left the data folder is `adr/0007-the-answer-bank-lives-on-workit.md`.
+The bank is no file in the data folder: it is the student's on WorkIt,
+which the extension fills from too, so an answer given in one fills forms
+in the other. KAN-746's opt-in sync (`answer_sync.py`, `apply sync-answers`,
+`workit_sync`, `workit-answers-queue.json`) went with the YAML file.
 
-- **Opt-in, off by default.** `policies.yaml`: `workit_sync: {answers:
-  true}`, with `apply login`. Off, the bank writes no `edited_at` and sends
-  nothing. A user with no WorkIt account leaves it off.
-- **Each change goes.** `cli._answer_bank` builds every live Answer bank
-  through `answer_sync.bank`, which gives it an `on_change`. A write that
-  changes an entry's question, answer, options, source, reviewed, first
-  seen or none stamps the entry `edited_at` (UTC) in the file and sends it
-  after the file is saved; a delete sends a delete. A counted use sends
-  nothing. A sync that fails never fails the bank's write.
-- **The route.** `WorkIt.sync_answers`: `PATCH
-  /applicants/{id}/fill-answers` with `{"answers": [...], "deleted":
-  [...]}`, at most 200 of each a call. Apply sends each entry as filed;
-  WorkIt maps it with the import's rules (`backend/app/services/apply_answers.py`).
-- **Never Claude's draft as the student's own.** WorkIt marks an entry own
-  only with `source: lisul`, and never one marked `reviewed: false`. Apply
-  sends `source` and `reviewed` as the bank has them and never an `own`, so
-  a draft Claude wrote goes as Claude's, as the import brings it.
-- **Conflicts: a newer edit wins.** WorkIt keeps its stored entry when its
-  `edited_at` is newer than the change's, and names the question in
-  `kept`. An entry with no `edited_at` (changed before the sync was on)
-  never replaces one WorkIt has a time for. The sync never writes the
-  answers the student saved on WorkIt's own pages (`written_answers`), and
-  WorkIt serves the student's own words newest first, so an older Apply
-  answer never beats one the student edited on the site, and a newer one does.
-- **WorkIt down, no login, or the cap.** The change waits in
-  `APPLY_HOME/workit-answers-queue.json`, the newest per question, and goes
-  with the next change or `apply sync-answers`. A refusal (a 4xx) drops
-  that batch and says so on stderr, with the status only: a refusal's
-  detail can quote the answer.
-- **WorkIt's caps are checked here first** (`payload`), so one entry
-  never sinks a batch: an option list is cut to 200 (WorkIt reads only that
-  there are options), and a question over 1000 characters or an answer over
-  20000 stays on this Mac, counted in the report.
-- **WorkIt's clock decides.** A time ahead of WorkIt's clock counts as
-  WorkIt's now, so a fast Mac never puts an Apply answer above a later
-  edit on the site.
-- **Edits made while the sync was off carry no time**, so catch-up never
-  replaces an entry WorkIt has a time for. Edit the answer again in Apply
-  to send it as the newer one.
-- **`apply sync-answers`** sends the whole bank one time, for catch-up: after
-  turning the sync on, or after hand edits to `answer-bank.yaml`. It prints
-  counts and the questions WorkIt kept, never an answer, and exits 1 while
-  any change still waits. It works with the sync off too, and then says how
-  to turn it on.
+- **Read once, into memory.** `GET /applicants/{id}/answer-bank`
+  (`WorkIt.answer_bank`) gives the whole bank and its version (the ETag).
+  WorkIt Auto Apply reads it at startup in the background
+  (`load_in_background`): the window opens at once, the Answers tab says
+  why while it waits, and Start waits for it, trying again at once on a
+  press (`wake`). A Developer command reads it before it starts, and stops
+  with the error when WorkIt doesn't answer (`cli._answer_bank`). The
+  window and every Worker of a process share the one bank.
+- **Each entry is a question and an answer**, `own` for the student's (or
+  a draft they reviewed) and `none` for a multi-select's "none of these".
+  No source, company, date, use count or facts. **`options` only on the
+  student's own list pick** (`save_pick`, `fill_engine.remember`: a 3.85
+  on a GPA list in steps of 0.05, Freeform 2026-11-26): WorkIt keeps them,
+  the engine gives the pick only to a form offering just that list, and a
+  change that names none keeps them (`_saved`, as WorkIt does). A draft
+  has none: the engine maps its text to each form's options. The old
+  file's upload sends none, since that file kept every choice's list.
+  **`reviewed(question, company)`** is the student's own answer filed for
+  that company alone ("<question> (<company> only)") first, else by its
+  wording; it wins over any draft or essay (Strava, 2026-11-26). **Still
+  open:** `main`'s stale drafts (ENFOS, 2026-11-26) need each draft's Story
+  bank facts, which WorkIt's entries don't keep; left out for now.
+- **Test Person's bank** (sample data) is memory only, with no WorkIt,
+  and keeps no drafts (`AnswerBank(drafts=False)`).
+- **The Answers tab edits only a bank that has come from WorkIt**: before,
+  an edit answers 503 with why, since the bank landing after it would drop
+  it. Its labels say what the model's drafts are: "Needs review" and
+  "Drafted for you", beside "Written by you", and its Reviewed takes the
+  flag off.
+- **Masking.** No file holds the bank's answers, so the bank gives each one
+  to `masked.KNOWN` as it reads or writes it; `apply trace` reads the bank
+  first, and a report's Trace takes the window's (`Known.take`).
+- **Every change goes to WorkIt through one sender thread**
+  (`PATCH /applicants/{id}/answer-bank`, `WorkIt.change_answer_bank`), one
+  PATCH for each change, in order, so a refusal drops that change alone.
+  Memory changes only from WorkIt's reply: an entry its rule keeps out
+  never fills a form. A reply whose version is not the bank's own plus
+  one means another writer saved meanwhile, and the bank is read again.
+  - The model's drafts never wait, since the form holds its draft. Each
+    names its form by `job_id` when the run's link came from the
+    student's Auto Apply queue (`Posting.job_id`, from the window's
+    `queue()` through `Adapters.jobs`), else by `company`. Apply no longer
+    decides itself that a draft is about the company: WorkIt's rule does.
+    A bare date no section places is never sent.
+  - The student's own changes (the Answers tab's Save, Add, Reviewed and
+    Delete, and Ask Claude's saved offer) go ahead of the drafts, take the
+    place of a waiting draft to the same question, and wait up to
+    `EDIT_WAIT` (10 s) for the reply. What WorkIt kept out, refused or
+    didn't answer is `NotSaved`, which the tab shows with the student's
+    text kept.
+  - The pre-submit review's fix sends a delete of the draft it found
+    wrong (`drop_draft`), never of the student's own. A draft still on
+    its way goes too: one waiting is taken out, and one being sent is
+    deleted once WorkIt saves it. Regenerate sends a new flagged draft
+    (`redraft`) and claims no save: WorkIt's rule may keep it out.
+  - Reviewed sends the answer as a pick (`choice`), so WorkIt's rule reads
+    its question alone, as when the answer entered: read as text, a pick
+    such as "Google" names a company the student applied to, and could
+    never be reviewed.
+  - A change WorkIt doesn't answer (no reply, a 5xx) is sent again after
+    1, 5 and 30 seconds, then dropped; a refusal (a 4xx) is dropped at
+    once. The log names the question only, masked. At quit the sender has
+    5 seconds (`close`: the app's `finally`, a command's `atexit`).
+- **Before each Application the bank follows WorkIt's version**
+  (`AnswerBank.follow`): the run's usage reading (`GET /apply-app/usage`,
+  `UsageReading.bank_version`) carries it, and when it is not memory's
+  the bank is read again, so an answer saved in the extension fills the
+  next Application. A Developer checkout off the Model route has no such
+  reading, so the bank asks the usage route itself. A read that fails
+  keeps memory, and the next Application tries again. A read older than
+  memory changes nothing: answered before a save reached WorkIt but
+  landing after its reply, it would undo the save. While no run goes,
+  a change made elsewhere waits for the next run.
+- **A Developer checkout's `answer-bank.yaml` from before** (in the
+  profile's folder) goes to WorkIt once, as a command starts
+  (`cli._answer_bank`, `AnswerBank.upload`): a `lisul` answer not marked
+  unreviewed as the student's own and the rest flagged, in PATCHes of
+  100, each through WorkIt's rule, with no word. Only what WorkIt lacks
+  goes: a question it doesn't hold, or the student's own answer where it
+  holds a model's draft (theirs wins, as at any save). Once the bank is
+  read again, the file becomes `answer-bank.before-workit.yaml`. A failed
+  upload says so in one line, keeps the file, and the next command sends
+  what WorkIt still lacks. WorkIt Auto Apply never
+  uploads, and shows nothing for it: no student has the file.
+  `sample/answer-bank.yaml` went with it.
 
-**Tests.** `tests/test_answer_sync.py` (in CI) runs the bank and the command
-against `tests/fake_workit.py`, with fixture banks only. The backend's
-`backend/tests/test_fill_answers_sync.py` runs the route and the conflict
-rule on Postgres.
+**WorkIt Auto Apply's profile is WorkIt's too** (W11, 2026-11-24,
+`student.profile_from_workit`). The app keeps no Applicant profile file
+and never copies Test Person. Each Start reads `GET /apply-app/profile`
+(`WorkIt.applicant_profile`): the student's Fill engine profile and
+policies, built on the server exactly as the extension builds them, so
+the app fills as the extension does. The policies lie over the app's own,
+and an empty one never wipes Apply's (`high_stakes_job_systems: [ashby]`
+stays). "How did you hear about us?" stays Apply's, "Company careers
+page": WorkIt's answer, "WorkIt", is the extension's alone (decided
+2026-11-26). The default resume and the transcript are read then too
+(`WorkIt.profile_file`) and kept in `home.HOME / "files"`, by their names
+alone, for a form's upload. A Start WorkIt doesn't answer says so and
+changes nothing. What the student answers in Needs you goes back
+(`student.to_workit`, `PATCH /apply-app/profile`): answers by question,
+the facts the Fill engine read from them, never a file's path, and the
+questions whose answers the student removed on the Answers page
+(`remove_answered`, sent only when there is one, so a save still reaches a
+server from before it), in order, so an answer given again after its
+Remove wins. A fact one of the website's own fields holds (an Application
+answer, the phone, a link) WorkIt saves in that field, as the website
+saves it, so the student sees it there (backend
+`services/workit_fields.py`); the app changes nothing for it. A send
+WorkIt doesn't answer stays in the profile and goes with the next save. The website's Application Info shows and edits the
+same answers (`GET /apply-app/answered`, the same PATCH). A
+report's log is masked with the profile read from WorkIt as it goes. A
+Developer checkout keeps its profile file and Test Person. Tests:
+`tests/test_profile_from_workit.py`.
+
+**The Story bank and voice are WorkIt's too** (2026-11-26). The same read
+answers `writing`: the Story bank WorkIt builds from the student's writing
+samples and experience bank, in the layout essays read, and their style
+card as the voice. The app holds them
+in memory (`home.WORKIT`, set at launch and at each Start), and every
+reader goes through `home.story_bank()` and `writing.style_card()`, so it
+never reads the data folder's `story-bank.md` or `voice.md`: in a
+Developer checkout's `apply app`, those are the developer's own. **A fill
+adds nothing to the Story bank on WorkIt**, since every essay's prompt and
+truth check carries all of it, and it would grow with every application.
+**The student's answer to an Essay fact is never saved** (2026-11-26, the
+user's call): not on WorkIt, not in the profile, not in a file. The app
+keeps it in memory for the form that asked (`essays.TOLD`, by the
+Posting's URL: `essays.tell`, from the window or a held Application's
+Tracker row) until the student submits that form (rehearsal's
+`submitted` drops it) or the app quits, and that form's essays get it in `<form_answers>` when it
+is filled again, so the new plan quotes it however it words the ask. The truth check counts it as
+his own fact (`own_facts`' `mine`), or an essay that states its number was held as made up. A
+later form that asks the same asks again: an ask's words change from
+plan to plan, and one essay's fact seldom fits another's, so a kept
+answer would be a copy nothing reads. After a quit, the student answers
+again. The window's card says so ("We use this for this application's
+essay only", `window/src/view.ts`'s `reuse`). Context typed on
+Regenerate (`regenerate.keep_context`) goes through `home.add_story_line`:
+into the file in a Developer command, and in the app into memory only, for
+the checks of the answer it was typed for. The Stock answers the profile holds
+(`stock_answers`) come and go as its other facts. A developer's
+`stock-answers.yaml` and story map are still read in their `apply app`,
+and each entry that the Story bank's lines no longer back is left out,
+as in any command. Company briefs are W9's: the app reads none yet.
+
+**`uv run apply upload`** (`cli.upload`) sends a Developer checkout's own
+`applicant-profile.yaml`, `story-bank.md` and `voice.md` to WorkIt (`POST /apply-app/profile/upload`), so its
+`apply app` fills with the developer's own data, through the students'
+pipeline. WorkIt keeps only what it lacks: a fact with no value there
+(never a file: upload the resume on WorkIt's website), a new answer, and
+writing samples and a style card only for an account with
+none. A second upload changes nothing edited on WorkIt since. The files
+stay, for every other command, and Test Person's sample is never sent.
+
+**Tests.** `tests/test_answer_bank.py` (in CI) runs the bank against
+`tests/fake_bank.py`, a fake of WorkIt's bank that keeps entries out,
+fails, refuses or holds a reply. The backend's `backend/tests/test_answer_bank.py` runs the
+routes and WorkIt's rule on Postgres.
 
 ## Already applied: no form is opened again (KAN-621)
 
@@ -328,7 +458,17 @@ WorkIt one time per run or rehearsal, through `WorkIt.applications`.
     (`job_key`, so another Greenhouse host matches too);
   - Apply's Tracker (`tracker.json`) has a submitted row with the same
     Application ID or job;
-  - a Record of the same Application has `after-submit.png`.
+  - a Record of the same Application has `after-submit.png`;
+  - an applied write for the same job still waits for WorkIt
+    (`workit-queue.json`). WorkIt Auto Apply keeps no `tracker.json` and no
+    Record past a submit (W11), so this is what knows a submit made while
+    WorkIt was down; each Start sends the waiting writes first.
+- In the Student build the applications it reads also become the
+  Tracker's rows for the run (`tracker.ON_WORKIT`, read through
+  `tracker.saved`), so `past_applications` and `other_roles.others` see
+  what Lisul applied to with no Tracker file. The list is emptied before
+  each read: Sign Out doesn't quit the app, and a failed read must leave
+  none of the last student's applications.
 - A rehearsal of such a link ends as "already applied". Its terminal line
   and its tile say "Already applied on <date> (<source>)". No browser
   opens. A run makes it a Handoff and opens no form.

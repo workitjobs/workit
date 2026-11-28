@@ -102,6 +102,9 @@ class Posting:
     company: str
     title: str
     url: str
+    # WorkIt's job, when the student's Auto Apply queue gave the link: the Answer bank's drafts name their form by
+    # it, so WorkIt's rule reads the job's company itself (W11).
+    job_id: str = ""
 
     @property
     def job_system(self) -> str:

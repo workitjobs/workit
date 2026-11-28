@@ -190,7 +190,7 @@ Read the file that matches your change. Update it in the same PR: it counts as
 this folder's `CLAUDE.md` for its area.
 
 - `docs/fill-engine.md`: Apply's plan rules, `fill_engine.py`, `APPLY_FILL_ENGINE`, or what the plan answers from the Tracker, the Answer bank or a bare date.
-- `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, `sync-answers` (the Answer bank sync), a Tracker write, the already-applied check, the resume check, or the tailored resume.
+- `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, the Answer bank on WorkIt (W11), a Tracker write, the already-applied check, the resume check, or the tailored resume.
 - `docs/held-forms.md`: verifying, a flag, Resume, Regenerate, Ask Claude, Fill again (`apply fill-again`), page gates, a held form's job-site session (`keepalive.py`), or how a question reaches Needs you.
 - `docs/ask-model.md`: `ask_model`, `ask_model.py` (Groq, Gemini), the lean essay prompts, or another model behind `ask` (`Adapters.claude`).
 - `docs/prompts-and-gates.md`: a prompt, a length, cap or names gate, or the catch-all box rule.
@@ -212,14 +212,17 @@ this folder's `CLAUDE.md` for its area.
 **Personal data is never in the repo.** WorkIt is a public repo. All of a
 person's data is in one folder, `APPLY_HOME` (default `~/.config/apply/`):
 
-- the applicant profile, answer bank, story bank, voice and story map;
+- the applicant profile, story bank, voice and story map (the Answer bank
+  is the one exception: it lives on WorkIt, W11, `docs/workit.md`, on
+  purpose: `docs/adr/0007-the-answer-bank-lives-on-workit.md`; in WorkIt
+  Auto Apply the profile, Story bank and voice are WorkIt's too, and a
+  Developer checkout sends its own with `uv run apply upload`);
 - the company briefs and stock answers;
 - a `policies.yaml` that overrides `policies.default.yaml` key by key.
 - the WorkIt login's lock (`workit-login.lock`); the login itself is in
   the system's keychain (`apply-workit`, `docs/workit.md`).
 - Apply's Tracker (`tracker.json`) and the writes that wait for WorkIt
-  (`workit-queue.json`, and the Answer bank's changes in
-  `workit-answers-queue.json`, KAN-746).
+  (`workit-queue.json`).
 - the tailored resumes that Apply gave to forms (`tailored/`, KAN-547).
 
 Apply also writes its output there: rehearsal records, Repairs, Traces and
@@ -229,13 +232,48 @@ WorkIt Auto Apply's own data folder is `home.APP_FOLDER`, each OS's
 standard place from `platformdirs` (D25); W5 makes it the Student build's
 `APPLY_HOME`.
 
+**WorkIt Auto Apply keeps on the Mac only what can't leave it** (W11,
+2026-11-27, `src/apply/local_data.py`): the Worker Chrome profiles and
+their seed, the keychain (its WorkIt sign-in, each job-site account's
+password, and the list of those accounts, `tracker.ACCOUNT_LIST`), each
+open form's working files while it is open (its Record, trace and dismissed
+flags; `open-forms.json`), small caches with no personal data, and the
+writes that wait for WorkIt. It writes no `tracker.json` (`KeychainTracker`:
+rows in memory for the run), no `sent/` copies, and deletes a tailored
+resume once the form has it (Fill again reads it from WorkIt again). At the
+student's Submit, what the form sent goes to WorkIt with the applied write
+(`rehearsal.sent_answers`, `PUT .../sent`), as the form showed it at the
+press: `apply.sent_capture` reads every question's field on each press of a
+button on the held form, the student's own edits included, and Approve and
+submit reads it just before Apply presses. The Sent resume goes by its id,
+only when the form took the resume (a file of its name among what it sent);
+once WorkIt has it, the application's files go (`local_data.forget`), and
+at once when the student lets a form go. `local_data.sweep` runs as the app
+opens: every application's files but an open form's, the profile's file
+copies, and an older version's `tracker.json`, its accounts moved into the
+keychain first; a sweep that fails (a keychain the student denied) never
+stops the window. **With no Tracker file and no Record past a submit, two
+things read elsewhere:** the already-applied check counts an applied write
+still waiting for WorkIt, so a submit made while WorkIt was down is never
+filled again, and each Start sends the waiting writes first
+(`student.send_waiting`); and what Lisul applied to before (the screener
+facts, other roles at the company) comes from WorkIt's Applications
+Tracker, which the check reads once a run into `tracker.ON_WORKIT`. Only
+`build.STUDENT`: a Developer checkout keeps all of these, which are its
+own.
+
 The repo holds only generic inputs: `policies.default.yaml` (with
 `live_runs` off) and the profile template. The Question types come from
 WorkIt (`GET /apply-app/types`, `apply.answering`) into the data folder's
 `question-types.json` when a run starts; the answering guides live only on
 the server (`../backend/app/apply_prompts/answering/`).
-When `APPLY_HOME` has no profile, Apply copies the Test Person sample data
-into it and the window shows "Sample data".
+In a Developer checkout, when `APPLY_HOME` has no profile, Apply copies the
+Test Person sample data into it and the window shows "Sample data".
+**WorkIt Auto Apply never does** (W11, 2026-11-24): its profile is WorkIt's,
+read at each Start with the files it names (`docs/workit.md`), and it keeps
+no profile file, so a first launch needs no `sample/`. `sample/` is a
+Developer checkout's only: kept in the repo, ignored for new files, and
+left out of the app's build.
 
 - Never commit a data file. `.gitignore` here lists each data file name.
 - **Agents: never read this folder raw.** Run `uv run apply data keys [FILE]`
@@ -250,7 +288,10 @@ into it and the window shows "Sample data".
   sign-in page: its challenge is no secret, and the mask hid it.
   Traces and Records are files on this Mac and keep the real values; `apply
   trace` prints through the same mask, which can't catch a value that no data
-  file holds.
+  file holds. The Answer bank's answers are on WorkIt, not in a file (W11):
+  a process learns them as its bank reads them, `apply trace` reads the bank
+  first (and says so when it can't), and a report's Trace takes the
+  window's own (`masked.Known.take`).
 - To stop raw reads in Claude Code, install
   `tools/block-apply-home-reads.sh` as a PreToolUse hook. Nothing installs it
   for you. In `~/.claude/settings.json`, with the path to your checkout:
@@ -722,10 +763,9 @@ notices strict (above).
   folder, which the seed setup copies for Load unpacked, is there only for
   now: it shrinks to what the store copy needs once W6 ships it. The Test
   Person sample (`sample/`) is not in the app (2026-11-24): a student's app
-  has no Test Person, and its data comes from WorkIt (W11). Until W11 stops
-  `student.app` from copying it (`home.fill_from_sample`), a built app whose
-  data folder has no Applicant profile stops at launch, since the sample it
-  copies isn't there. A plain
+  has no Test Person, and its profile comes from WorkIt at each Start (W11,
+  `docs/workit.md`), so a first launch with an empty data folder opens
+  (`tests/test_profile_from_workit.py`). A plain
   Worker's wrapper starts the app's own program as the relay
   (`launcher.host_command`, `scripts/app_entry.py`), never `python3 -I
   host.py`. It names that program with `psutil.Process().exe()`, never

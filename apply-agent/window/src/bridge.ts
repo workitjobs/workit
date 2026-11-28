@@ -7,6 +7,7 @@
 //   A Developer checkout's window has none, so the page shows the run as it is.
 // - mock: fixtures, to design and screenshot the window with no Apply running (mock.ts).
 import type { ApplyState, QueuedJob } from "./apply.ts";
+import type { BankView } from "./bank.ts";
 import { said } from "./words.ts";
 
 export type Upload = { name: string; data: string }; // a file's name and its bytes in base64
@@ -90,6 +91,11 @@ export type Bridge = {
   // waiting starts, and every filled form stays open for the student.
   stop(newOnly?: boolean): Promise<void>;
   remove(link: string): Promise<void>; // take a job that hasn't started out of the run
+  bank(): Promise<BankView>; // the Answer bank, as the Answers tab shows it (GET /answers)
+  // One change to the Answer bank, sent to WorkIt (answers_tab.AnswersTab): the new view, or why WorkIt didn't save it.
+  changeBank(edit: "save" | "add" | "review" | "delete", body: { question: string; answer?: string | string[] }): Promise<BankView>;
+  // One change to a Needs you answer in the profile, sent to WorkIt (AnswersTab.save_answered, remove_answered).
+  changeAnswered(edit: "save" | "delete", body: { question: string; answer?: string }): Promise<BankView>;
   app: Promise<App>; // never settles in a window with no app methods
 };
 
@@ -132,7 +138,7 @@ function appMethods(): Promise<App> {
 }
 
 export function routes(token: string, app: Promise<App> = appMethods()): Bridge {
-  const post = async (path: string, body: unknown) => {
+  const post = async <T = unknown>(path: string, body: unknown): Promise<T> => {
     const reply = await fetch(path, {
       method: "POST",
       body: JSON.stringify(body),
@@ -141,6 +147,7 @@ export function routes(token: string, app: Promise<App> = appMethods()): Bridge 
       throw new Error(UNANSWERED); // no answer at all: Apply stopped, or is restarting
     });
     if (!reply.ok) throw failed(((await reply.json().catch(() => ({}))) as { error?: string }).error);
+    return reply.json().catch(() => null) as Promise<T>;
   };
   return {
     watch(on, lost) {
@@ -170,6 +177,15 @@ export function routes(token: string, app: Promise<App> = appMethods()): Bridge 
     cancelAuto: (id) => post("/auto-cancel", { id }),
     stop: (newOnly) => post("/stop", newOnly ? { new_only: true } : {}),
     remove: (link) => post("/remove", { link }),
+    bank: async () => {
+      const reply = await fetch("/answers").catch(() => {
+        throw new Error(UNANSWERED);
+      });
+      if (!reply.ok) throw failed(((await reply.json().catch(() => ({}))) as { error?: string }).error);
+      return reply.json();
+    },
+    changeBank: (edit, body) => post<BankView>(`/answers/bank/${edit}`, body),
+    changeAnswered: (edit, body) => post<BankView>(`/answers/answered/${edit}`, body),
     app,
   };
 }

@@ -83,8 +83,6 @@ TITLE = "WorkIt Auto Apply"
 STUDENT_PAGE = Path(__file__).with_name("student_page") / "index.html"
 # WorkIt's logo, the built app's icon (scripts/build_app.py's ICON): a checkout's window shows it in the Dock too.
 ICON = Path(__file__).parents[2] / "assets" / "app-icon.png"
-# The Applicant profile's file, whose values a report's log is masked with (apply.report.build): never its folder.
-PROFILE = HOME / "applicant-profile.yaml"
 # How long Bridge.frames waits for a new frame before it answers none, so the page asks again.
 FRAMES_WAIT = 1.0
 # The Apply window's web font links, left out of the app's page: the system's fonts stand in.
@@ -197,7 +195,12 @@ form.addEventListener('submit', async event => {
 # What leaves the computer (section 3.4, /privacy): first run and Settings show it.
 DISCLOSURE = """<ul>
 <li><b>To WorkIt:</b> what each AI call needs, without your private details such as your contact details, street
-address and self-identification answers; your applications' stages; the answers you approve; your Auto Apply queue.
+address and self-identification answers; your applications' stages; the answers you approve or edit, and the
+short answers its AI drafts for your Answer bank, marked for your review; the answers you give to the questions it
+asks you, kept with your WorkIt profile, except an answer for one application's essay, which goes only into the AI
+calls that write that application's essays and is not kept; each application you submit, with its questions and
+the answers the form sent (never a password or an SSN), which WorkIt shows on that application's page; your Auto
+Apply queue.
 One application's record and log go only when you press Send Report.</li>
 <li><b>To Groq and Google (Gemini):</b> the same AI prompts, sent by WorkIt with WorkIt's own key. Google's free
 tier may use the prompts and answers it gets to improve its products, and people at Google may read them.</li>
@@ -205,8 +208,9 @@ tier may use the prompts and answers it gets to improve its products, and people
 <li><b>To Brandfetch:</b> the website of each company in your queue, to show its logo, as WorkIt's website does.
 Without one there, the logo comes from the company's job board or Google's website icons the same way.</li>
 </ul>
-<p>The records of each application, the Chrome windows' profiles and sign-ins, and your job-site passwords (in the
-Keychain) stay on your Mac. WorkIt Auto Apply never presses Submit: you do.</p>"""
+<p>The Chrome windows' profiles and sign-ins, and your job-site accounts and passwords (in the Keychain), stay on
+your Mac. An open form's record and log stay only until WorkIt has what you sent, or you let the form go.
+WorkIt Auto Apply never presses Submit: you do.</p>"""
 
 FIRST_RUN = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</title>
 <meta name="color-scheme" content="light"><style>{style}
@@ -283,6 +287,11 @@ SETTINGS = """<!doctype html><meta charset="utf-8"><title>WorkIt Auto Apply</tit
   main.settings { max-width: 34rem; margin: 8vh auto; display: flex; flex-direction: column; gap: 0.8rem; }
   main.settings .row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
   main.settings .top { justify-content: space-between; align-items: center; }
+  /* Remove All My Data's red: the one action here that can't be undone. White on #b42318 is 6.5:1. */
+  main.settings button.danger { background: #b42318; border-color: transparent; color: #fff; }
+  main.settings button.danger:hover { background: #912018; color: #fff; }
+  main.settings .confirm { border: 1px solid #f04438; background: #fef3f2; border-radius: 8px; padding: 0.8rem 1rem; }
+  main.settings .confirm ul { margin: 0.4rem 0 0.6rem; padding-left: 1.2rem; }
 </style>
 <main class="settings">
 <div class="row top"><h1>Settings</h1><button data-do="back">Back</button></div>
@@ -316,10 +325,21 @@ and paste the token. <code>uv run apply claude-token --forget</code> goes back t
 <div class="row"><button class="primary" id="report-send">Send Report</button></div></div>
 <p id="report-said" role="status"></p>
 <div class="row"><button data-do="sign_out">Sign Out</button></div>
-<p>Remove All My Data deletes everything WorkIt Auto Apply keeps on this Mac: the Worker profiles and their
-sign-ins, the seed, the records and logs of your applications, and its WorkIt sign-in. Your WorkIt account stays.</p>
-<div class="row"><button id="remove">Remove All My Data</button>
-<button id="remove-sure" data-do="remove_data" hidden>Press Again to Remove Everything</button></div>
+<h2>Remove All My Data</h2>
+<p>Deletes what WorkIt Auto Apply keeps on this Mac. Your WorkIt account, and what it holds, stays.</p>
+<div class="row"><button id="remove" class="danger">Remove All My Data</button></div>
+<div id="remove-confirm" class="confirm" role="alertdialog" aria-labelledby="remove-title" hidden>
+<p id="remove-title"><strong>Remove all of WorkIt Auto Apply's data from this Mac?</strong> This deletes:</p>
+<ul>
+<li>The Chrome windows it fills forms in, with every job site you signed in to there</li>
+<li>The job-site accounts' passwords it made for you, from your Keychain</li>
+<li>Its WorkIt sign-in: you sign in again the next time you open it</li>
+<li>Any form still open, with what was filled in it</li>
+</ul>
+<p>You can't undo this. WorkIt Auto Apply closes when it's done.</p>
+<div class="row"><button class="danger" data-do="remove_data">Remove Everything</button>
+<button id="remove-cancel">Cancel</button></div>
+</div>
 <p id="said" role="status"></p>
 <div class="row"><button class="primary" data-do="back">Done</button></div>
 </main>
@@ -328,7 +348,10 @@ sign-ins, the seed, the records and logs of your applications, and its WorkIt si
 const said = document.getElementById('said'), count = document.getElementById('workers');
 document.getElementById('show-disclosure').addEventListener('click', () => {
   const shown = document.getElementById('disclosure'); shown.hidden = !shown.hidden; });
-document.getElementById('remove').addEventListener('click', () => { document.getElementById('remove-sure').hidden = false; });
+const removing = open => {  // Remove All My Data asks first, saying what goes
+  document.getElementById('remove-confirm').hidden = !open; document.getElementById('remove').hidden = open; };
+document.getElementById('remove').addEventListener('click', () => removing(true));
+document.getElementById('remove-cancel').addEventListener('click', () => removing(false));
 count.addEventListener('change', async () => { await ready; await window.pywebview.api.set_workers(Number(count.value)); });
 const careful = document.getElementById('safety'), levels = {said};
 const sayLevel = () => { document.getElementById('safety-said').textContent = levels[careful.value]; };
@@ -413,11 +436,12 @@ class Bridge:
 
     def __init__(self, dashboard: Dashboard, client: workit.WorkIt | None = None,
                  open_link: Callable[[str], object] = webbrowser.open, first_run: FirstRun | None = None,
-                 start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None,
+                 start: Callable[[list[str], Callable[[Dashboard], None], dict[str, str]], None] | None = None,
                  remove: Callable[[Callable[[], None]], str] = first_run.remove_all_data, link=sign_in_link,
                  forward: Callable[[], object] = lambda: bring_forward(), name: Callable[[str], dict] | None = None):
-        """`start(links, show)`, when given, runs `links` and calls `show(board)` with the run's own Apply window
-        (apply.student.Runs.run); the window then shows the student page. `name(link)` names a link that waits to
+        """`start(links, show, jobs)`, when given, runs `links` and calls `show(board)` with the run's own Apply window
+        (apply.student.Runs.run), `jobs` naming the WorkIt job of each link from the queue (`Posting.job_id`, which
+        the Answer bank's drafts send); the window then shows the student page. `name(link)` names a link that waits to
         start and no queue named (default apply.queued_names's, with plain reads)."""
         self._dashboard = self._idle = dashboard
         self._client = client or workit.WorkIt()
@@ -431,6 +455,7 @@ class Bridge:
         self._running = threading.Event()  # a run is going
         self._said = ""  # why the last run couldn't start or stopped
         self._queued: dict[str, dict] = {}  # each queued job (QUEUED_JOB) by its link, for a run's window (KAN-871)
+        self._jobs: dict[str, str] = {}  # each queued job's WorkIt id by its link (Posting.job_id), for the run
         self._renamed: dict[str, dict] = {}  # what `name` gave each applied job whose title is a page's chrome
         self._verifier: str | None = None  # this sign-in's PKCE verifier, till its code is traded
         self._report: dict | None = None  # the report the window showed, till Send Report sends it
@@ -570,8 +595,11 @@ class Bridge:
             rows = self._applications("queued")
         except workit.WorkItError as error:
             return {"error": f"WorkIt Auto Apply couldn't read your queue ({error}). Paste a link instead."}
-        queued = [_job(row["job"]) for row in reversed(rows) if row.get("open")]
+        rows = [row for row in reversed(rows) if row.get("open")]
+        queued = [_job(row["job"]) for row in rows]
         self._queued |= {job["url"]: {key: job[key] for key in QUEUED_JOB} for job in queued}
+        # Only a queued job has the application on WorkIt that an Answer bank draft may name (W11); a match has none.
+        self._jobs |= {job["url"]: str(row["job"]["id"]) for job, row in zip(queued, rows, strict=True)}
         return queued
 
     def applied(self) -> list[dict] | dict:
@@ -679,7 +707,7 @@ class Bridge:
 
     def _run(self, links: list[str]) -> None:
         try:
-            self._start(links, self.show_board)
+            self._start(links, self.show_board, {link: self._jobs[link] for link in links if link in self._jobs})
         except SetupError as error:  # no engine (W7), a Worker profile in use, no Chrome: one sentence
             self._said = str(error)
         except Exception as error:
@@ -813,7 +841,8 @@ class Bridge:
                 pass  # its keychain item couldn't be removed: the data folder still goes
 
         said = self._remove(forget)
-        if said.startswith("Removed") and self._window is not None:
+        # A submit that never reached WorkIt is named: the window stays until the student has read it and quits.
+        if said.startswith("Removed") and first_run.UNSENT not in said and self._window is not None:
             threading.Timer(2.0, self._window.destroy).start()
         return {"said": said}
 
@@ -829,8 +858,13 @@ class Bridge:
         row = self._application(str(application_id)) if application_id else None
         if application_id and row is None:
             return {"error": "WorkIt Auto Apply has nothing of that application on this computer."}
+        # A log goes masked with the student's profile, which is WorkIt's (W11): read only when one goes.
+        profile = lambda: self._client.applicant_profile()["profile"]
         try:
-            self._report = report.build(str(category), str(note), PROFILE, row, bool(include), bool(contact_ok))
+            self._report = report.build(str(category), str(note), profile, row, bool(include), bool(contact_ok))
+        except workit.WorkItError as error:
+            return {"error": f"WorkIt Auto Apply couldn't read your profile to hide your details in the log ({error}). "
+                             "Try again in a minute."}
         except ValueError as error:  # a category the server doesn't take, or no profile file to mask the log with
             return {"error": f"The report can't go as it is: {error}."}
         return {"parts": report.parts(self._report)}
@@ -856,8 +890,8 @@ class Bridge:
         row for it), its tile with its newest Record."""
         from apply.student import RECORDS  # here: apply.student imports this module
 
-        try:
-            if row := FileTracker().get(application_id):
+        try:  # WorkIt Auto Apply keeps no Tracker file (W11): reading one would leave its lock file behind
+            if not build.STUDENT and (row := FileTracker().get(application_id)):
                 return row
         except Exception:  # a Tracker that won't read: the run's tile may still name it
             pass
@@ -1050,7 +1084,7 @@ def _scan_todos_often(bridge: Bridge, sleep: Callable[[float], None] = time.slee
 
 
 def run(dashboard: Dashboard, client: workit.WorkIt | None = None,
-        start: Callable[[list[str], Callable[[Dashboard], None]], None] | None = None) -> None:
+        start: Callable[[list[str], Callable[[Dashboard], None], dict[str, str]], None] | None = None) -> None:
     """The window, till the student closes it: SIGN_IN, then FIRST_RUN, then the Apply window (Bridge._html)."""
     import webview  # here, not at the top: the bridge and its tests need no window
 

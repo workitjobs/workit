@@ -278,8 +278,13 @@ writes that one answer again.
 
 - **Which answers.** `regenerate.form_of` (the Worker's `Result.regenerable`,
   rehearsals only) lists each essay, Answer bank draft and company-only
-  one-off that went into a text field. A profile fact, a pick from a list, a
-  file and Lisul's own Answer bank answer get no button.
+  one-off that went into a text field, and an Answer bank draft from an
+  earlier form that Lisul hasn't reviewed yet (2026-11-26). A profile fact,
+  a pick from a list, a file and Lisul's own Answer bank answer get no
+  button. **The button is the form's mark for AI answers**: it reads "↻ AI
+  wrote this · Add context and regenerate", every line of it says "the AI",
+  never "Claude", and the student window's Submit card counts these answers
+  (`apply-window.md`).
 - **On the form (the main place).** When the page is lifted for Lisul
   (`_Kept.hold`), `regenerate.offer` draws the button over the page, above
   the field's top right. It is on the page's body, fixed, never inside the
@@ -447,15 +452,17 @@ through `worker._Planned._missing` first.
 
 - `asking.known(asked, profile, bank, employer)` is the never-ask-twice
   check. It looks in the profile's `answered_questions`, the Answer bank,
-  the Story bank (an earlier Essay fact's answer) and the applicant's links.
-  It reads the Story bank as `essays.story_bank(employer)` reads it: an
-  Essay fact answer that names the company it was asked for ("the only
-  Strava internship"), or that asks of other roles there, is read only on
-  that company's forms, as are `essays.sources` and the Essay plan. Other
-  answers hold for every company. A link question is known when each kind
-  that it names (GitHub, LinkedIn, a site, a repo) is among the links. A
-  known text field gets that answer (`_Planned.found`), and a known ask is
-  dropped.
+  the Story bank and the applicant's links. An Essay fact's answer is never
+  kept now, so an earlier form's never answers a later one (`essays.TOLD`).
+  Only a Developer checkout's older Story bank file holds Essay fact answers
+  (under "Answered during applications", saved before 2026-11-26), and
+  `known` reads them as `essays.story_bank(employer)` does: one that names
+  the company it was asked for ("the only Strava internship"), or that asks
+  of other roles there, is read only on that company's forms, as are
+  `essays.sources` and the Essay plan. Other answers hold for every company.
+  A link question is known when each kind that it names (GitHub, LinkedIn,
+  a site, a repo) is among the links. A known text field gets that answer
+  (`_Planned.found`), and a known ask is dropped.
 - `asking.takes_elsewhere(q)` finds a question that asks Lisul to take a
   quiz, test, assessment or challenge at a link and give its result
   (Ramp's "Take this builder's quiz: https://..."). Only that result
@@ -719,8 +726,9 @@ on the held form itself, not only in its Needs you card.
   engine fills that job system, else what the page shows.
 - Then `rehearsal._answered_on_page` saves it as a card's answer is saved
   (`Board.typed`, then the window's `answer`: `cli._answering`), so it
-  joins the profile, or the Story bank for an Essay fact. All the Essay
-  facts of one essay are saved as one Story bank line. The card leaves
+  joins the profile; an Essay fact's answer is kept in memory for that
+  form's essay only, never saved (`essays.tell`), all the Essay facts of
+  one essay answered at once as one. The card leaves
   Needs you, the tile's counts and the note on the form change, and the
   Record (its plan and read-back) is saved again (`_record_again`).
 - A bare date (From, To, Start date: `on_page.bare`, the engine's
@@ -839,3 +847,29 @@ sent the application as it loaded sent it then. The test fakes don't call
 `on_open`: they are guarded after the load and reloaded, as before. A live
 run's page is not opened inside `guarding_on_open`, so nothing changes there.
 `tests/test_submit_guard_hostile.py` has the case.
+
+## What a held form sent (W11, `apply.sent_capture`)
+
+WorkIt keeps what each application sent (`PUT .../applications/{job}/sent`), and the student may change a field on
+the held form after the fill. So on each turn of the held page (`tend`) a click listener goes into each frame's
+document, and on a press of any button there (Submit, Next, Save and Continue), before the page's own handlers run, it
+reads every question's field with `on_page.FIELD` (a custom list's picked option too) and hands the values to Apply
+through a binding. Each press keeps what that page shows, so a form of many steps keeps each step as it was left.
+Approve and submit reads the form the same way just before Apply presses (`before_press`): a plain Worker's press is
+the worker extension's. At the confirmed submit, `rehearsal.sent_answers` takes each field's value from the press,
+else the Record's; an AI answer the student rewrote is no longer marked AI.
+
+- **It only reads.** It never prevents, delays or changes a press, so it is no guard code and needs no Worker
+  extension release. A read that fails sends nothing, and the Record's value stands.
+- **A page could call its binding with values of its own:** that changes only the student's record of what was sent,
+  never what is submitted. Only this form's questions are kept, and a call past `MOST` characters is dropped, so a
+  page's calls can't grow Apply's memory.
+- **A secret's field is never read** (`records.SECRET`: a password, a PIN), so it never comes into Apply's memory.
+- **A text box read empty at the press sent nothing**: an AI answer the student cleared is not recorded as sent.
+- **Not read:** Workday's Review page has no fields, so its answers are those each step showed as it was left.
+- **A file the student swapped in** goes by its own name, never as AI's: Chrome reads every chosen file as
+  `C:\fakepath\<name>`, and a name other than the fill's is theirs. The Sent resume is then named only when that name
+  is the resume's (`student.resume_ref`).
+- **Cost** (2026-11-27, a 60-question form, Chromium and a plain Worker alike): about 2 ms a turn to put the listener
+  in, and 7 ms of a press to read every field.
+- Tests: `tests/test_sent_capture.py` (Chromium and a plain Worker, run by hand) and `tests/test_local_data.py`.

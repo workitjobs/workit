@@ -20,5 +20,5 @@ def test_a_choice_too_long_to_send_is_lisuls_and_the_rest_are_drafted():
 
     [call] = [c for c in claude.asked if "kind" in c]
     assert [q["label"] for q in call["data"]["short_questions"].values()] == ["Will you need housing?"]
-    assert {d.question.name: d.needs_lisul for d in drafted}["city"] is True
+    assert {d.question.name: d.needs_applicant for d in drafted}["city"] is True
     assert {d.question.name for d in drafted} == {"city", "housing"}

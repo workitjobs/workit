@@ -49,7 +49,7 @@ def take(posting: Posting, questions: list[Question], today: date) -> list["essa
 
 
 def _clean(essay: "essays.Essay") -> bool:
-    return bool(essay.text) and not (essay.failed or essay.unsupported or essay.claims or essay.needs_lisul
+    return bool(essay.text) and not (essay.failed or essay.unsupported or essay.claims or essay.needs_applicant
                                      or essay.giveaways or essay.sensitive)
 
 

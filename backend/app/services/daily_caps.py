@@ -34,6 +34,8 @@ class Capped(StrEnum):
     RULES_FETCH = "rules_fetch"
     # WorkIt Auto Apply's Send report (KAN-837, routers/apply_reports.py).
     APPLY_REPORT = "apply_report"
+    # What an application WorkIt Auto Apply filled sent (W11, routers/sent_applications.py).
+    SENT_APPLICATION = "sent_application"
 
 
 _OPENED = "You've opened a lot of applications today. Try again tomorrow."
@@ -48,6 +50,8 @@ REFUSALS = {
     Capped.RULES_TOKEN: _OPENED,
     Capped.RULES_FETCH: _OPENED,
     Capped.APPLY_REPORT: "You've sent a lot of reports today. Try again tomorrow.",
+    # Never shown: the app keeps the write and sends it after the reset (apply.workit.CapReached).
+    Capped.SENT_APPLICATION: "WorkIt kept what your applications sent today. Try again tomorrow.",
 }
 
 

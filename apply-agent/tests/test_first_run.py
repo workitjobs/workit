@@ -198,6 +198,14 @@ def test_remove_all_my_data_forgets_each_job_site_password_and_names_any_it_coul
     assert [keychain.password(site) for site in sites] == [None, None]
     assert keychain.password("made-by-hand.example.com") == "kept"
 
+    # W11: the app keeps no tracker.json; its accounts are the keychain's list, which goes with their passwords.
+    from apply.tracker import ACCOUNT_LIST, KeychainTracker
+    keychain = InMemoryKeychain({sites[0]: "one"})
+    KeychainTracker(keychain).add_employer_account(EmployerAccount("Acme", sites[0], "t@example.com", date(2026, 11, 27)))
+    home.mkdir(parents=True)
+    assert remove_all_data(lambda: None, home, keychain).startswith("Removed.")
+    assert keychain.password(sites[0]) is None and keychain.password(ACCOUNT_LIST) is None
+
     class Locked(InMemoryKeychain):
         def forget(self, site):
             raise RuntimeError("the keychain is locked")
@@ -205,3 +213,34 @@ def test_remove_all_my_data_forgets_each_job_site_password_and_names_any_it_coul
     made_accounts()
     said = remove_all_data(lambda: None, home, Locked())
     assert said.startswith("Removed.") and all(site in said for site in sites) and not home.exists()
+
+
+def test_remove_all_my_data_sends_a_waiting_submit_first_and_names_one_workit_still_cant_take(tmp_path, monkeypatch):
+    """Fault: Remove All My Data deleted a submit still waiting for WorkIt with the data folder, and said nothing: it
+    never reached the Applications Tracker, and once signed in again the next Start could fill the job again."""
+    from apply import build
+    from apply.first_run import UNSENT, remove_all_data
+    from apply.keychain import InMemoryKeychain
+    from apply.workit import QUEUE, Stage, Unreachable, WaitingWrites, Write
+
+    class WorkIt:
+        def __init__(self, up):
+            self.up, self.sent = up, []
+
+        def record_applied(self, link, company, title, resume=None, resume_ref=None, answers=None):
+            if not self.up:
+                raise Unreachable("api.workitjobs.ai: 503")
+            self.sent.append(link)
+
+    monkeypatch.setattr(build, "STUDENT", True)
+    home, down, up = tmp_path / "WorkIt Auto Apply", WorkIt(False), WorkIt(True)
+    home.mkdir()
+    WaitingWrites(down, home / QUEUE.name).send(Write("app-7", "https://acme.example/7", "Acme", "Intern", Stage.APPLIED))
+
+    said = remove_all_data(lambda: None, home, InMemoryKeychain(), down)
+
+    assert UNSENT in said and "Acme, Intern" in said and not home.exists()
+    home.mkdir()
+    WaitingWrites(down, home / QUEUE.name).send(Write("app-8", "https://beta.example/8", "Beta", "Intern", Stage.APPLIED))
+    assert UNSENT not in remove_all_data(lambda: None, home, InMemoryKeychain(), up)
+    assert up.sent == ["https://beta.example/8"] and not home.exists()

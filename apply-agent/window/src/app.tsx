@@ -1,8 +1,9 @@
 // The window: one screen that answers "what do I do now?".
-import { ArrowClockwiseIcon, ArrowSquareOutIcon, CheckIcon, GearSixIcon, ListChecksIcon, MagnifyingGlassIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon, ArrowSquareOutIcon, CheckIcon, GearSixIcon, ListChecksIcon, MagnifyingGlassIcon, NotebookIcon, PlusIcon, StopCircleIcon, XIcon } from "@phosphor-icons/react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import type { ApplyState, Run } from "./apply.ts";
+import { AnswerBank } from "./answers.tsx";
 import type { AppliedJob, App as AppMethods, Bridge, Queued, Usage } from "./bridge.ts";
 import { TodoCard } from "./cards.tsx";
 import { Find } from "./find.tsx";
@@ -18,7 +19,7 @@ type Fail = (message: string) => void;
 export function App({ bridge }: { bridge: Bridge }) {
   const [state, setState] = useState<ApplyState | null>(null);
   const [app, setApp] = useState<AppMethods>({});
-  const [page, setPage] = useState<"home" | "applied" | "add" | "find" | "todos">("home");
+  const [page, setPage] = useState<"home" | "applied" | "add" | "find" | "answers" | "todos">("home");
   const [todosOn, setTodosOn] = useState(false); // the developer to-do tracker's flag is on (apply.todos)
   const [toast, setToast] = useState("");
   const [lost, setLost] = useState(false); // /state's last ask got no answer: Apply stopped, or is restarting
@@ -58,6 +59,7 @@ export function App({ bridge }: { bridge: Bridge }) {
   const first =
     !!app.queue &&
     page !== "applied" &&
+    page !== "answers" &&
     page !== "todos" &&
     (page === "add" || page === "find" || (!v.todo.length && !v.working.length && !v.queued && !v.applied.length && !v.stopped.length));
   const add = () => setPage("add");
@@ -88,6 +90,9 @@ export function App({ bridge }: { bridge: Bridge }) {
               Applied
             </Button>
           )}
+          <Button tone="quiet" className={cx("h-8 px-3", page === "answers" && "bg-hover text-ink")} onClick={() => setPage(page === "answers" ? "home" : "answers")}>
+            <NotebookIcon className="size-4" /> Answers
+          </Button>
           {todosOn && (
             <Button tone="quiet" className={cx("h-8 px-3", page === "todos" && "bg-hover text-ink")} onClick={() => setPage(page === "todos" ? "home" : "todos")}>
               <ListChecksIcon className="size-4" /> To-dos
@@ -107,7 +112,9 @@ export function App({ bridge }: { bridge: Bridge }) {
             {NOT_RUNNING} This window shows what it last heard, and catches up once Apply is back.
           </p>
         )}
-        {page === "todos" && todosOn ? (
+        {page === "answers" ? (
+          <AnswerBank bridge={bridge} />
+        ) : page === "todos" && todosOn ? (
           <Todos app={app} fail={setToast} />
         ) : page === "applied" ? (
           <Applied jobs={v.applied} app={app} />

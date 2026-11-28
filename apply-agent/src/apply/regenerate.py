@@ -58,7 +58,9 @@ from apply.profile import ApplicantProfile
 
 ESSAY, DRAFT, ONE_OFF = "essay", "draft", "one-off"  # an essay; a one-off in the Answer bank; one about this company only
 TEXT_KINDS = ("text", "textarea")  # the fields a written answer goes in: never a pick from a list, never a file
-ADDED = "## Added while reviewing answers"  # the Story bank's section of Lisul's added context
+ADDED = "## Added while reviewing answers"  # the Story bank's section of Lisul's added context (memory only in the app)
+ADDED_SECTION = (f"{ADDED}\nWhat the applicant added, in their own words, when they asked Claude to write one answer "
+                 "again.")
 CONTEXT_CHARS = 2_000  # the most of his context kept
 # A gate failure that keeps a new answer off the form: a fact no source holds.
 INVENTED = (gates.UNTRACED_NUMBER, gates.UNTRACED_NAME)
@@ -104,13 +106,18 @@ class Form:
 
 
 def form_of(planned) -> Form | None:
-    """The Form of a filled Application (worker._Planned): each answer Claude
-    wrote that went in a text field, in form order. None when Claude wrote none."""
+    """The Form of a filled Application (worker._Planned): each answer the AI
+    wrote that went in a text field, in form order: its essays, its drafts,
+    and an Answer bank draft from an earlier form that Lisul hasn't reviewed
+    yet, so each one is marked on the form for his review. None when the AI
+    wrote none."""
     answers = planned.answers
     on_form = lambda q, text: q.kind in TEXT_KINDS and isinstance(text, str) and text and answers.get(q.name) == text
     written = [Written(e.question, e.text, ESSAY, essay=e) for e in planned.written if on_form(e.question, e.text)]
     written += [Written(d.question, d.answer, kind) for kind, drafts in ((DRAFT, planned.drafted), (ONE_OFF, planned.unbanked))
                 for d in drafts if on_form(d.question, d.answer)]
+    own = planned.own()
+    written += [Written(q, answers[q.name], DRAFT) for q in planned.banked if q.name not in own and on_form(q, answers.get(q.name))]
     if not written:
         return None
     order = {q.name: i for i, q in enumerate(planned.questions)}
@@ -128,7 +135,6 @@ class Redone:
     why: str = ""  # why it is not on the form
     checks: tuple[str, ...] = ()  # gate and verifier flags it still has, for the note beside it
     kept: str = ""  # the Story bank line his context became
-    banked: bool = False  # the Answer bank has the new draft
 
 
 def regenerate(claude: Claude, form: Form, name: str, context: str, profile: ApplicantProfile, bank: AnswerBank,
@@ -137,10 +143,10 @@ def regenerate(claude: Claude, form: Form, name: str, context: str, profile: App
     `context`, and update `form` with it. Nothing is clicked or sent."""
     written = form.get(name)
     if written is None:
-        raise KeyError(f"Claude wrote no answer to {name!r} on this form")
+        raise KeyError(f"The AI wrote no answer to {name!r} on this form")
     q, context = written.question, context.strip()[:CONTEXT_CHARS]
     if not context:
-        return Redone(q, why="Type what Claude should know or change first")
+        return Redone(q, why="Type what the AI should know or change first")
     kept = keep_context(q, form.questions, context, form.posting.company, today)
     material = _material(claude, form, written, site, today)
     answered = {other: form.answers[other.name] for other in form.questions
@@ -148,30 +154,31 @@ def regenerate(claude: Claude, form: Form, name: str, context: str, profile: App
     redo = {q: (written.text, context)}
     if written.kind == ESSAY:
         [essay], _ = essays.answer(claude, form.posting, [q], [], profile, material, form.posting_text,
-                                   answered=answered, redo=redo)
+                                   answered=answered, redo=redo, mine=bank.own_lines())
         text, failed = essay.text, list(essay.failed)
         # The truth check's claims go on the note for Lisul to read; they never keep the old answer.
         claimed = [f"claims what no source backs: {'; '.join(essay.claims)}"] if essay.claims else []
         if essay.plan and essay.plan.asks:
-            return Redone(q, why="Claude needs more from you: " + "; ".join(essay.plan.asks), kept=kept)
+            return Redone(q, why="The AI needs more from you: " + "; ".join(essay.plan.asks), kept=kept)
     else:
         _, [draft] = essays.answer(claude, form.posting, [], [q], profile, material, form.posting_text,
-                                   answered=answered, redo=redo)
-        text, failed, claimed = ("" if draft.needs_lisul else draft.shown), [], []
+                                   answered=answered, redo=redo, mine=bank.own_lines())
+        text, failed, claimed = ("" if draft.needs_applicant else draft.shown), [], []
     if not text:
-        return Redone(q, why="Claude couldn't write it from your facts and this context: add the fact it lacks", kept=kept)
+        return Redone(q, why="The AI couldn't write it from your facts and this context: add the fact it lacks", kept=kept)
     if over := gates.over_cap(text, q):
         return Redone(q, why=f"the new answer is over the form's limit ({over[0]}), so the old one stays", kept=kept)
     if invented := [f for f in failed if f.startswith(INVENTED)]:
         return Redone(q, why="the new answer states " + "; ".join(invented) + ", so the old one stays", kept=kept)
     allowed = essays.sources(profile, material, facts=True, employer=form.posting.company)
     checks = tuple(failed) + tuple(claimed) + tuple(f.why for f in verify.essay(one_line(q.label), text, profile, form.posting, allowed))
-    banked = written.kind == DRAFT and _bank(bank, q, text, form.posting.company, today)
+    if written.kind == DRAFT:
+        _bank(bank, q, text)  # sent to WorkIt, whose rule decides whether the bank keeps it
     written.text, written.why = text, "; ".join(checks)
     if written.kind == ESSAY:
         written.essay = replace(essay, failed=tuple(failed))
     form.answers[name] = text
-    return Redone(q, text, checks=checks, kept=kept, banked=banked)
+    return Redone(q, text, checks=checks, kept=kept)
 
 
 def keep_context(q: Question, questions: list[Question], context: str, company_name: str, today: date) -> str:
@@ -181,13 +188,7 @@ def keep_context(q: Question, questions: list[Question], context: str, company_n
     where = asking.where(q, questions)
     line = (f'- For "{one_line(q.label)}"' + (f" ({where})" if where else "") + f" at {company_name or 'one company'}: "
             f"{one_line(context)}")
-    story = data_folder.STORY_BANK.read_text(encoding="utf-8") if data_folder.STORY_BANK.is_file() else ""
-    if line in story:
-        return line
-    if ADDED not in story:
-        story = (f"{story.rstrip()}\n\n{ADDED}\nWhat the applicant added, in their own words, when they asked Claude to "
-                 "write one answer again.\n")
-    data_folder.STORY_BANK.write_text(f"{story.rstrip()}\n{line} ({today.isoformat()})\n", encoding="utf-8")
+    data_folder.add_story_line(ADDED_SECTION, f"{line} ({today.isoformat()})", line)
     return line
 
 
@@ -203,11 +204,10 @@ def _material(claude: Claude, form: Form, written: Written, site: JobSite | None
     return form.material
 
 
-def _bank(bank: AnswerBank, q: Question, text: str, company_name: str, today: date) -> bool:
-    """The new draft in the Answer bank, in place of the old; never under a bare label."""
-    if len(re.sub(r"\([^)]*\)", "", q.label).split()) <= asking.BARE:
-        return False
-    return bank.redraft(q, text, company_name, today)
+def _bank(bank: AnswerBank, q: Question, text: str) -> None:
+    """The new draft to the Answer bank, in place of the old; never under a bare label."""
+    if len(re.sub(r"\([^)]*\)", "", q.label).split()) > asking.BARE:
+        bank.redraft(q, text)
 
 
 # On a page held for Lisul: a small button beside each field that shows an answer Claude wrote. It is drawn over
@@ -258,15 +258,15 @@ OFFER = r"""
     wrap.dataset.for = w.name;
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = '↻ Add context and regenerate';
-    button.title = 'Tell Claude more, and it writes this answer again. Nothing is sent.';
+    button.textContent = '↻ AI wrote this · Add context and regenerate';
+    button.title = 'The AI wrote this answer: check it. Tell the AI more, and it writes it again. Nothing is sent.';
     button.style.cssText = css + 'padding:2px 8px;border:1px solid #6750a4;border-radius:12px;background:#fff;'
       + 'color:#4a3880;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.15)';
     const panel = document.createElement('div');
     panel.style.cssText = 'display:none;margin-top:4px;width:340px;padding:8px;background:#fff;border:1px solid #6750a4;'
       + 'border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.2);color:#222';
     const label = document.createElement('div');
-    label.textContent = 'What should Claude know or change? It rewrites only this answer from your facts and this.';
+    label.textContent = 'What should the AI know or change? It rewrites only this answer from your facts and this.';
     const box = document.createElement('textarea');
     box.rows = 3;
     box.placeholder = 'e.g. Lead with the club project; I led a team of 5 there.';
@@ -291,7 +291,7 @@ OFFER = r"""
     button.addEventListener('click', () => { show(panel.style.display === 'none'); box.focus(); });
     cancel.addEventListener('click', () => show(false));
     go.addEventListener('click', () => {
-      if (!norm(box.value)) { said.textContent = 'Type what Claude should know or change first.'; return; }
+      if (!norm(box.value)) { said.textContent = 'Type what the AI should know or change first.'; return; }
       if (window.__applyRegenerate) window.__applyRegenerate(w.name, box.value);
       window.__applyRegenWorking(w.name);
     });
@@ -312,9 +312,9 @@ OFFER = r"""
     if (!c) return false;
     if (el) { el.readOnly = true; el.style.opacity = '0.55'; }
     c.go.disabled = c.box.disabled = c.button.disabled = true;
-    c.button.textContent = '⏳ Claude is rewriting this answer…';
+    c.button.textContent = '⏳ The AI is rewriting this answer…';
     c.said.style.color = '#222';
-    c.said.textContent = 'Working: Claude reads your facts, the posting and the company, then writes it again. Nothing is sent.';
+    c.said.textContent = 'Working: the AI reads your facts, the posting and the company, then writes it again. Nothing is sent.';
     c.panel.style.display = 'block';
     c.wrap.style.zIndex = '2';
     return !!el;
@@ -324,7 +324,7 @@ OFFER = r"""
     if (!c) return null;
     if (el) { el.readOnly = false; el.style.opacity = ''; }
     c.go.disabled = c.box.disabled = c.button.disabled = false;
-    c.button.textContent = '↻ Add context and regenerate';
+    c.button.textContent = '↻ AI wrote this · Add context and regenerate';
     c.said.style.color = ok ? '#1b5e20' : '#b00020';
     c.said.textContent = note;
     if (!ok || !el) return el ? el.value : null;

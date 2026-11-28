@@ -257,7 +257,11 @@ with the failure it prevents.
   (a hosted `drive` loop next, the company brief pipeline with Tavily,
   Windows and Linux), and the costs. Built (2026-11-14): Apply's prompts are on the
   server (`backend/app/apply_prompts/`, D5): the app sends a kind and its
-  data, never a prompt. Read it before changing Apply toward a
+  data, never a prompt. Built (2026-11-21, W11, D34; designed 2026-11-18,
+  redesigned 2026-11-20): the Answer bank lives on WorkIt, one row for
+  each student, which the app reads once into memory and the extension
+  reads whole, and only the server decides what enters it (ADR 0007 in
+  `apply-agent/docs/adr/`; its migration not yet applied). Read it before changing Apply toward a
   download, the Model route, or where Apply's data comes from.
 - `docs/windows_desktop.md` — KAN-929, being built (its section 7 says
   where): what stops Apply on Windows, one problem per section with its

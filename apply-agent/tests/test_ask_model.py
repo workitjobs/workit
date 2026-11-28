@@ -329,8 +329,8 @@ def test_workit_at_its_usage_cap_pauses_the_run_until_it_resets():
     asks, fake, _ = workit_ask(usage)
     assert asks.reading() == UsageReading(limited=True, resets_at=midnight)
     assert fake.calls[0][:2] == ("GET", "/apply-app/usage")
-    asks, _, _ = workit_ask({**usage, "used": 79_999})
-    assert asks.reading() == UsageReading()
+    asks, _, _ = workit_ask({**usage, "used": 79_999, "bank_version": 4})
+    assert asks.reading() == UsageReading(bank_version=4)  # the Answer bank's, which the run follows (W11)
     asks, _, _ = workit_ask(workit.Unreachable("api.workitjobs.ai: timed out"))  # the next ask says so
     assert asks.reading() == UsageReading()
     # A Developer checkout's Max limit, past WorkIt's reset, still holds the run.

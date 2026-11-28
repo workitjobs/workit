@@ -6,9 +6,9 @@ carries a prompt or a schema. The free-form call that did, with its schema
 checks, went once every kind was built on the server (2026-11-14)."""
 
 import datetime
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 
 class AskCall(BaseModel):
@@ -29,6 +29,15 @@ class Usage(BaseModel):
     used: int
     cap: int
     resets_at: datetime.datetime
+
+
+class UsageNow(Usage):
+    """GET /apply-app/usage: today's use, and the version of the student's
+    Answer bank (W11; 0 while they have none), which WorkIt Auto Apply reads
+    before each Application: it reads the bank again only when this differs
+    from the version it holds."""
+
+    bank_version: int
 
 
 class ModelAnswer(BaseModel):
@@ -103,3 +112,94 @@ class EngineKey(BaseModel):
     """The download's AES-256 key, base64."""
 
     key: str
+
+
+class AppProfile(BaseModel):
+    """GET /apply-app/profile: the Fill engine's profile and policies for the
+    student, built from what WorkIt holds as the extension builds them
+    (services/engine_profile.py), and where each file the profile names is
+    read: `resume` with `uploaded_resume_id` or `built_resume_id`, and
+    `transcript`, each with its `name`. `writing` is the Story bank
+    (services/story_bank.py) and the voice (the style card), as Apply's
+    essays read them."""
+
+    profile: dict
+    policies: dict
+    files: dict
+    writing: dict = {}
+
+
+# A Needs you answer as WorkIt Auto Apply keeps it: the question as the form words it, and the answer ("" is a Skip).
+AnsweredQuestion = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)]
+AnsweredText = Annotated[str, StringConstraints(max_length=20000)]
+
+
+# A fact's dotted key in the engine profile ("identity.pronouns"): never a file's path, which only the Mac knows.
+def _not_reserved(key: str) -> str:
+    if key.split(".")[0] in ("files", "answered_questions"):
+        raise ValueError("files and answered_questions are not facts")
+    return key
+
+
+FACT_KEY = r"^[a-z0-9_]+(\.[a-z0-9_]+){0,4}$"
+FactKey = Annotated[str, StringConstraints(pattern=FACT_KEY), AfterValidator(_not_reserved)]
+FactValue = AnsweredText | list[AnsweredText] | bool | int | float
+
+
+class AnsweredChange(BaseModel):
+    """PATCH /apply-app/profile: what the student answered in WorkIt Auto
+    Apply's Needs you, at most 100 of each: answers to questions no fact
+    answered (the profile's `answered_questions`), and facts the Fill engine
+    read from an answer (`remember`), by dotted key. The website's
+    Application Info edits them the same way, and its Remove takes a
+    question or a fact out (`remove_answered`, `remove_facts`), so the next
+    form asks again."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answered: dict[AnsweredQuestion, AnsweredText | list[AnsweredText]] = Field(default={}, max_length=100)
+    facts: dict[FactKey, FactValue] = Field(default={}, max_length=100)
+    remove_answered: list[AnsweredQuestion] = Field(default=[], max_length=100)
+    remove_facts: list[FactKey] = Field(default=[], max_length=100)
+
+
+# Read back as stored, with no length cap: one over the PATCH's cap must not fail the whole read.
+class SavedAnswer(BaseModel):
+    question: str
+    answer: str | list[str]  # "" is a Skip
+
+
+class SavedFact(BaseModel):
+    key: str  # dotted, as the PATCH takes it
+    value: str | list[str] | bool | int | float
+
+
+class SavedAnswers(BaseModel):
+    """GET /apply-app/answered: what WorkIt fills from the student's own
+    Fill engine profile (`fill_profile`) and from no field of WorkIt's, for
+    Application Info to show and edit: their Needs you answers by question,
+    and each fact no WorkIt field holds."""
+
+    answered: list[SavedAnswer]
+    facts: list[SavedFact]
+
+
+class ProfileUpload(BaseModel):
+    """POST /apply-app/profile/upload: a Developer checkout's own files
+    (`apply upload`): its applicant-profile.yaml as data, and its
+    story-bank.md and voice.md as text."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    profile: dict = {}
+    story_bank: str = Field(default="", max_length=200_000)
+    voice: str = Field(default="", max_length=20_000)
+
+
+class UploadTaken(BaseModel):
+    """What an upload put in: only what WorkIt lacked."""
+
+    facts: int
+    answered: int
+    samples: int
+    style_card: bool

@@ -20,7 +20,7 @@ from apply.records import InMemoryRecords, Record
 if TYPE_CHECKING:
     from apply.gmail import MailedCode
     from apply.repair import RepairRequests
-    from apply.tracker import AnswerRow, EmployerAccount, Row
+    from apply.tracker import EmployerAccount, Row
 
 
 class Feed(Protocol):
@@ -74,14 +74,6 @@ class Tracker(Protocol):
     def add_employer_account(self, account: "EmployerAccount") -> None: ...
 
     def employer_accounts(self) -> list["EmployerAccount"]: ...
-
-    def add_answer(self, row: "AnswerRow") -> None:
-        """List an Answer bank entry in the Answers tab."""
-        ...
-
-    def answers(self) -> list["AnswerRow"]:
-        """The Answers tab's rows, as Lisul left them."""
-        ...
 
 
 class JobSite(Protocol):
@@ -204,6 +196,9 @@ class UsageReading:
     weekly_resets_at: datetime | None = None
     limited: bool = False
     resets_at: datetime | None = None
+    # The Answer bank's version on WorkIt, from the same `GET /apply-app/usage` (W11); None when this reading didn't
+    # ask WorkIt (a Developer checkout off the Model route, or WorkIt not answering): the bank then asks itself.
+    bank_version: int | None = None
 
 
 def lean(claude) -> bool:
@@ -289,7 +284,9 @@ class Adapters:
     board: Board = field(default_factory=NoBoard)  # the dashboard's tile per Worker
     # What went wrong, for a Repair; the Student build passes its own (apply.student.NoRepairs).
     repairs: "RepairRequests" = field(default_factory=lambda: _developer("repair").RepairRequests())
-    answer_bank: AnswerBank = field(default_factory=AnswerBank)  # live: answer-bank.yaml beside the profile
+    answer_bank: AnswerBank = field(default_factory=AnswerBank)  # live: the student's bank on WorkIt, read into memory
+    # WorkIt's job id of each link the run got from the student's Auto Apply queue (Posting.job_id).
+    jobs: dict[str, str] = field(default_factory=dict)
     # Sites Lisul signed the Worker profiles in to by hand (apply sign-in): their sign-in walls are no Handoff.
     signed_in: frozenset[str] = frozenset()
     # The student's tailored resume for a Posting (KAN-547), given to its form in place of the profile's resume.

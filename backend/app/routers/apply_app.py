@@ -41,11 +41,39 @@ ModelAnswer {answer, tokens, usage}.
        503  with Retry-After: every model is busy, out of quota or down, or
             the API's model settings are wrong (a key, a model name).
      The tokens a failed call spent still count.
-GET  /apply-app/usage  Usage {used, cap, resets_at}: today's tokens.
+GET  /apply-app/usage  UsageNow {used, cap, resets_at, bank_version}: today's
+     tokens, and the version of the student's Answer bank (W11, 0 with none),
+     so the app, which asks before each Application, knows when its copy in
+     memory is old, with no request of its own.
 GET  /apply-app/types  The Question types Apply classifies questions and checks
      plans with: each type's front matter and the order to try them in
      (app/apply_prompts/guides.py, `served`), never a guide's body, which is
      prompt text. The same for every student; the app keeps the last copy.
+
+The student's data (W11): the app keeps no profile, Story bank or voice file.
+GET  /apply-app/profile  AppProfile {profile, policies, files, writing}: the
+     Fill engine's profile and policies, built as the extension builds them,
+     where each file it names is read, and `writing` {story_bank, voice}:
+     the Story bank built from what WorkIt holds (services/story_bank.py) and
+     the style card. Read at each Start.
+PATCH /apply-app/profile  AnsweredChange {answered, facts, remove_answered,
+     remove_facts} -> 204: Needs you answers by question and facts by
+     dotted key (never files.*), kept in fill_profile, and the questions
+     and facts the website's Remove takes out. A fact one of the website's
+     own fields holds (an Application answer, My Profile's phone or a
+     link) is saved in that field instead, as the website saves it
+     (services/workit_fields.py), unless the student answered it there. An Essay fact's answer never comes:
+     the app keeps it for that one form's essay. A fill adds nothing
+     to the Story bank on WorkIt: its prompts carry only the website's.
+GET  /apply-app/answered  SavedAnswers {answered, facts}: what WorkIt fills
+     from fill_profile and from no WorkIt field, for Application Info to
+     show and edit (the student's own call, from the website): the Needs
+     you answers, and each fact no WorkIt field holds. A fact a WorkIt
+     field holds is left out: that field wins on every form, and it is
+     edited where the website shows the field.
+POST /apply-app/profile/upload  ProfileUpload {profile, story_bank, voice}
+     -> UploadTaken: a Developer checkout's own files (`apply upload`), only
+     what WorkIt lacks.
 
 The app's sign-in (W5, D12; app/services/app_sign_in.py has the flow):
 POST /apply-app/sign-in  SignInStart {challenge} -> 201 SignInCode {code, expires_in, paste}
@@ -84,8 +112,10 @@ never a prompt or an answer.
 import base64
 import dataclasses
 import datetime
+import json
 import logging
 import math
+import re
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -99,24 +129,41 @@ from app.apply_prompts import KINDS, guides, said
 from app.config import get_settings
 from app.db import get_session, get_supabase
 from app.deps import get_current_account, is_admin
-from app.queries import model_usage
+from app.models.profiles import Applicant_Profile
+from app.queries import answer_banks, model_usage, writing
+from app.queries.autofill_answers import merge_answers
+from app.queries.engine_student import engine_student
 from app.schemas.apply_app import (
+    FACT_KEY,
+    AnsweredChange,
+    AppProfile,
     AppSession,
     AskCall,
     EngineDownload,
     EngineKey,
     EngineKeyAsk,
     ModelAnswer,
+    ProfileUpload,
+    SavedAnswer,
+    SavedAnswers,
+    SavedFact,
     SessionTrade,
     SignInCode,
     SignInStart,
+    UploadTaken,
     Usage,
+    UsageNow,
 )
 from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.schemas.writing import CARD_MAX
+from app.scripts import import_apply_writing
 from app.security import decode_access_token
 from app.services import app_sign_in, engine_builds
+from app.services.engine_profile import engine_policies, engine_profile, workit_profile
 from app.services.identity import load_identity
 from app.services.models import get_large_llm, get_small_llm
+from app.services.story_bank import story_bank
+from app.services.workit_fields import workit_field
 
 logger = logging.getLogger(__name__)
 
@@ -145,9 +192,207 @@ def _refused(code: int, message: str, wait: float) -> HTTPException:
 async def usage(
     account: AuthenticatedAccount = Depends(_student),
     db: AsyncSession = Depends(get_session),
-) -> Usage:
+) -> UsageNow:
     now = _now()
-    return _usage(await model_usage.used_today(db, account.id, now), now)
+    today = _usage(await model_usage.used_today(db, account.id, now), now)
+    return UsageNow(**today.model_dump(), bank_version=await answer_banks.fetch_version(db, account.id) or 0)
+
+
+# How many Needs you answers a student keeps (fill_profile's answered_questions): far past any real student's.
+ANSWERED_MAX = 2_000
+UPLOAD_MAX = 200_000  # characters of an uploaded profile, as JSON: a real one is about 20,000
+
+
+@router.get("/profile", response_model=AppProfile)
+async def profile(
+    account: AuthenticatedAccount = Depends(_student),
+    db: AsyncSession = Depends(get_session),
+) -> AppProfile:
+    """The student's Fill engine profile and policies, built from what WorkIt holds as the extension builds them
+    (W11: WorkIt Auto Apply keeps no profile file), read at each Start, with the Story bank and voice its essays
+    read."""
+    student = await engine_student(db, account.id, account.email, account.full_name or "")
+    if student is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Profile not found")
+    profile = engine_profile(student, _now().date())
+    samples = await writing.sample_texts(db, account.id)
+    return AppProfile(profile=profile, policies=engine_policies(student), files=student["files"],
+                      writing={"story_bank": story_bank(student, samples),
+                               "voice": await writing.fetch_style_card(db, account.id) or ""})
+
+
+@router.patch("/profile", status_code=status.HTTP_204_NO_CONTENT)
+async def save_answered(
+    body: AnsweredChange,
+    account: AuthenticatedAccount = Depends(_student),
+    db: AsyncSession = Depends(get_session),
+) -> None:
+    """What the student answered in Needs you, kept in the engine profile the student brought (fill_profile), under
+    WorkIt's own fields, which the extension's fills read too: answers by question (`answered_questions`) and facts
+    by dotted key."""
+    row = await db.get(Applicant_Profile, account.id)
+    if row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Profile not found")
+    # shortcut: read, change, write the whole column; one student's answers come one at a time from one window.
+    facts = json.loads(json.dumps(row.fill_profile or {}))  # a copy, so the column's change is seen
+    answered = {**(facts.get("answered_questions") or {}), **body.answered}
+    for question in body.remove_answered:
+        answered.pop(question, None)
+    # Counted after the removals: a profile imported over the cap can still take its Remove.
+    if len(answered) > ANSWERED_MAX:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Too many answers kept: remove some first.")
+    facts["answered_questions"] = answered
+    # A fact one of the website's own fields holds goes into that field (services/workit_fields.py), saved as the
+    # website saves it: Application answers through merge_answers, My Profile's phone and links set on the row.
+    student = await engine_student(db, account.id, account.email, account.full_name or "") if body.facts else None
+    today, to_answers = _now().date().isoformat(), {}
+    for key, value in body.facts.items():
+        found = workit_field(student, today, key, value)
+        if found is None:
+            _put(facts, tuple(key.split(".")), value, over=True)
+            continue
+        where, field, saved = found
+        if where == "answers":
+            to_answers[field] = saved
+            student["answers"] = {**(student.get("answers") or {}), field: saved}
+        else:
+            setattr(row, field, saved)
+            student[field] = saved
+        _drop(facts, key.split("."))  # an older copy under the field, which the field wins over
+    for key in body.remove_facts:
+        _drop(facts, key.split("."))
+    if to_answers:
+        await merge_answers(db, account.id, to_answers, [])
+    row.fill_profile = facts
+    await db.commit()
+
+
+# Never listed as a fact: a file's path is the Mac's, the Needs you answers are listed by question, and sample_data is
+# the Test Person's mark. A key the PATCH can't take back (FACT_KEY) is left out too, so every fact shown can be edited.
+NOT_FACTS = ("files", "answered_questions", "sample_data")
+
+
+@router.get("/answered", response_model=SavedAnswers)
+async def answered(
+    account: AuthenticatedAccount = Depends(_student),
+    db: AsyncSession = Depends(get_session),
+) -> SavedAnswers:
+    """What WorkIt fills from the student's own Fill engine profile and from no field of WorkIt's, for the website's
+    Application Info to show and edit through PATCH /apply-app/profile: the Needs you answers, and each fact no WorkIt
+    field holds. A fact a WorkIt field holds is left out: that field wins on every form (engine_profile.layered)."""
+    student = await engine_student(db, account.id, account.email, account.full_name or "")
+    if student is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Profile not found")
+    fill = (student.get("fill") or {}).get("profile") or {}
+    held = workit_profile(student, _now().date().isoformat())
+    asked = fill.get("answered_questions") if isinstance(fill.get("answered_questions"), dict) else {}
+    # Sorted here: JSONB keeps no key order.
+    return SavedAnswers(
+        answered=[SavedAnswer(question=q, answer=a) for q, a in sorted(asked.items()) if _editable(a, facts=False)],
+        facts=sorted((SavedFact(key=".".join(path), value=value) for path, value in _leaves(fill)
+                      if path[0] not in NOT_FACTS and re.fullmatch(FACT_KEY, ".".join(path)) and _editable(value)
+                      and _lacks(held, path)), key=lambda fact: fact.key),
+    )
+
+
+def _editable(value: object, facts: bool = True) -> bool:
+    """Whether the PATCH takes `value` back as it is: text or a list of texts, and for a fact a yes or no or a
+    number. An imported Apply profile can hold more (a list of schools), which no form here edits."""
+    if isinstance(value, list):
+        return all(isinstance(v, str) for v in value)
+    return isinstance(value, str) or (facts and isinstance(value, bool | int | float))
+
+
+def _drop(tree: dict, path: list[str]) -> None:
+    """The value at `path` taken out, and each section that leaves empty."""
+    head, *rest = path
+    if not rest:
+        tree.pop(head, None)
+    elif isinstance(tree.get(head), dict):
+        _drop(tree[head], rest)
+        if not tree[head]:
+            del tree[head]
+
+
+@router.post("/profile/upload", response_model=UploadTaken)
+async def upload_profile(
+    body: ProfileUpload,
+    account: AuthenticatedAccount = Depends(_student),
+    db: AsyncSession = Depends(get_session),
+) -> UploadTaken:
+    """A Developer checkout's own files, sent by hand (`apply upload`): only what WorkIt lacks, never over what it
+    holds, so a second upload changes nothing the student has since edited. A profile fact the student's Fill engine
+    profile has no value for (never a file, which only the Mac has), a Needs you answer not kept yet, their own
+    writing from the Story bank as writing samples when they have none (the import's rule), and
+    voice.md as their style card when they have none."""
+    if len(json.dumps(body.profile, default=str)) > UPLOAD_MAX:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "The profile is too large.")
+    student = await engine_student(db, account.id, account.email, account.full_name or "")
+    row = await db.get(Applicant_Profile, account.id)
+    if student is None or row is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Profile not found")
+    held = engine_profile(student, _now().date())
+    facts = json.loads(json.dumps(row.fill_profile or {}))
+    taken = 0
+    for path, value in _leaves(body.profile):
+        if path[0] not in ("files", "answered_questions", "sample_data") and _lacks(held, path) \
+                and _put(facts, path, value):
+            taken += 1
+    answered = facts.get("answered_questions") or {}
+    brought = {str(q).strip(): a for q, a in (body.profile.get("answered_questions") or {}).items()
+               if str(q).strip() and str(q).strip() not in answered and a not in (None, "", [])}
+    if len(answered) + len(brought) > ANSWERED_MAX:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, "Too many answers kept: remove some first.")
+    facts["answered_questions"] = answered | brought
+    row.fill_profile = facts
+    samples = 0
+    if not await writing.sample_texts(db, account.id):
+        for text in import_apply_writing.pack(import_apply_writing.own_pieces(body.story_bank)):
+            try:
+                await writing.add_sample(db, account.id, text, imported=True)
+            except writing.TooMany:
+                break
+            samples += 1
+    card = import_apply_writing.style_card(body.voice)
+    carded = bool(card) and len(card) <= CARD_MAX and await writing.fetch_style_card(db, account.id) is None \
+        and bool(await writing.sample_texts(db, account.id))
+    if carded:
+        await writing.save_style_card(db, account.id, card)
+    await db.commit()
+    return UploadTaken(facts=taken, answered=len(brought), samples=samples, style_card=carded)
+
+
+def _leaves(tree: dict, at: tuple = ()) -> list[tuple[tuple, object]]:
+    """Each value in `tree` by its path of keys: a list is one value."""
+    out = []
+    for key, value in tree.items():
+        if isinstance(value, dict):
+            out += _leaves(value, (*at, str(key)))
+        elif value not in (None, "", []):
+            out.append(((*at, str(key)), value))
+    return out
+
+
+def _lacks(tree: dict, path: tuple) -> bool:
+    for key in path:
+        if tree in (None, "", [], {}):
+            return True
+        if not isinstance(tree, dict):
+            return False  # a value sits where the path's section would: WorkIt holds something there
+        tree = tree.get(key)
+    return tree in (None, "", [], {})
+
+
+def _put(tree: dict, path: tuple, value: object, over: bool = False) -> bool:
+    """`value` at `path`; a value where a section belongs blocks it, unless `over` lets the section take its place."""
+    for key in path[:-1]:
+        if over and not isinstance(tree.get(key), dict):
+            tree[key] = {}
+        if not isinstance(tree.setdefault(key, {}), dict):
+            return False
+        tree = tree[key]
+    tree[path[-1]] = value
+    return True
 
 
 @router.post("/sign-in", status_code=status.HTTP_201_CREATED)

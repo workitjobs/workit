@@ -92,3 +92,8 @@ export function pressed(e: KeyboardEvent, options: number) {
 }
 
 export { cx };
+
+// The Answers page's text box and its rows' icon buttons (answers.tsx, profile.tsx). An icon button is no Button:
+// Button keeps its own padding, which leaves an icon no room.
+export const TEXT_BOX = "w-full resize-y rounded-control border border-border-surface bg-panel p-2.5 text-body font-normal outline-none focus:border-brand";
+export const ICON_BUTTON = "grid size-8 cursor-pointer place-items-center rounded-control text-ink-meta hover:bg-hover hover:text-ink";

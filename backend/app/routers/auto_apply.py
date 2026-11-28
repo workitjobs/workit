@@ -102,17 +102,33 @@ POST /applicants/{id}/applications/{job_id}/review/redo     {"name", "steer"?}
      sent back for another version, with `steer`, how to change it ("Make
      it shorter.", or their words), handed to Claude as the rewrite's
      reason. 422 for the student's own words or a question with no answer.
+GET  /applicants/{id}/answer-bank
+     The student's whole Answer bank (W11, auto_apply/answer_bank.py), by
+     the question's folded wording: {key: {"question", "answer", "own",
+     "none"?, "options"?}} (`options`: the list the student's own pick came
+     from, which it then answers alone), the Fill engine's Answer bank for any form, so a question
+     answered once is filled again without the student's Claude. `own` is
+     false only for their Claude's answer they haven't reviewed; `none`
+     marks "none of these" (an empty list). Nothing in it is about one
+     company (the rule ran at each save), so no form needs a filter: an
+     older extension's `?company=` is accepted and does nothing. The
+     version is the ETag: with If-None-Match for it, 304 and no body.
+     A student with no profile reads an empty bank, version 0.
 GET  /applicants/{id}/applications/{job_id}/answer-bank
-     The answers saved on the student's other applications that this one's
-     form may reuse, {question wording: {"answer", "own"}} (pipeline.answer_bank:
-     never one about another company): the Fill engine's Answer bank for
-     the form, so a question answered once is filled again without the
-     student's Claude. `own` marks the student's own words. 404 with no
-     application.
-GET  /applicants/{id}/answer-bank?company=...
-     The same for a form filled outside a batch, which has no application:
-     every saved answer it may reuse, an answer about one company only when
-     `company` (the page's, when the extension read it) is that company.
+     The same bank, for that application's form (older extensions ask
+     this). 404 with no application.
+PATCH /applicants/{id}/answer-bank  {"set": [...], "delete": [...]}
+     Saves and deletes entries (WorkIt Auto Apply's Answers view, its
+     model's drafts), at most 100 entries and 500 deletes: each entry
+     {question, answer, review, choice, job_id | company}, the rest read by
+     the rule and not kept. The form's company is WorkIt's own for a
+     job_id (a job from the student's queue), else `company` as the app
+     holds it (a pasted link, a Request); job_id wins when both come. A
+     model's answer (`review`) never replaces the student's own. Answers
+     {version, kept_out: {question: why}}: the writer keeps only what
+     wasn't kept out, and reads the bank again unless `version` is one past
+     its own. 404 with no profile or for a job_id the student has no
+     application for, 413 past 5,000 answers or 1 MB (nothing saved).
 POST /applicants/{id}/applications/{job_id}/finish  {"outcome": "submitted"}
      How a fill ended: submitted → applied, skipped → skipped, failed →
      needs_you, closed (a batch tab found the job closed) → skipped with its
@@ -128,10 +144,11 @@ POST /applicants/{id}/applications/{job_id}/finish  {"outcome": "submitted"}
 Applicant accounts only, and only their own id (assert_applicant_owns).
 """
 
+import re
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auto_apply import pipeline
@@ -142,6 +159,8 @@ from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
 from app.routers.jobs import EmptyBank, read_filters
 from app.schemas.applications import (
+    AnswerBankChange,
+    AnswerBankChanged,
     Application,
     ApplicationStage,
     BatchQueued,
@@ -402,28 +421,75 @@ async def drop_own_answer(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.get("/applications/{job_id}/answer-bank", response_model=dict[str, SavedAnswer])
+# The bank's version is its ETag; a reader that sends it back gets 304 (W11).
+# no-cache: a browser keeps the copy but asks each time, so an edit shows at once.
+BANK_CACHE = "private, no-cache"
+_HELD = re.compile(r'\s*(?:W/)?"(\d+)"\s*')
+
+
+def _held(request: Request) -> int | None:
+    """The bank version the reader holds (If-None-Match), or None."""
+    found = _HELD.fullmatch(request.headers.get("if-none-match", ""))
+    return int(found.group(1)) if found else None
+
+
+async def _bank_response(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID | None, request: Request, response: Response,
+) -> dict[str, SavedAnswer] | Response:
+    held = _held(request)
+    stored = await pipeline.answer_bank(db, applicant_id, job_id, held)  # NotFound: 404 (main.py)
+    if stored is None:
+        return Response(status_code=status.HTTP_304_NOT_MODIFIED, headers={"ETag": f'"{held}"', "Cache-Control": BANK_CACHE})
+    response.headers["ETag"] = f'"{stored.version}"'
+    response.headers["Cache-Control"] = BANK_CACHE
+    return pipeline.served(stored.answers)
+
+
+@router.get("/applications/{job_id}/answer-bank", response_model=dict[str, SavedAnswer], response_model_exclude_none=True)
 async def answer_bank(
     applicant_id: uuid.UUID,
     job_id: uuid.UUID,
+    request: Request,
+    response: Response,
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
-) -> dict[str, SavedAnswer]:
-    """The saved answers this application's form may reuse, by question wording."""
+) -> dict[str, SavedAnswer] | Response:
+    """The student's whole Answer bank, for this application's form."""
     assert_applicant_owns(account, applicant_id)
-    return await pipeline.answer_bank(db, applicant_id, job_id)
+    return await _bank_response(db, applicant_id, job_id, request, response)
 
 
-@router.get("/answer-bank", response_model=dict[str, SavedAnswer])
+@router.get("/answer-bank", response_model=dict[str, SavedAnswer], response_model_exclude_none=True)
 async def any_form_answer_bank(
     applicant_id: uuid.UUID,
+    request: Request,
+    response: Response,
+    # The page's company, which older extensions send; every answer in the bank fits any form.
     company: str | None = Query(default=None, max_length=200),
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
-) -> dict[str, SavedAnswer]:
-    """The saved answers a form filled outside a batch may reuse, by question wording."""
+) -> dict[str, SavedAnswer] | Response:
+    """The student's whole Answer bank, for any form."""
     assert_applicant_owns(account, applicant_id)
-    return await pipeline.answer_bank(db, applicant_id, None, company)
+    return await _bank_response(db, applicant_id, None, request, response)
+
+
+@router.patch("/answer-bank", response_model=AnswerBankChanged)
+async def change_answer_bank(
+    applicant_id: uuid.UUID,
+    body: AnswerBankChange,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> AnswerBankChanged:
+    """Saves and deletes Answer bank entries: the app's Answers view and Apply's drafts."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        changed = await pipeline.change_answer_bank(db, applicant_id, body.set, body.delete)
+    except pipeline.TooBig as exc:
+        raise HTTPException(status.HTTP_413_CONTENT_TOO_LARGE, str(exc)) from exc
+    if changed is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Profile not found")
+    return AnswerBankChanged(version=changed.version, kept_out=changed.kept_out)
 
 
 @router.put("/applications/{job_id}/fill", response_model=ApplicationStage)

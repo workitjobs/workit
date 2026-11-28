@@ -14,7 +14,14 @@ The check reads, once per run or rehearsal:
   Application ID or job;
 - the Records: a rehearsal's or a run's Record of the same Application with
   `after-submit.png` (only a submit saves one), or whose README says submitted
-  (a confirmation whose screenshot failed saves none).
+  (a confirmation whose screenshot failed saves none);
+- the Waiting writes: an applied write WorkIt hasn't taken yet. WorkIt Auto
+  Apply keeps no Tracker file and no Record past a submit (W11), so a
+  submit made while WorkIt was down is only there until WorkIt has it.
+
+In the Student build the applications WorkIt lists also become the Tracker's
+rows for the run (`tracker.ON_WORKIT`): what Lisul applied to before, for the
+screener facts and other roles at the company.
 
 A WorkIt that can't be read (no login, an expired login, no answer) is no
 pass: `problem()` says why, for the window and the terminal, and the local
@@ -26,21 +33,28 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+from apply import build, tracker
 from apply.home import HOME
-from apply.model import Posting, Status
+from apply.model import Outcome, Posting, Status
 from apply.tracker import TRACKER, FileTracker
 from apply.workit import (
     APPLIED_STAGES,
+    QUEUE,
     LoginExpired,
     NotLoggedIn,
+    Stage,
     Unreachable,
     WorkIt,
     job_key,
+    waiting_writes,
 )
 
 # What the window and the terminal say when WorkIt could not be checked.
 UNCHECKED = ("Couldn't check your Applications Tracker on WorkIt for jobs you already applied to: {}. "
              "Apply checked only its own Tracker and Records")
+
+# The Outcome a Tracker row of WorkIt's stage has (tracker.ON_WORKIT): an interview or an offer.
+OUTCOMES = {Stage.INTERVIEWING: str(Outcome.INTERVIEW), Stage.OFFER: str(Outcome.OFFER)}
 
 # Where Records live: a rehearsal's (cli.REHEARSALS) and a live run's clone (records.CLONE).
 RECORDS = (HOME / "rehearsals", HOME / "apply-records")
@@ -75,10 +89,12 @@ class NoCheck:
 class Check:
     """The check of every Posting of one run or rehearsal. WorkIt is read the first time it is needed, once."""
 
-    def __init__(self, client: WorkIt | None = None, tracker: Path = TRACKER, records: tuple[Path, ...] = RECORDS):
+    def __init__(self, client: WorkIt | None = None, tracker: Path = TRACKER, records: tuple[Path, ...] = RECORDS,
+                 queue: Path = QUEUE):
         self._client = client
         self._tracker = tracker
         self._records = records
+        self._queue = queue
         self._lock = threading.Lock()
         self._applied: dict[str, Applied] | None = None  # WorkIt's, by job key
         self._problem = ""
@@ -87,7 +103,7 @@ class Check:
         """The student's earlier application to `posting` (or the job at any of `links`), or None."""
         keys = {job_key(u) for u in (posting.url, *links) if u}
         found = next((a for k, a in self._workit().items() if k in keys), None)
-        return found or self._in_tracker(posting.id, keys) or self._in_records(posting.id)
+        return found or self._in_waiting(keys) or self._in_tracker(posting.id, keys) or self._in_records(posting.id)
 
     def problem(self) -> str:
         """Why the Applications Tracker on WorkIt could not be checked ("" when it was). Reads it, if not yet."""
@@ -99,13 +115,21 @@ class Check:
         with self._lock:
             if self._applied is None:
                 self._applied = {}
+                if build.STUDENT:  # never the last student's past applications: Sign Out doesn't quit the app
+                    tracker.ON_WORKIT.clear()
                 try:
                     client = self._client or WorkIt()
+                    rows = []
                     for a in client.applications(client.applicant_id()):
-                        if a.get("stage") in APPLIED_STAGES and (a.get("job") or {}).get("apply_url"):
+                        if a.get("stage") in APPLIED_STAGES and (job := a.get("job") or {}).get("apply_url"):
                             on = _day(a.get("applied_at"))
-                            self._applied[job_key(a["job"]["apply_url"])] = Applied(
+                            self._applied[job_key(job["apply_url"])] = Applied(
                                 on, f"your Applications Tracker on WorkIt: {a['stage']}")
+                            rows.append({"company": str(job.get("company") or ""), "posting_url": job["apply_url"],
+                                         "role": str(job.get("title") or ""), "status": str(Status.SUBMITTED),
+                                         "outcome": OUTCOMES.get(a["stage"])})
+                    if build.STUDENT:
+                        tracker.ON_WORKIT[:] = rows
                 except NotLoggedIn:
                     self._problem = "you are not signed in to WorkIt (run `uv run apply login`)"
                 except LoginExpired:
@@ -115,6 +139,15 @@ class Check:
                 except Exception as error:
                     self._problem = f"{type(error).__name__}: {error}"
             return self._applied
+
+    def _in_waiting(self, keys: set[str]) -> Applied | None:
+        try:
+            waiting = waiting_writes(self._queue)
+        except Exception:
+            return None  # an unreadable queue: WorkIt and the rest still say
+        if any(w.stage == Stage.APPLIED and job_key(w.link) in keys for w in waiting):
+            return Applied(None, "your Submit, still on its way to your Applications Tracker on WorkIt")
+        return None
 
     def _in_tracker(self, application_id: str, keys: set[str]) -> Applied | None:
         if not self._tracker.exists():
